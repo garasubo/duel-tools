@@ -1,3 +1,10 @@
+import { BattlesProvider } from "./context/BattlesContext";
+import AppShell from "./components/AppShell";
+
 export default function App() {
-  return <div>duel-tools</div>;
+  return (
+    <BattlesProvider>
+      <AppShell />
+    </BattlesProvider>
+  );
 }
