@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { AppStorage, BattleRecord, Deck } from '../types';
 import { STORAGE_KEY } from '../utils/constants';
 
@@ -25,6 +25,16 @@ function saveStorage(storage: AppStorage): void {
 
 export function useBattles() {
   const [storage, setStorage] = useState<AppStorage>(loadStorage);
+
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) {
+        setStorage(loadStorage());
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
 
   const updateStorage = useCallback((updater: (prev: AppStorage) => AppStorage) => {
     setStorage((prev) => {
