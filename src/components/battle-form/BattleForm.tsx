@@ -34,6 +34,7 @@ export default function BattleForm() {
     addRecord,
     addOwnDeck,
     addOpponentDeck,
+    addKnownTag,
   } = useBattlesContext();
 
   const [form, setForm] = useState<FormState>(INITIAL_STATE);
@@ -66,7 +67,7 @@ export default function BattleForm() {
       reasonTags: form.reasonTags,
       memo: form.memo,
     });
-    setForm(INITIAL_STATE);
+    setForm({ ...INITIAL_STATE, ownDeckId: form.ownDeckId });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   }
@@ -103,6 +104,7 @@ export default function BattleForm() {
         tags={form.reasonTags}
         knownTags={knownTags}
         onChange={(reasonTags) => setForm((f) => ({ ...f, reasonTags }))}
+        onAddKnownTag={addKnownTag}
       />
 
       <MemoInput

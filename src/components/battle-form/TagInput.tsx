@@ -1,83 +1,116 @@
 import { useState, useRef } from "react";
-import TagChip from "../ui/TagChip";
 
 export interface TagInputProps {
   tags: string[];
   knownTags: string[];
   onChange: (tags: string[]) => void;
+  onAddKnownTag: (tag: string) => void;
 }
 
-export default function TagInput({ tags, knownTags, onChange }: TagInputProps) {
+export default function TagInput({
+  tags,
+  knownTags,
+  onChange,
+  onAddKnownTag,
+}: TagInputProps) {
+  const [adding, setAdding] = useState(false);
   const [input, setInput] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const suggestions = input.trim()
-    ? knownTags.filter(
-        (t) =>
-          t.toLowerCase().includes(input.toLowerCase()) && !tags.includes(t),
-      )
-    : knownTags.filter((t) => !tags.includes(t));
-
-  function addTag(tag: string) {
-    const trimmed = tag.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    onChange([...tags, trimmed]);
-    setInput("");
-    setShowSuggestions(false);
-    inputRef.current?.focus();
+  function toggleTag(tag: string) {
+    if (tags.includes(tag)) {
+      onChange(tags.filter((t) => t !== tag));
+    } else {
+      onChange([...tags, tag]);
+    }
   }
 
-  function removeTag(tag: string) {
-    onChange(tags.filter((t) => t !== tag));
+  function handleAddStart() {
+    setAdding(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function handleConfirm() {
+    const trimmed = input.trim();
+    if (trimmed) {
+      onAddKnownTag(trimmed);
+      if (!tags.includes(trimmed)) {
+        onChange([...tags, trimmed]);
+      }
+    }
+    setInput("");
+    setAdding(false);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
+    if (e.key === "Enter") {
       e.preventDefault();
-      addTag(input);
-    } else if (e.key === "Backspace" && !input && tags.length > 0) {
-      onChange(tags.slice(0, -1));
+      handleConfirm();
     } else if (e.key === "Escape") {
-      setShowSuggestions(false);
+      setInput("");
+      setAdding(false);
     }
   }
 
   return (
     <div className="flex flex-col gap-1">
       <label className="text-sm font-medium text-gray-700">勝敗理由タグ</label>
-      <div className="relative">
-        <div className="flex flex-wrap gap-1.5 rounded-lg border border-gray-300 px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent bg-white min-h-[42px]">
-          {tags.map((tag) => (
-            <TagChip key={tag} label={tag} onRemove={() => removeTag(tag)} />
-          ))}
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            onKeyDown={handleKeyDown}
-            placeholder={tags.length === 0 ? "タグを入力（Enterで追加）" : ""}
-            className="flex-1 min-w-[120px] outline-none text-sm bg-transparent"
-          />
-        </div>
-        {showSuggestions && suggestions.length > 0 && (
-          <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-            {suggestions.map((s) => (
-              <li
-                key={s}
-                onMouseDown={() => addTag(s)}
-                className="px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 hover:text-indigo-700"
-              >
-                {s}
-              </li>
-            ))}
-          </ul>
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {knownTags.map((tag) => {
+          const selected = tags.includes(tag);
+          return (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => toggleTag(tag)}
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border transition-colors cursor-pointer ${
+                selected
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-indigo-400 hover:text-indigo-600"
+              }`}
+            >
+              {selected && <span>✓</span>}
+              {tag}
+            </button>
+          );
+        })}
+        {adding ? (
+          <div className="inline-flex items-center gap-1">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="タグ名"
+              className="border border-indigo-400 rounded-full px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-500 w-28"
+            />
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="px-2 py-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              追加
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setInput("");
+                setAdding(false);
+              }}
+              className="px-2 py-1 text-sm text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddStart}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors cursor-pointer"
+          >
+            <span>＋</span> タグを追加
+          </button>
         )}
       </div>
     </div>
