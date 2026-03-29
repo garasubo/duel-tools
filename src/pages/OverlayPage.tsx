@@ -19,7 +19,7 @@ function StatBlock({ label, wld }: { label: string; wld: WinLossDraw }) {
 
 export default function OverlayPage() {
   const { records, ownDecks, opponentDecks } = useBattlesContext();
-  const { overall, asFirst, asSecond } = useStats(records, ownDecks, opponentDecks);
+  const { overall, asFirst, asSecond, coinToss } = useStats(records, ownDecks, opponentDecks, true);
 
   if (records.length === 0) {
     return (
@@ -36,6 +36,8 @@ export default function OverlayPage() {
         <div className="w-px h-12 bg-gray-600" />
         <StatBlock label="先攻" wld={asFirst} />
         <StatBlock label="後攻" wld={asSecond} />
+        <div className="w-px h-12 bg-gray-600" />
+        <StatBlock label="コイントス" wld={coinToss} />
       </div>
     </div>
   );

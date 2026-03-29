@@ -19,8 +19,9 @@ export interface RecordDetailProps {
 }
 
 const turnOrderLabel: Record<string, string> = {
-  first: '先行',
+  first: '先攻',
   second: '後攻',
+  third: 'ゆずられ先攻',
 };
 
 interface EditState {
@@ -139,13 +140,13 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
             onChange={(id) => setEditState((s) => ({ ...s, opponentDeckId: id }))}
             onAddDeck={handleAddOpponentDeck}
           />
-          <ResultSelector
-            value={editState.result}
-            onChange={(result) => setEditState((s) => ({ ...s, result }))}
-          />
           <TurnOrderSelector
             value={editState.turnOrder}
             onChange={(turnOrder) => setEditState((s) => ({ ...s, turnOrder }))}
+          />
+          <ResultSelector
+            value={editState.result}
+            onChange={(result) => setEditState((s) => ({ ...s, result }))}
           />
           <TagInput
             tags={editState.reasonTags}

@@ -52,7 +52,7 @@ export default function OverallSummaryCard({ overall, asFirst, asSecond }: Overa
       </div>
       <WinRateBar stats={overall} showCounts />
       <div className="grid grid-cols-2 gap-3">
-        <SubCard label="先行" stats={asFirst} />
+        <SubCard label="先攻" stats={asFirst} />
         <SubCard label="後攻" stats={asSecond} />
       </div>
     </div>

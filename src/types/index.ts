@@ -1,5 +1,5 @@
-export type BattleResult = 'win' | 'loss' | 'draw';
-export type TurnOrder = 'first' | 'second';
+export type BattleResult = 'win' | 'loss';
+export type TurnOrder = 'first' | 'second' | 'third';
 
 export interface Deck {
   id: string;

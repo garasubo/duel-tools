@@ -33,8 +33,8 @@ describe('buildCsvString', () => {
     const dataLine = csv.slice(1).split('\r\n')[1];
     expect(dataLine).toContain('"青眼の白龍"');
     expect(dataLine).toContain('"ブラック・マジシャン"');
-    expect(dataLine).toContain('"勝ち"');
-    expect(dataLine).toContain('"先行"');
+    expect(dataLine).toContain('"○"');
+    expect(dataLine).toContain('"先攻"');
   });
 
   it('タグはスペース区切りで結合される', () => {

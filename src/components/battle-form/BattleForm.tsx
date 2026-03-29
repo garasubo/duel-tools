@@ -90,14 +90,14 @@ export default function BattleForm() {
         onAddDeck={handleAddOpponentDeck}
       />
 
-      <ResultSelector
-        value={form.result}
-        onChange={(result) => setForm((f) => ({ ...f, result }))}
-      />
-
       <TurnOrderSelector
         value={form.turnOrder}
         onChange={(turnOrder) => setForm((f) => ({ ...f, turnOrder }))}
+      />
+
+      <ResultSelector
+        value={form.result}
+        onChange={(result) => setForm((f) => ({ ...f, result }))}
       />
 
       <TagInput

@@ -4,8 +4,9 @@ import ToggleButton, {
 import type { TurnOrder } from "../../types";
 
 const OPTIONS: { value: TurnOrder; label: string }[] = [
-  { value: "first", label: "先行" },
+  { value: "first", label: "先攻" },
   { value: "second", label: "後攻" },
+  { value: "third", label: "ゆずられ先攻" },
 ];
 
 export interface TurnOrderSelectorProps {

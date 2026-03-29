@@ -6,12 +6,12 @@ import Button from '../ui/Button';
 const RESULT_OPTIONS: { value: BattleResult; label: string }[] = [
   { value: 'win', label: '勝ち' },
   { value: 'loss', label: '負け' },
-  { value: 'draw', label: '引き分け' },
 ];
 
 const TURN_ORDER_OPTIONS: { value: TurnOrder; label: string }[] = [
-  { value: 'first', label: '先行' },
+  { value: 'first', label: '先攻' },
   { value: 'second', label: '後攻' },
+  { value: 'third', label: 'ゆずられ先攻' },
 ];
 
 export interface FilterBarProps {

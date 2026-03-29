@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useBattlesContext } from '../context/BattlesContext';
 import { useStats } from '../hooks/useStats';
 import EmptyState from '../components/ui/EmptyState';
@@ -8,10 +9,12 @@ import { openOverlay } from '../utils/openOverlay';
 
 export default function StatsPage() {
   const { records, ownDecks, opponentDecks } = useBattlesContext();
+  const [includeGrantedFirst, setIncludeGrantedFirst] = useState(false);
   const { overall, asFirst, asSecond, deckStats, matchupCells } = useStats(
     records,
     ownDecks,
     opponentDecks,
+    includeGrantedFirst,
   );
 
   if (records.length === 0) {
@@ -34,6 +37,18 @@ export default function StatsPage() {
         >
           オーバーレイを開く
         </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="include-granted-first"
+          type="checkbox"
+          checked={includeGrantedFirst}
+          onChange={(e) => setIncludeGrantedFirst(e.target.checked)}
+          className="w-4 h-4 accent-blue-600"
+        />
+        <label htmlFor="include-granted-first" className="text-sm text-gray-600 select-none cursor-pointer">
+          ゆずられ先攻を先攻に含める
+        </label>
       </div>
       <OverallSummaryCard overall={overall} asFirst={asFirst} asSecond={asSecond} />
       <DeckStatsTable deckStats={deckStats} />

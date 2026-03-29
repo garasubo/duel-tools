@@ -46,7 +46,7 @@ export default function DeckStatsTable({ deckStats }: DeckStatsTableProps) {
             <tr className="bg-white border-b border-gray-200">
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">デッキ名</th>
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">総合</th>
-              <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">先行</th>
+              <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">先攻</th>
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">後攻</th>
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-right">試合数</th>
             </tr>

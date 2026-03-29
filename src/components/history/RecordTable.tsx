@@ -4,8 +4,9 @@ import Badge from '../ui/Badge';
 import TagChip from '../ui/TagChip';
 
 const turnOrderLabel: Record<string, string> = {
-  first: '先行',
+  first: '先攻',
   second: '後攻',
+  third: 'ゆずられ先攻',
 };
 
 export interface RecordTableProps {

@@ -6,7 +6,6 @@ import type { BattleResult } from "../../types";
 const OPTIONS: { value: BattleResult; label: string }[] = [
   { value: "win", label: "勝ち" },
   { value: "loss", label: "負け" },
-  { value: "draw", label: "引き分け" },
 ];
 
 export interface ResultSelectorProps {

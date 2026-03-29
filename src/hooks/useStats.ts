@@ -32,18 +32,35 @@ export function calcWLD(records: BattleRecord[]): WinLossDraw {
   return { win, loss, draw, total, winRate };
 }
 
-export function useStats(records: BattleRecord[], ownDecks: Deck[], opponentDecks: Deck[]) {
+export function useStats(
+  records: BattleRecord[],
+  ownDecks: Deck[],
+  opponentDecks: Deck[],
+  includeGrantedFirst = false,
+) {
   const overall = useMemo(() => calcWLD(records), [records]);
 
   const asFirst = useMemo(
-    () => calcWLD(records.filter((r) => r.turnOrder === 'first')),
-    [records],
+    () =>
+      calcWLD(
+        records.filter(
+          (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
+        ),
+      ),
+    [records, includeGrantedFirst],
   );
 
   const asSecond = useMemo(
     () => calcWLD(records.filter((r) => r.turnOrder === 'second')),
     [records],
   );
+
+  const coinToss = useMemo((): WinLossDraw => {
+    const win = records.filter((r) => r.turnOrder === 'first').length;
+    const loss = records.filter((r) => r.turnOrder === 'second' || r.turnOrder === 'third').length;
+    const total = win + loss;
+    return { win, loss, draw: 0, total, winRate: total > 0 ? win / total : 0 };
+  }, [records]);
 
   const deckStats = useMemo((): DeckStat[] => {
     return ownDecks.map((deck) => {
@@ -52,11 +69,15 @@ export function useStats(records: BattleRecord[], ownDecks: Deck[], opponentDeck
         deckId: deck.id,
         deckName: deck.name,
         overall: calcWLD(deckRecords),
-        asFirst: calcWLD(deckRecords.filter((r) => r.turnOrder === 'first')),
+        asFirst: calcWLD(
+          deckRecords.filter(
+            (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
+          ),
+        ),
         asSecond: calcWLD(deckRecords.filter((r) => r.turnOrder === 'second')),
       };
     });
-  }, [records, ownDecks]);
+  }, [records, ownDecks, includeGrantedFirst]);
 
   const matchupCells = useMemo((): MatchupCell[] => {
     const cells: MatchupCell[] = [];
@@ -77,5 +98,5 @@ export function useStats(records: BattleRecord[], ownDecks: Deck[], opponentDeck
     return cells;
   }, [records, ownDecks, opponentDecks]);
 
-  return { overall, asFirst, asSecond, deckStats, matchupCells };
+  return { overall, asFirst, asSecond, coinToss, deckStats, matchupCells };
 }

@@ -2,14 +2,14 @@ import type { BattleRecord, Deck } from '../types';
 import { formatDate } from './formatDate';
 
 const RESULT_LABELS: Record<string, string> = {
-  win: '勝ち',
-  loss: '負け',
-  draw: '引き分け',
+  win: '○',
+  loss: '×',
 };
 
 const TURN_ORDER_LABELS: Record<string, string> = {
-  first: '先行',
+  first: '先攻',
   second: '後攻',
+  third: 'ゆずられ先攻',
 };
 
 function escape(s: string): string {
