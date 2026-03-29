@@ -24,13 +24,13 @@ export function buildCsvString(
   const ownDeckMap = new Map(ownDecks.map((d) => [d.id, d.name]));
   const opponentDeckMap = new Map(opponentDecks.map((d) => [d.id, d.name]));
 
-  const headers = ['日時', '自分のデッキ', '相手のデッキ', '結果', '手番', 'タグ', 'メモ'];
+  const headers = ['日時', '自分のデッキ', '相手のデッキ', '手番', '結果', 'タグ', 'メモ'];
   const rows = records.map((r) => [
     formatDate(r.createdAt),
     ownDeckMap.get(r.ownDeckId) ?? r.ownDeckId,
     opponentDeckMap.get(r.opponentDeckId) ?? r.opponentDeckId,
-    RESULT_LABELS[r.result] ?? r.result,
     TURN_ORDER_LABELS[r.turnOrder] ?? r.turnOrder,
+    RESULT_LABELS[r.result] ?? r.result,
     r.reasonTags.join(' '),
     r.memo,
   ]);
