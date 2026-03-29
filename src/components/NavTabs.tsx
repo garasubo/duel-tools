@@ -4,8 +4,8 @@ export type TabId = 'record' | 'history' | 'stats';
 
 const TABS: { id: TabId; label: string; to: string }[] = [
   { id: 'record', label: '記録する', to: '/record' },
-  { id: 'history', label: '履歴', to: '/history' },
-  { id: 'stats', label: '統計', to: '/stats' },
+  { id: 'history', label: '履歴', to: '/record/history' },
+  { id: 'stats', label: '統計', to: '/record/stats' },
 ];
 
 export default function NavTabs() {

@@ -47,14 +47,14 @@ export default function RecordList({ records }: RecordListProps) {
         records={sorted}
         ownDeckMap={ownDeckMap}
         opponentDeckMap={opponentDeckMap}
-        onRowClick={(record) => navigate(`/history/${record.id}`)}
+        onRowClick={(record) => navigate(`/record/history/${record.id}`)}
       />
 
       {selectedRecord !== null && (
         <RecordDetail
           record={selectedRecord}
           isOpen={true}
-          onClose={() => navigate('/history')}
+          onClose={() => navigate('/record/history')}
         />
       )}
     </>

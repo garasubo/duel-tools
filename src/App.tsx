@@ -1,10 +1,12 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { BattlesProvider } from './context/BattlesContext';
 import AppShell from './components/AppShell';
+import ComboAppShell from './components/ComboAppShell';
 import RecordPage from './pages/RecordPage';
 import HistoryPage from './pages/HistoryPage';
 import StatsPage from './pages/StatsPage';
 import OverlayPage from './pages/OverlayPage';
+import ComboPage from './pages/ComboPage';
 
 const router = createBrowserRouter(
   [
@@ -13,12 +15,16 @@ const router = createBrowserRouter(
       element: <AppShell />,
       children: [
         { path: '/record', element: <RecordPage /> },
-        { path: '/history', element: <HistoryPage /> },
-        { path: '/history/:recordId', element: <HistoryPage /> },
-        { path: '/stats', element: <StatsPage /> },
+        { path: '/record/history', element: <HistoryPage /> },
+        { path: '/record/history/:recordId', element: <HistoryPage /> },
+        { path: '/record/stats', element: <StatsPage /> },
       ],
     },
-    { path: '/overlay', element: <OverlayPage /> },
+    { path: '/record/overlay', element: <OverlayPage /> },
+    {
+      element: <ComboAppShell />,
+      children: [{ path: '/combo', element: <ComboPage /> }],
+    },
   ],
   { basename: '/duel-tools' },
 );
