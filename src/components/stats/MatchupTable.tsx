@@ -1,4 +1,4 @@
-import type { MatchupCell, WinLossDraw } from '../../hooks/useStats';
+import type { MatchupCell, WinLoss } from '../../hooks/useStats';
 import type { Deck } from '../../types';
 import WinRateBar from './WinRateBar';
 
@@ -8,11 +8,11 @@ interface MatchupTableProps {
   opponentDecks: Deck[];
 }
 
-function winRateText(stats: WinLossDraw): string {
+function winRateText(stats: WinLoss): string {
   return `${(stats.winRate * 100).toFixed(1)}%`;
 }
 
-function winRateColor(stats: WinLossDraw): string {
+function winRateColor(stats: WinLoss): string {
   if (stats.winRate > 0.5) return 'text-emerald-700';
   if (stats.winRate < 0.5) return 'text-red-700';
   return 'text-gray-700';
@@ -33,7 +33,7 @@ export default function MatchupTable({ matchupCells, ownDecks, opponentDecks }: 
   const activeOwnDecks = ownDecks.filter((d) => activeOwnIds.has(d.id));
   const activeOppDecks = opponentDecks.filter((d) => activeOppIds.has(d.id));
 
-  const lookup = new Map<string, Map<string, WinLossDraw>>();
+  const lookup = new Map<string, Map<string, WinLoss>>();
   for (const cell of matchupCells) {
     if (!lookup.has(cell.ownDeckId)) {
       lookup.set(cell.ownDeckId, new Map());

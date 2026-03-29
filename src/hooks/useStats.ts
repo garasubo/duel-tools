@@ -1,10 +1,9 @@
 import { useMemo } from 'react';
 import type { BattleRecord, Deck } from '../types';
 
-export interface WinLossDraw {
+export interface WinLoss {
   win: number;
   loss: number;
-  draw: number;
   total: number;
   winRate: number; // 0〜1
 }
@@ -12,24 +11,23 @@ export interface WinLossDraw {
 export interface DeckStat {
   deckId: string;
   deckName: string;
-  overall: WinLossDraw;
-  asFirst: WinLossDraw;
-  asSecond: WinLossDraw;
+  overall: WinLoss;
+  asFirst: WinLoss;
+  asSecond: WinLoss;
 }
 
 export interface MatchupCell {
   ownDeckId: string;
   opponentDeckId: string;
-  stats: WinLossDraw;
+  stats: WinLoss;
 }
 
-export function calcWLD(records: BattleRecord[]): WinLossDraw {
+export function calcWLD(records: BattleRecord[]): WinLoss {
   const win = records.filter((r) => r.result === 'win').length;
   const loss = records.filter((r) => r.result === 'loss').length;
-  const draw = records.filter((r) => r.result === 'draw').length;
   const total = records.length;
   const winRate = total > 0 ? win / total : 0;
-  return { win, loss, draw, total, winRate };
+  return { win, loss, total, winRate };
 }
 
 export function useStats(
@@ -55,11 +53,11 @@ export function useStats(
     [records],
   );
 
-  const coinToss = useMemo((): WinLossDraw => {
+  const coinToss = useMemo((): WinLoss => {
     const win = records.filter((r) => r.turnOrder === 'first').length;
     const loss = records.filter((r) => r.turnOrder === 'second' || r.turnOrder === 'third').length;
     const total = win + loss;
-    return { win, loss, draw: 0, total, winRate: total > 0 ? win / total : 0 };
+    return { win, loss, total, winRate: total > 0 ? win / total : 0 };
   }, [records]);
 
   const deckStats = useMemo((): DeckStat[] => {

@@ -1,18 +1,18 @@
-import type { WinLossDraw } from '../../hooks/useStats';
+import type { WinLoss } from '../../hooks/useStats';
 import WinRateBar from './WinRateBar';
 
 interface OverallSummaryCardProps {
-  overall: WinLossDraw;
-  asFirst: WinLossDraw;
-  asSecond: WinLossDraw;
+  overall: WinLoss;
+  asFirst: WinLoss;
+  asSecond: WinLoss;
 }
 
-function winRateText(stats: WinLossDraw): string {
+function winRateText(stats: WinLoss): string {
   if (stats.total === 0) return '—';
   return `${(stats.winRate * 100).toFixed(1)}%`;
 }
 
-function winRateColor(stats: WinLossDraw): string {
+function winRateColor(stats: WinLoss): string {
   if (stats.total === 0) return 'text-gray-400';
   if (stats.winRate > 0.5) return 'text-emerald-700';
   if (stats.winRate < 0.5) return 'text-red-700';
@@ -21,7 +21,7 @@ function winRateColor(stats: WinLossDraw): string {
 
 interface SubCardProps {
   label: string;
-  stats: WinLossDraw;
+  stats: WinLoss;
 }
 
 function SubCard({ label, stats }: SubCardProps) {

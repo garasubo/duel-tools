@@ -1,16 +1,16 @@
-import type { DeckStat, WinLossDraw } from '../../hooks/useStats';
+import type { DeckStat, WinLoss } from '../../hooks/useStats';
 import WinRateBar from './WinRateBar';
 
 interface DeckStatsTableProps {
   deckStats: DeckStat[];
 }
 
-function winRateText(stats: WinLossDraw): string {
+function winRateText(stats: WinLoss): string {
   if (stats.total === 0) return '—';
   return `${(stats.winRate * 100).toFixed(1)}%`;
 }
 
-function winRateColor(stats: WinLossDraw): string {
+function winRateColor(stats: WinLoss): string {
   if (stats.total === 0) return 'text-gray-400';
   if (stats.winRate > 0.5) return 'text-emerald-700';
   if (stats.winRate < 0.5) return 'text-red-700';
@@ -18,7 +18,7 @@ function winRateColor(stats: WinLossDraw): string {
 }
 
 interface WinRateCellProps {
-  stats: WinLossDraw;
+  stats: WinLoss;
 }
 
 function WinRateCell({ stats }: WinRateCellProps) {
@@ -30,7 +30,7 @@ function WinRateCell({ stats }: WinRateCellProps) {
       <span className={`text-sm font-semibold ${winRateColor(stats)}`}>{winRateText(stats)}</span>
       <WinRateBar stats={stats} compact />
       <span className="text-xs text-gray-500">
-        {stats.win}勝 {stats.loss}敗 {stats.draw}分
+        {stats.win}勝 {stats.loss}敗
       </span>
     </div>
   );

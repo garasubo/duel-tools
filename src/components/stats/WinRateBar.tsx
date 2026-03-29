@@ -1,7 +1,7 @@
-import type { WinLossDraw } from '../../hooks/useStats';
+import type { WinLoss } from '../../hooks/useStats';
 
 interface WinRateBarProps {
-  stats: WinLossDraw;
+  stats: WinLoss;
   showCounts?: boolean;
   compact?: boolean;
   className?: string;
@@ -13,7 +13,7 @@ export default function WinRateBar({
   compact = false,
   className = '',
 }: WinRateBarProps) {
-  const { win, loss, draw, total } = stats;
+  const { win, loss, total } = stats;
 
   return (
     <div className={className}>
@@ -30,16 +30,12 @@ export default function WinRateBar({
               className="h-full bg-red-500 transition-all duration-300"
               style={{ width: `${(loss / total) * 100}%` }}
             />
-            <div
-              className="h-full bg-amber-400 transition-all duration-300"
-              style={{ width: `${(draw / total) * 100}%` }}
-            />
           </>
         )}
       </div>
       {showCounts && total > 0 && (
         <p className="text-xs text-gray-500 mt-0.5">
-          {win}勝 {loss}敗 {draw}分
+          {win}勝 {loss}敗
         </p>
       )}
     </div>

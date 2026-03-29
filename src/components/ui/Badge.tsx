@@ -19,11 +19,6 @@ const resultConfig: Record<
     ariaLabel: '敗北',
     classes: 'bg-red-100 text-red-800 border-red-200',
   },
-  draw: {
-    label: '分',
-    ariaLabel: '引き分け',
-    classes: 'bg-amber-100 text-amber-800 border-amber-200',
-  },
 };
 
 export default function Badge({ result, className = '' }: BadgeProps) {

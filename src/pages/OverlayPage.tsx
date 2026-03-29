@@ -1,8 +1,8 @@
 import { useBattlesContext } from '../context/BattlesContext';
 import { useStats } from '../hooks/useStats';
-import type { WinLossDraw } from '../hooks/useStats';
+import type { WinLoss } from '../hooks/useStats';
 
-function StatBlock({ label, wld }: { label: string; wld: WinLossDraw }) {
+function StatBlock({ label, wld }: { label: string; wld: WinLoss }) {
   const rate = wld.total === 0 ? '-' : `${Math.round(wld.winRate * 100)}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
@@ -10,7 +10,7 @@ function StatBlock({ label, wld }: { label: string; wld: WinLossDraw }) {
       <span className="text-3xl font-bold text-white leading-none">{rate}</span>
       {wld.total > 0 && (
         <span className="text-xs text-gray-400">
-          {wld.win}勝{wld.loss}負{wld.draw > 0 ? `${wld.draw}分` : ''}
+          {wld.win}勝{wld.loss}負
         </span>
       )}
     </div>
