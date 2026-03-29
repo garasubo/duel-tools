@@ -1,9 +1,5 @@
 import BattleForm from '../components/battle-form/BattleForm';
-
-function openOverlay() {
-  const url = `${window.location.origin}${window.location.pathname}?overlay`;
-  window.open(url, 'overlay', 'width=520,height=130,resizable=yes');
-}
+import { openOverlay } from '../utils/openOverlay';
 
 export default function RecordPage() {
   return (
