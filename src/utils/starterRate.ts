@@ -75,7 +75,11 @@ export function calculateStarterRate(
   deckCounts: DeckCounts,
   patterns: Patterns,
 ): StarterRateResult {
-  validateDeck(deckCounts);
+  const total = Object.values(deckCounts).reduce((s, n) => s + n, 0);
+  const paddedDeck: DeckCounts =
+    total < 40 ? { ...deckCounts, __dummy__: 40 - total } : { ...deckCounts };
+
+  validateDeck(paddedDeck);
 
   // パターン内のカード名がデッキに存在するか事前チェック
   for (const pattern of patterns) {
@@ -88,8 +92,8 @@ export function calculateStarterRate(
     }
   }
 
-  const cards = Object.keys(deckCounts);
-  const deck = cards.map((c) => deckCounts[c]);
+  const cards = Object.keys(paddedDeck);
+  const deck = cards.map((c) => paddedDeck[c]);
   const handArr = new Array<number>(cards.length).fill(0);
 
   // 枝刈り用: index以降のデッキ採用枚数の累計
@@ -113,7 +117,7 @@ export function calculateStarterRate(
     if (remaining === 0) {
       const hand = buildHandCounts();
       if (isPlayable(hand, patterns, deckCounts)) {
-        successHands += countWays(deckCounts, hand);
+        successHands += countWays(paddedDeck, hand);
       }
       return;
     }

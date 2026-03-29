@@ -6,6 +6,7 @@ import {
   isPlayable,
   countWays,
   calculateStarterRate,
+  type Patterns,
 } from "./starterRate";
 
 describe("combination", () => {
@@ -39,8 +40,8 @@ describe("validateDeck", () => {
     expect(() => validateDeck({ A: 3, others: 37 })).not.toThrow();
   });
 
-  it("合計40枚でない場合はエラー", () => {
-    expect(() => validateDeck({ A: 3, others: 36 })).toThrow();
+  it("合計41枚以上の場合はエラー", () => {
+    expect(() => validateDeck({ A: 3, others: 38 })).toThrow();
   });
 
   it("負の枚数はエラー", () => {
@@ -138,7 +139,7 @@ describe("calculateStarterRate", () => {
   // 成功手 = 222111 + 64470 - 15174 = 271407
   it("12.3 複数条件OR: 重複カウントなし", () => {
     const deck = { A: 3, B: 3, C: 3, others: 31 };
-    const patterns = [{ A: 1 }, { B: 1, C: 1 }];
+    const patterns: Patterns = [{ A: 1 }, { B: 1, C: 1 }];
     const result = calculateStarterRate(deck, patterns);
     const c40_5 = combination(40, 5);
     const c37_5 = combination(37, 5);
@@ -165,10 +166,21 @@ describe("calculateStarterRate", () => {
     expect(result.successHands).toBe(expected);
   });
 
+  // 12.5 40枚未満のデッキはダミー補完して計算
+  it("12.5 40枚未満のデッキはダミーで補完される", () => {
+    // A:3, others:36 = 39枚 → __dummy__:1 で補完して計算
+    // 成功手 = C(40,5) - C(37,5) = 222111 (A未含有手を除外)
+    const deck = { A: 3, others: 36 };
+    const result = calculateStarterRate(deck, [{ A: 1 }]);
+    const expected = combination(40, 5) - combination(37, 5);
+    expect(result.successHands).toBe(expected);
+    expect(result.totalHands).toBe(combination(40, 5));
+  });
+
   // 12.5 異常系
-  it("12.5 合計40枚でないデッキはエラー", () => {
+  it("12.5 合計40枚超過のデッキはエラー", () => {
     expect(() =>
-      calculateStarterRate({ A: 3, others: 36 }, [{ A: 1 }]),
+      calculateStarterRate({ A: 3, others: 38 }, [{ A: 1 }]),
     ).toThrow();
   });
 
