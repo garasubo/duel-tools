@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import type { BattleRecord } from '../../types';
 import { useBattlesContext } from '../../context/BattlesContext';
 import EmptyState from '../ui/EmptyState';
@@ -11,8 +10,7 @@ export interface RecordListProps {
 }
 
 export default function RecordList({ records }: RecordListProps) {
-  const { recordId } = useParams<{ recordId: string }>();
-  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const { ownDecks, opponentDecks } = useBattlesContext();
 
   const ownDeckMap = useMemo(
@@ -28,9 +26,7 @@ export default function RecordList({ records }: RecordListProps) {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
-  const selectedRecord = recordId
-    ? (records.find((r) => r.id === recordId) ?? null)
-    : null;
+  const selectedRecord = selectedId ? (records.find((r) => r.id === selectedId) ?? null) : null;
 
   if (sorted.length === 0) {
     return (
@@ -47,14 +43,14 @@ export default function RecordList({ records }: RecordListProps) {
         records={sorted}
         ownDeckMap={ownDeckMap}
         opponentDeckMap={opponentDeckMap}
-        onRowClick={(record) => navigate(`/record/history/${record.id}`)}
+        onRowClick={(record) => setSelectedId(record.id)}
       />
 
       {selectedRecord !== null && (
         <RecordDetail
           record={selectedRecord}
           isOpen={true}
-          onClose={() => navigate('/record/history')}
+          onClose={() => setSelectedId(null)}
         />
       )}
     </>
