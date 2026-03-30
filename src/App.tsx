@@ -1,20 +1,29 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { BattlesProvider } from './context/BattlesContext';
+import AppShell from './components/AppShell';
 import ComboAppShell from './components/ComboAppShell';
-import RecordSection from './components/RecordSection';
+import RecordPage from './pages/RecordPage';
+import HistoryPage from './pages/HistoryPage';
+import StatsPage from './pages/StatsPage';
+import OverlayPage from './pages/OverlayPage';
 import ComboPage from './pages/ComboPage';
 
-const router = createBrowserRouter(
-  [
-    { path: '/', element: <Navigate to="/record" replace /> },
-    { path: '/record', element: <RecordSection /> },
-    {
-      element: <ComboAppShell />,
-      children: [{ path: '/combo', element: <ComboPage /> }],
-    },
-  ],
-  { basename: '/duel-tools' },
-);
+const router = createHashRouter([
+  { path: '/', element: <Navigate to="/record" replace /> },
+  {
+    element: <AppShell />,
+    children: [
+      { path: '/record', element: <RecordPage /> },
+      { path: '/record/history', element: <HistoryPage /> },
+      { path: '/record/stats', element: <StatsPage /> },
+    ],
+  },
+  { path: '/record/overlay', element: <OverlayPage /> },
+  {
+    element: <ComboAppShell />,
+    children: [{ path: '/combo', element: <ComboPage /> }],
+  },
+]);
 
 export default function App() {
   return (
