@@ -4,6 +4,7 @@ import { useBattles } from "../hooks/useBattles";
 
 type BattlesContextValue = ReturnType<typeof useBattles>;
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const BattlesContext = createContext<BattlesContextValue | null>(null);
 
 export function BattlesProvider({ children }: { children: ReactNode }) {
@@ -13,6 +14,7 @@ export function BattlesProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useBattlesContext(): BattlesContextValue {
   const ctx = useContext(BattlesContext);
   if (!ctx)

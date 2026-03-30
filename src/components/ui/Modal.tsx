@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import Button from './Button';
 
@@ -18,7 +18,7 @@ export default function Modal({
   className = '',
 }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useRef(`modal-title-${Math.random().toString(36).slice(2)}`);
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -48,14 +48,14 @@ export default function Modal({
   return (
     <dialog
       ref={dialogRef}
-      aria-labelledby={titleId.current}
+      aria-labelledby={titleId}
       aria-modal="true"
       onClick={handleBackdropClick}
       className={`rounded-xl shadow-2xl p-0 w-full max-w-lg mx-auto backdrop:bg-black/50 backdrop:backdrop-blur-sm ${className}`}
     >
       <div className="flex flex-col w-full">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 id={titleId.current} className="text-base font-semibold text-gray-900">
+          <h2 id={titleId} className="text-base font-semibold text-gray-900">
             {title}
           </h2>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="閉じる">

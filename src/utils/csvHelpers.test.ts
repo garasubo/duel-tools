@@ -25,7 +25,7 @@ describe('buildCsvString', () => {
   it('ヘッダー行が正しい', () => {
     const csv = buildCsvString([], ownDecks, opponentDecks);
     const firstLine = csv.slice(1).split('\r\n')[0];
-    expect(firstLine).toBe('"日時","自分のデッキ","相手のデッキ","結果","手番","タグ","メモ"');
+    expect(firstLine).toBe('"日時","自分のデッキ","相手のデッキ","手番","結果","タグ","メモ"');
   });
 
   it('デッキ名・結果・手番が日本語に変換される', () => {
