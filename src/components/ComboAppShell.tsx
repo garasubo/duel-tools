@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router';
+import { Outlet } from 'react-router-dom';
 import ToolSwitcher from './ToolSwitcher';
 
 export default function ComboAppShell() {

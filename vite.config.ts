@@ -1,8 +1,17 @@
-import { defineConfig } from 'vite';
-import { reactRouter } from '@react-router/dev/vite';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vitest/config'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
+import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig(({ mode }) => ({
-  base: mode === 'development' ? '/duel-tools' : '/duel-tools/',
-  plugins: [reactRouter(), tailwindcss()],
-}));
+// https://vite.dev/config/
+export default defineConfig({
+  base: '/duel-tools/',
+  plugins: [
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+    tailwindcss(),
+  ],
+  test: {
+    environment: 'node',
+  },
+})
