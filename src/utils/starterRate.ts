@@ -19,7 +19,7 @@ export function combination(n: number, k: number): number {
   return Math.round(result);
 }
 
-export function validateDeck(deckCounts: DeckCounts): void {
+export function validateDeck(deckCounts: DeckCounts, deckSize: number): void {
   let total = 0;
   for (const [name, count] of Object.entries(deckCounts)) {
     if (count < 0) {
@@ -27,8 +27,8 @@ export function validateDeck(deckCounts: DeckCounts): void {
     }
     total += count;
   }
-  if (total !== 40) {
-    throw new Error(`デッキの合計枚数が40枚ではありません: ${total}枚`);
+  if (total !== deckSize) {
+    throw new Error(`デッキの合計枚数が${deckSize}枚ではありません: ${total}枚`);
   }
 }
 
@@ -74,12 +74,15 @@ export function countWays(
 export function calculateStarterRate(
   deckCounts: DeckCounts,
   patterns: Patterns,
+  deckSize: number = 40,
 ): StarterRateResult {
   const total = Object.values(deckCounts).reduce((s, n) => s + n, 0);
   const paddedDeck: DeckCounts =
-    total < 40 ? { ...deckCounts, __dummy__: 40 - total } : { ...deckCounts };
+    total < deckSize
+      ? { ...deckCounts, __dummy__: deckSize - total }
+      : { ...deckCounts };
 
-  validateDeck(paddedDeck);
+  validateDeck(paddedDeck, deckSize);
 
   // パターン内のカード名がデッキに存在するか事前チェック
   for (const pattern of patterns) {
@@ -102,7 +105,7 @@ export function calculateStarterRate(
     suffixSum[i] = suffixSum[i + 1] + deck[i];
   }
 
-  const totalHands = combination(40, 5);
+  const totalHands = combination(deckSize, 5);
   let successHands = 0;
 
   function buildHandCounts(): DeckCounts {

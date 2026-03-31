@@ -12,12 +12,14 @@ import Button from "../components/ui/Button";
 
 export default function ComboPage() {
   const [deckCounts, setDeckCounts] = useState<DeckCounts>({});
+  const [deckSize, setDeckSize] = useState(40);
   const [patterns, setPatterns] = useState<Patterns>([]);
   const [result, setResult] = useState<StarterRateResult | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
 
   const deckTotal = Object.values(deckCounts).reduce((s, n) => s + n, 0);
-  const canCalculate = deckTotal > 0 && deckTotal <= 40 && patterns.length > 0;
+  const canCalculate =
+    deckTotal > 0 && deckTotal <= deckSize && patterns.length > 0;
 
   function resetResult() {
     setResult(null);
@@ -72,9 +74,14 @@ export default function ComboPage() {
     resetResult();
   }
 
+  function handleDeckSizeChange(size: number) {
+    setDeckSize(size);
+    resetResult();
+  }
+
   function handleCalculate() {
     try {
-      const res = calculateStarterRate(deckCounts, patterns);
+      const res = calculateStarterRate(deckCounts, patterns, deckSize);
       setResult(res);
       setCalcError(null);
     } catch (e) {
@@ -106,6 +113,8 @@ export default function ComboPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <DeckEditor
           deckCounts={deckCounts}
+          deckSize={deckSize}
+          onDeckSizeChange={handleDeckSizeChange}
           onAdd={handleAddCard}
           onRemove={handleRemoveCard}
           onCountChange={handleCardCountChange}
@@ -131,16 +140,16 @@ export default function ComboPage() {
         </Button>
         {!canCalculate && (
           <p className="text-xs text-gray-400 text-center">
-            {deckTotal > 40
-              ? `デッキ枚数が ${deckTotal}/40 枚です（40枚を超えています）`
+            {deckTotal > deckSize
+              ? `デッキ枚数が ${deckTotal}/${deckSize} 枚です（${deckSize}枚を超えています）`
               : patterns.length === 0
                 ? "カードと条件を追加してください"
                 : "カードを1枚以上追加してください"}
           </p>
         )}
-        {canCalculate && deckTotal < 40 && (
+        {canCalculate && deckTotal < deckSize && (
           <p className="text-xs text-gray-400 text-center">
-            残り {40 - deckTotal} 枚はダミーカードとして扱います
+            残り {deckSize - deckTotal} 枚はダミーカードとして扱います
           </p>
         )}
       </div>

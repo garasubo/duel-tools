@@ -37,15 +37,19 @@ describe("combination", () => {
 
 describe("validateDeck", () => {
   it("合計40枚なら通る", () => {
-    expect(() => validateDeck({ A: 3, others: 37 })).not.toThrow();
+    expect(() => validateDeck({ A: 3, others: 37 }, 40)).not.toThrow();
   });
 
   it("合計41枚以上の場合はエラー", () => {
-    expect(() => validateDeck({ A: 3, others: 38 })).toThrow();
+    expect(() => validateDeck({ A: 3, others: 38 }, 40)).toThrow();
   });
 
   it("負の枚数はエラー", () => {
-    expect(() => validateDeck({ A: -1, others: 41 })).toThrow();
+    expect(() => validateDeck({ A: -1, others: 41 }, 40)).toThrow();
+  });
+
+  it("合計60枚でdeckSize=60なら通る", () => {
+    expect(() => validateDeck({ A: 3, others: 57 }, 60)).not.toThrow();
   });
 });
 
@@ -171,7 +175,7 @@ describe("calculateStarterRate", () => {
     // A:3, others:36 = 39枚 → __dummy__:1 で補完して計算
     // 成功手 = C(40,5) - C(37,5) = 222111 (A未含有手を除外)
     const deck = { A: 3, others: 36 };
-    const result = calculateStarterRate(deck, [{ A: 1 }]);
+    const result = calculateStarterRate(deck, [{ A: 1 }], 40);
     const expected = combination(40, 5) - combination(37, 5);
     expect(result.successHands).toBe(expected);
     expect(result.totalHands).toBe(combination(40, 5));
@@ -180,7 +184,7 @@ describe("calculateStarterRate", () => {
   // 12.5 異常系
   it("12.5 合計40枚超過のデッキはエラー", () => {
     expect(() =>
-      calculateStarterRate({ A: 3, others: 38 }, [{ A: 1 }]),
+      calculateStarterRate({ A: 3, others: 38 }, [{ A: 1 }], 40),
     ).toThrow();
   });
 
@@ -194,5 +198,16 @@ describe("calculateStarterRate", () => {
     expect(() =>
       calculateStarterRate({ A: 3, others: 37 }, [{ X: 1 }]),
     ).toThrow();
+  });
+
+  // 60枚デッキの計算
+  it("60枚デッキで単純1枚初動の理論値と一致する", () => {
+    // デッキ: A:3, others:57, deckSize:60
+    // 成功手 = C(60,5) - C(57,5)
+    const deck = { A: 3, others: 57 };
+    const result = calculateStarterRate(deck, [{ A: 1 }], 60);
+    const expected = combination(60, 5) - combination(57, 5);
+    expect(result.successHands).toBe(expected);
+    expect(result.totalHands).toBe(combination(60, 5));
   });
 });

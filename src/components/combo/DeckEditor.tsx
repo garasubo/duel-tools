@@ -5,6 +5,8 @@ import EmptyState from '../ui/EmptyState';
 
 export interface DeckEditorProps {
   deckCounts: DeckCounts;
+  deckSize: number;
+  onDeckSizeChange: (size: number) => void;
   onAdd: (name: string, count: number) => void;
   onRemove: (name: string) => void;
   onCountChange: (name: string, count: number) => void;
@@ -12,6 +14,8 @@ export interface DeckEditorProps {
 
 export default function DeckEditor({
   deckCounts,
+  deckSize,
+  onDeckSizeChange,
   onAdd,
   onRemove,
   onCountChange,
@@ -26,9 +30,9 @@ export default function DeckEditor({
   const deckTotal = Object.values(deckCounts).reduce((s, n) => s + n, 0);
 
   const totalColorClass =
-    deckTotal === 40
+    deckTotal === deckSize
       ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-      : deckTotal > 40
+      : deckTotal > deckSize
         ? 'bg-red-100 text-red-800 border-red-200'
         : 'bg-amber-100 text-amber-800 border-amber-200';
 
@@ -86,11 +90,21 @@ export default function DeckEditor({
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <h2 className="text-sm font-semibold text-gray-900">デッキ構築</h2>
-        <span
-          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${totalColorClass}`}
-        >
-          {deckTotal} / 40枚
-        </span>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">デッキ枚数:</label>
+          <input
+            type="number"
+            min={1}
+            value={deckSize}
+            onChange={(e) => onDeckSizeChange(Math.max(1, Number(e.target.value)))}
+            className="w-16 rounded-lg border border-gray-300 px-2 py-0.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${totalColorClass}`}
+          >
+            {deckTotal} / {deckSize}枚
+          </span>
+        </div>
       </div>
 
       <div className="p-3">
