@@ -41,10 +41,7 @@ export default function BattleForm() {
   const [saved, setSaved] = useState(false);
 
   const isValid =
-    form.ownDeckId !== "" &&
-    form.opponentDeckId !== "" &&
-    form.result !== null &&
-    form.turnOrder !== null;
+    form.ownDeckId !== "" && form.result !== null && form.turnOrder !== null;
 
   function handleAddOwnDeck(name: string) {
     const deck = addOwnDeck(name);
@@ -88,6 +85,7 @@ export default function BattleForm() {
         value={form.opponentDeckId}
         onChange={(id) => setForm((f) => ({ ...f, opponentDeckId: id }))}
         onAddDeck={handleAddOpponentDeck}
+        allowUnknown
       />
 
       <TurnOrderSelector

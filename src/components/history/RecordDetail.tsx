@@ -1,16 +1,16 @@
-import { useState } from 'react';
-import type { BattleRecord, BattleResult, TurnOrder } from '../../types';
-import { useBattlesContext } from '../../context/BattlesContext';
-import { formatDate } from '../../utils/formatDate';
-import Modal from '../ui/Modal';
-import Button from '../ui/Button';
-import Badge from '../ui/Badge';
-import TagChip from '../ui/TagChip';
-import DeckSelect from '../battle-form/DeckSelect';
-import ResultSelector from '../battle-form/ResultSelector';
-import TurnOrderSelector from '../battle-form/TurnOrderSelector';
-import TagInput from '../battle-form/TagInput';
-import MemoInput from '../battle-form/MemoInput';
+import { useState } from "react";
+import type { BattleRecord, BattleResult, TurnOrder } from "../../types";
+import { useBattlesContext } from "../../context/BattlesContext";
+import { formatDate } from "../../utils/formatDate";
+import Modal from "../ui/Modal";
+import Button from "../ui/Button";
+import Badge from "../ui/Badge";
+import TagChip from "../ui/TagChip";
+import DeckSelect from "../battle-form/DeckSelect";
+import ResultSelector from "../battle-form/ResultSelector";
+import TurnOrderSelector from "../battle-form/TurnOrderSelector";
+import TagInput from "../battle-form/TagInput";
+import MemoInput from "../battle-form/MemoInput";
 
 export interface RecordDetailProps {
   record: BattleRecord;
@@ -19,9 +19,9 @@ export interface RecordDetailProps {
 }
 
 const turnOrderLabel: Record<string, string> = {
-  first: '先攻',
-  second: '後攻',
-  third: 'ゆずられ先攻',
+  first: "先攻",
+  second: "後攻",
+  third: "ゆずられ先攻",
 };
 
 interface EditState {
@@ -33,7 +33,11 @@ interface EditState {
   memo: string;
 }
 
-export default function RecordDetail({ record, isOpen, onClose }: RecordDetailProps) {
+export default function RecordDetail({
+  record,
+  isOpen,
+  onClose,
+}: RecordDetailProps) {
   const {
     ownDecks,
     opponentDecks,
@@ -59,11 +63,13 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
   const ownDeckName =
     ownDecks.find((d) => d.id === record.ownDeckId)?.name ?? record.ownDeckId;
   const opponentDeckName =
-    opponentDecks.find((d) => d.id === record.opponentDeckId)?.name ?? record.opponentDeckId;
+    record.opponentDeckId === ""
+      ? "不明"
+      : (opponentDecks.find((d) => d.id === record.opponentDeckId)?.name ??
+        record.opponentDeckId);
 
   const isEditValid =
-    editState.ownDeckId !== '' &&
-    editState.opponentDeckId !== '' &&
+    editState.ownDeckId !== "" &&
     editState.result !== null &&
     editState.turnOrder !== null;
 
@@ -121,7 +127,7 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={editing ? '戦績を編集' : '戦績詳細'}
+      title={editing ? "戦績を編集" : "戦績詳細"}
       className="max-h-[90vh]"
     >
       {editing ? (
@@ -137,8 +143,11 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
             label="相手のデッキ"
             decks={opponentDecks}
             value={editState.opponentDeckId}
-            onChange={(id) => setEditState((s) => ({ ...s, opponentDeckId: id }))}
+            onChange={(id) =>
+              setEditState((s) => ({ ...s, opponentDeckId: id }))
+            }
             onAddDeck={handleAddOpponentDeck}
+            allowUnknown
           />
           <TurnOrderSelector
             value={editState.turnOrder}
@@ -151,7 +160,9 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
           <TagInput
             tags={editState.reasonTags}
             knownTags={knownTags}
-            onChange={(reasonTags) => setEditState((s) => ({ ...s, reasonTags }))}
+            onChange={(reasonTags) =>
+              setEditState((s) => ({ ...s, reasonTags }))
+            }
             onAddKnownTag={addKnownTag}
           />
           <MemoInput
@@ -175,14 +186,18 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
               <p className="text-sm font-medium text-gray-900">
                 {ownDeckName} vs {opponentDeckName}
               </p>
-              <p className="text-xs text-gray-500">{formatDate(record.createdAt)}</p>
+              <p className="text-xs text-gray-500">
+                {formatDate(record.createdAt)}
+              </p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-gray-500 mb-0.5">手番</p>
-              <p className="font-medium text-gray-800">{turnOrderLabel[record.turnOrder]}</p>
+              <p className="font-medium text-gray-800">
+                {turnOrderLabel[record.turnOrder]}
+              </p>
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-0.5">自分のデッキ</p>
@@ -208,7 +223,9 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
           {record.memo && (
             <div>
               <p className="text-xs text-gray-500 mb-1">メモ</p>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{record.memo}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                {record.memo}
+              </p>
             </div>
           )}
 
@@ -218,7 +235,9 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
             </Button>
             {confirmDelete ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-red-600">本当に削除しますか？</span>
+                <span className="text-xs text-red-600">
+                  本当に削除しますか？
+                </span>
                 <Button variant="danger" size="sm" onClick={handleDelete}>
                   削除する
                 </Button>
@@ -231,7 +250,11 @@ export default function RecordDetail({ record, isOpen, onClose }: RecordDetailPr
                 </Button>
               </div>
             ) : (
-              <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setConfirmDelete(true)}
+              >
                 削除
               </Button>
             )}

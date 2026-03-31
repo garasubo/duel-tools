@@ -7,6 +7,7 @@ export interface DeckSelectProps {
   value: string;
   onChange: (id: string) => void;
   onAddDeck: (name: string) => void;
+  allowUnknown?: boolean;
 }
 
 const ADD_NEW = "__add_new__";
@@ -17,6 +18,7 @@ export default function DeckSelect({
   value,
   onChange,
   onAddDeck,
+  allowUnknown,
 }: DeckSelectProps) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -86,7 +88,7 @@ export default function DeckSelect({
           onChange={handleSelectChange}
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         >
-          <option value="">選択してください</option>
+          <option value="">{allowUnknown ? "不明" : "選択してください"}</option>
           {decks.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}

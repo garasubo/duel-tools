@@ -1,12 +1,12 @@
-import type { BattleRecord } from '../../types';
-import { formatDate } from '../../utils/formatDate';
-import Badge from '../ui/Badge';
-import TagChip from '../ui/TagChip';
+import type { BattleRecord } from "../../types";
+import { formatDate } from "../../utils/formatDate";
+import Badge from "../ui/Badge";
+import TagChip from "../ui/TagChip";
 
 const turnOrderLabel: Record<string, string> = {
-  first: '先攻',
-  second: '後攻',
-  third: 'ゆずられ先攻',
+  first: "先攻",
+  second: "後攻",
+  third: "ゆずられ先攻",
 };
 
 export interface RecordTableProps {
@@ -27,26 +27,44 @@ export default function RecordTable({
       <table className="w-full text-sm text-left border-collapse">
         <thead className="sticky top-0 z-10 bg-white border-b border-gray-200">
           <tr>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-36">日時</th>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-12">結果</th>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-14">手番</th>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-32">自分のデッキ</th>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-32">相手のデッキ</th>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-24">タグ</th>
-            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-0">メモ</th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-36">
+              日時
+            </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-12">
+              結果
+            </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-14">
+              手番
+            </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-32">
+              自分のデッキ
+            </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-32">
+              相手のデッキ
+            </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-24">
+              タグ
+            </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-0">
+              メモ
+            </th>
           </tr>
         </thead>
         <tbody>
           {records.map((record) => {
-            const ownName = ownDeckMap.get(record.ownDeckId) ?? record.ownDeckId;
+            const ownName =
+              ownDeckMap.get(record.ownDeckId) ?? record.ownDeckId;
             const opponentName =
-              opponentDeckMap.get(record.opponentDeckId) ?? record.opponentDeckId;
+              record.opponentDeckId === ""
+                ? "不明"
+                : (opponentDeckMap.get(record.opponentDeckId) ??
+                  record.opponentDeckId);
             return (
               <tr
                 key={record.id}
                 onClick={() => onRowClick(record)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') onRowClick(record);
+                  if (e.key === "Enter" || e.key === " ") onRowClick(record);
                 }}
                 tabIndex={0}
                 role="button"
@@ -62,8 +80,12 @@ export default function RecordTable({
                 <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
                   {turnOrderLabel[record.turnOrder]}
                 </td>
-                <td className="px-3 py-2 max-w-[12rem] truncate text-gray-900">{ownName}</td>
-                <td className="px-3 py-2 max-w-[12rem] truncate text-gray-900">{opponentName}</td>
+                <td className="px-3 py-2 max-w-[12rem] truncate text-gray-900">
+                  {ownName}
+                </td>
+                <td className="px-3 py-2 max-w-[12rem] truncate text-gray-900">
+                  {opponentName}
+                </td>
                 <td className="px-3 py-2">
                   {record.reasonTags.length > 0 && (
                     <div className="flex flex-wrap gap-1">
@@ -73,7 +95,9 @@ export default function RecordTable({
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2 max-w-xs truncate text-gray-500">{record.memo}</td>
+                <td className="px-3 py-2 max-w-xs truncate text-gray-500">
+                  {record.memo}
+                </td>
               </tr>
             );
           })}
