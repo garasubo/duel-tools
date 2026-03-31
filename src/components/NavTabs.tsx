@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
 
-export type TabId = 'record' | 'history' | 'stats';
+export type TabId = 'record' | 'history' | 'stats' | 'manage';
 
 const TABS: { id: TabId; label: string; to: string }[] = [
   { id: 'record', label: '記録する', to: '/record' },
   { id: 'history', label: '履歴', to: '/record/history' },
   { id: 'stats', label: '統計', to: '/record/stats' },
+  { id: 'manage', label: '管理', to: '/record/manage' },
 ];
 
 export default function NavTabs() {
