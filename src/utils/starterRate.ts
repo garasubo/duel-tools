@@ -1,6 +1,13 @@
 export type DeckCounts = Record<string, number>;
-export type Pattern = Record<string, number>;
+
+export type PatternEntry =
+  | { type: 'card'; name: string; required: number }
+  | { type: 'label'; label: string; required: number };
+
+export type Pattern = PatternEntry[];
 export type Patterns = Pattern[];
+
+export type CardLabels = Record<string, string[]>;
 
 export interface StarterRateResult {
   successHands: number;
@@ -32,19 +39,40 @@ export function validateDeck(deckCounts: DeckCounts, deckSize: number): void {
   }
 }
 
+export function getAllLabels(cardLabels: CardLabels): string[] {
+  const set = new Set<string>();
+  for (const labels of Object.values(cardLabels)) {
+    for (const lbl of labels) set.add(lbl);
+  }
+  return [...set].sort();
+}
+
+export function getCardsForLabel(label: string, cardLabels: CardLabels): string[] {
+  return Object.entries(cardLabels)
+    .filter(([, labels]) => labels.includes(label))
+    .map(([name]) => name);
+}
+
 export function matchesPattern(
   handCounts: DeckCounts,
   pattern: Pattern,
   deckCounts: DeckCounts,
+  cardLabels: CardLabels = {},
 ): boolean {
-  for (const [cardName, required] of Object.entries(pattern)) {
-    if (!(cardName in deckCounts)) {
-      throw new Error(
-        `条件にデッキに存在しないカードが含まれています: "${cardName}"`,
-      );
+  for (const entry of pattern) {
+    if (entry.type === 'card') {
+      if (!(entry.name in deckCounts)) {
+        throw new Error(
+          `条件にデッキに存在しないカードが含まれています: "${entry.name}"`,
+        );
+      }
+      const inHand = handCounts[entry.name] ?? 0;
+      if (inHand < entry.required) return false;
+    } else {
+      const members = getCardsForLabel(entry.label, cardLabels);
+      const inHand = members.reduce((sum, card) => sum + (handCounts[card] ?? 0), 0);
+      if (inHand < entry.required) return false;
     }
-    const inHand = handCounts[cardName] ?? 0;
-    if (inHand < required) return false;
   }
   return true;
 }
@@ -53,9 +81,10 @@ export function isPlayable(
   handCounts: DeckCounts,
   patterns: Patterns,
   deckCounts: DeckCounts,
+  cardLabels: CardLabels = {},
 ): boolean {
   return patterns.some((pattern) =>
-    matchesPattern(handCounts, pattern, deckCounts),
+    matchesPattern(handCounts, pattern, deckCounts, cardLabels),
   );
 }
 
@@ -75,6 +104,7 @@ export function calculateStarterRate(
   deckCounts: DeckCounts,
   patterns: Patterns,
   deckSize: number = 40,
+  cardLabels: CardLabels = {},
 ): StarterRateResult {
   const total = Object.values(deckCounts).reduce((s, n) => s + n, 0);
   const paddedDeck: DeckCounts =
@@ -86,10 +116,10 @@ export function calculateStarterRate(
 
   // パターン内のカード名がデッキに存在するか事前チェック
   for (const pattern of patterns) {
-    for (const cardName of Object.keys(pattern)) {
-      if (!(cardName in deckCounts)) {
+    for (const entry of pattern) {
+      if (entry.type === 'card' && !(entry.name in deckCounts)) {
         throw new Error(
-          `条件にデッキに存在しないカードが含まれています: "${cardName}"`,
+          `条件にデッキに存在しないカードが含まれています: "${entry.name}"`,
         );
       }
     }
@@ -119,7 +149,7 @@ export function calculateStarterRate(
   function dfs(index: number, remaining: number): void {
     if (remaining === 0) {
       const hand = buildHandCounts();
-      if (isPlayable(hand, patterns, deckCounts)) {
+      if (isPlayable(hand, patterns, deckCounts, cardLabels)) {
         successHands += countWays(paddedDeck, hand);
       }
       return;

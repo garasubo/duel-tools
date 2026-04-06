@@ -1,31 +1,38 @@
 import { useState, useRef } from 'react';
-import type { DeckCounts } from '../../utils/starterRate';
+import type { DeckCounts, CardLabels } from '../../utils/starterRate';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 
 export interface DeckEditorProps {
   deckCounts: DeckCounts;
   deckSize: number;
+  cardLabels: CardLabels;
   onDeckSizeChange: (size: number) => void;
   onAdd: (name: string, count: number) => void;
   onRemove: (name: string) => void;
   onCountChange: (name: string, count: number) => void;
+  onLabelChange: (cardName: string, labels: string[]) => void;
 }
 
 export default function DeckEditor({
   deckCounts,
   deckSize,
+  cardLabels,
   onDeckSizeChange,
   onAdd,
   onRemove,
   onCountChange,
+  onLabelChange,
 }: DeckEditorProps) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCount, setNewCount] = useState(1);
   const [addError, setAddError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [editingLabelFor, setEditingLabelFor] = useState<string | null>(null);
+  const [newLabelText, setNewLabelText] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   const deckTotal = Object.values(deckCounts).reduce((s, n) => s + n, 0);
 
@@ -84,6 +91,39 @@ export default function DeckEditor({
     }
   }
 
+  function handleStartLabelEdit(cardName: string) {
+    setEditingLabelFor(cardName);
+    setNewLabelText('');
+    setTimeout(() => labelInputRef.current?.focus(), 0);
+  }
+
+  function handleConfirmAddLabel(cardName: string) {
+    const trimmed = newLabelText.trim();
+    if (!trimmed) {
+      setEditingLabelFor(null);
+      return;
+    }
+    const existing = cardLabels[cardName] ?? [];
+    if (!existing.includes(trimmed)) {
+      onLabelChange(cardName, [...existing, trimmed]);
+    }
+    setNewLabelText('');
+    setEditingLabelFor(null);
+  }
+
+  function handleLabelKeyDown(e: React.KeyboardEvent, cardName: string) {
+    if (e.key === 'Enter') handleConfirmAddLabel(cardName);
+    if (e.key === 'Escape') {
+      setNewLabelText('');
+      setEditingLabelFor(null);
+    }
+  }
+
+  function handleRemoveLabel(cardName: string, label: string) {
+    const existing = cardLabels[cardName] ?? [];
+    onLabelChange(cardName, existing.filter((l) => l !== label));
+  }
+
   const entries = Object.entries(deckCounts);
 
   return (
@@ -117,7 +157,7 @@ export default function DeckEditor({
         )}
 
         {entries.map(([name, count]) => (
-          <div key={name}>
+          <div key={name} className="group">
             {confirmRemove === name ? (
               <div className="flex items-center gap-2 py-1.5 px-1 bg-red-50 rounded-lg mb-1">
                 <span className="flex-1 text-xs text-red-700">
@@ -139,29 +179,70 @@ export default function DeckEditor({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 py-1.5 px-1 hover:bg-gray-50 rounded-lg">
-                <span className="flex-1 text-sm text-gray-800 truncate">
-                  {name}
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={count}
-                  onChange={(e) =>
-                    onCountChange(name, Math.max(1, Number(e.target.value)))
-                  }
-                  className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <span className="text-xs text-gray-400">枚</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveClick(name)}
-                  aria-label={`${name}を削除`}
-                >
-                  ✕
-                </Button>
+              <div className="rounded-lg hover:bg-gray-50 px-1 py-1 mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 text-sm text-gray-800 truncate">
+                    {name}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={count}
+                    onChange={(e) =>
+                      onCountChange(name, Math.max(1, Number(e.target.value)))
+                    }
+                    className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-gray-400">枚</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveClick(name)}
+                    aria-label={`${name}を削除`}
+                  >
+                    ✕
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1 mt-1 min-h-[1.5rem]">
+                  {(cardLabels[name] ?? []).map((lbl) => (
+                    <span
+                      key={lbl}
+                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200"
+                    >
+                      {lbl}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLabel(name, lbl)}
+                        className="ml-0.5 text-teal-400 hover:text-teal-700 leading-none"
+                        aria-label={`ラベル「${lbl}」を削除`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  {editingLabelFor === name ? (
+                    <input
+                      ref={labelInputRef}
+                      type="text"
+                      value={newLabelText}
+                      onChange={(e) => setNewLabelText(e.target.value)}
+                      onKeyDown={(e) => handleLabelKeyDown(e, name)}
+                      onBlur={() => handleConfirmAddLabel(name)}
+                      placeholder="ラベル名"
+                      className="w-24 rounded-md border border-teal-300 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleStartLabelEdit(name)}
+                      className="text-xs text-gray-300 hover:text-teal-500 group-hover:text-gray-400 transition-colors"
+                    >
+                      + ラベル
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

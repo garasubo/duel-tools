@@ -3,6 +3,7 @@ import type {
   DeckCounts,
   Patterns,
   Pattern,
+  CardLabels,
   StarterRateResult,
 } from "../utils/starterRate";
 import { calculateStarterRate } from "../utils/starterRate";
@@ -14,6 +15,7 @@ export default function ComboPage() {
   const [deckCounts, setDeckCounts] = useState<DeckCounts>({});
   const [deckSize, setDeckSize] = useState(40);
   const [patterns, setPatterns] = useState<Patterns>([]);
+  const [cardLabels, setCardLabels] = useState<CardLabels>({});
   const [result, setResult] = useState<StarterRateResult | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
 
@@ -37,12 +39,17 @@ export default function ComboPage() {
       delete next[name];
       return next;
     });
+    setCardLabels((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
     setPatterns((prev) =>
-      prev.map((pattern) => {
-        const next = { ...pattern };
-        delete next[name];
-        return next;
-      }),
+      prev.map((pattern) =>
+        pattern.filter(
+          (entry) => !(entry.type === "card" && entry.name === name),
+        ),
+      ),
     );
     resetResult();
   }
@@ -50,17 +57,33 @@ export default function ComboPage() {
   function handleCardCountChange(name: string, count: number) {
     setDeckCounts((prev) => ({ ...prev, [name]: count }));
     setPatterns((prev) =>
-      prev.map((pattern) => {
-        if (!(name in pattern)) return pattern;
-        const clamped = Math.min(pattern[name], count);
-        return { ...pattern, [name]: clamped };
-      }),
+      prev.map((pattern) =>
+        pattern.map((entry) => {
+          if (entry.type === "card" && entry.name === name) {
+            return { ...entry, required: Math.min(entry.required, count) };
+          }
+          return entry;
+        }),
+      ),
     );
     resetResult();
   }
 
+  function handleLabelChange(cardName: string, labels: string[]) {
+    setCardLabels((prev) => {
+      const next = { ...prev };
+      if (labels.length === 0) {
+        delete next[cardName];
+      } else {
+        next[cardName] = labels;
+      }
+      return next;
+    });
+    resetResult();
+  }
+
   function handleAddPattern() {
-    setPatterns((prev) => [...prev, {}]);
+    setPatterns((prev) => [...prev, []]);
     resetResult();
   }
 
@@ -81,7 +104,7 @@ export default function ComboPage() {
 
   function handleCalculate() {
     try {
-      const res = calculateStarterRate(deckCounts, patterns, deckSize);
+      const res = calculateStarterRate(deckCounts, patterns, deckSize, cardLabels);
       setResult(res);
       setCalcError(null);
     } catch (e) {
@@ -114,14 +137,17 @@ export default function ComboPage() {
         <DeckEditor
           deckCounts={deckCounts}
           deckSize={deckSize}
+          cardLabels={cardLabels}
           onDeckSizeChange={handleDeckSizeChange}
           onAdd={handleAddCard}
           onRemove={handleRemoveCard}
           onCountChange={handleCardCountChange}
+          onLabelChange={handleLabelChange}
         />
         <PatternEditor
           patterns={patterns}
           deckCounts={deckCounts}
+          cardLabels={cardLabels}
           onAddPattern={handleAddPattern}
           onRemovePattern={handleRemovePattern}
           onUpdatePattern={handleUpdatePattern}

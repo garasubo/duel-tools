@@ -1,4 +1,4 @@
-import type { Patterns, Pattern, DeckCounts } from '../../utils/starterRate';
+import type { Patterns, Pattern, DeckCounts, CardLabels } from '../../utils/starterRate';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import PatternCard from './PatternCard';
@@ -6,6 +6,7 @@ import PatternCard from './PatternCard';
 export interface PatternEditorProps {
   patterns: Patterns;
   deckCounts: DeckCounts;
+  cardLabels: CardLabels;
   onAddPattern: () => void;
   onRemovePattern: (index: number) => void;
   onUpdatePattern: (index: number, pattern: Pattern) => void;
@@ -14,6 +15,7 @@ export interface PatternEditorProps {
 export default function PatternEditor({
   patterns,
   deckCounts,
+  cardLabels,
   onAddPattern,
   onRemovePattern,
   onUpdatePattern,
@@ -57,6 +59,7 @@ export default function PatternEditor({
             <PatternCard
               pattern={pattern}
               deckCounts={deckCounts}
+              cardLabels={cardLabels}
               index={i}
               onRemove={() => onRemovePattern(i)}
               onUpdate={(p) => onUpdatePattern(i, p)}
