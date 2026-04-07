@@ -1,11 +1,12 @@
 import { useState } from "react";
-import type { BattleRecord, BattleResult, TurnOrder } from "../../types";
+import type { BattleMode, BattleRecord, BattleResult, TurnOrder } from "../../types";
 import { useBattlesContext } from "../../context/BattlesContext";
 import { formatDate } from "../../utils/formatDate";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import Badge from "../ui/Badge";
 import TagChip from "../ui/TagChip";
+import ToggleButton, { ToggleButtonGroup } from "../ui/ToggleButton";
 import DeckSelect from "../battle-form/DeckSelect";
 import ResultSelector from "../battle-form/ResultSelector";
 import TurnOrderSelector from "../battle-form/TurnOrderSelector";
@@ -24,6 +25,16 @@ const turnOrderLabel: Record<string, string> = {
   third: "ゆずられ先攻",
 };
 
+const battleModeLabel: Record<string, string> = {
+  "duelists-cup": "デュエリストカップ",
+  rated: "レート戦",
+};
+
+const BATTLE_MODE_OPTIONS: { value: BattleMode; label: string }[] = [
+  { value: "duelists-cup", label: "デュエリストカップ" },
+  { value: "rated", label: "レート戦" },
+];
+
 interface EditState {
   ownDeckId: string;
   opponentDeckId: string;
@@ -31,6 +42,8 @@ interface EditState {
   turnOrder: TurnOrder | null;
   reasonTags: string[];
   memo: string;
+  battleMode: BattleMode | null;
+  score: string;
 }
 
 export default function RecordDetail({
@@ -58,6 +71,8 @@ export default function RecordDetail({
     turnOrder: record.turnOrder,
     reasonTags: record.reasonTags,
     memo: record.memo,
+    battleMode: record.battleMode ?? null,
+    score: record.score !== undefined ? String(record.score) : "",
   });
 
   const ownDeckName =
@@ -81,6 +96,8 @@ export default function RecordDetail({
       turnOrder: record.turnOrder,
       reasonTags: record.reasonTags,
       memo: record.memo,
+      battleMode: record.battleMode ?? null,
+      score: record.score !== undefined ? String(record.score) : "",
     });
     setEditing(true);
   }
@@ -94,6 +111,8 @@ export default function RecordDetail({
       turnOrder: editState.turnOrder!,
       reasonTags: editState.reasonTags,
       memo: editState.memo,
+      battleMode: editState.battleMode ?? undefined,
+      score: editState.score !== "" ? Number(editState.score) : undefined,
     });
     setEditing(false);
   }
@@ -122,6 +141,17 @@ export default function RecordDetail({
     const deck = addOpponentDeck(name);
     setEditState((s) => ({ ...s, opponentDeckId: deck.id }));
   }
+
+  function handleBattleModeChange(mode: BattleMode) {
+    setEditState((s) => ({
+      ...s,
+      battleMode: s.battleMode === mode ? null : mode,
+      score: "",
+    }));
+  }
+
+  const editScoreLabel =
+    editState.battleMode === "duelists-cup" ? "DP" : "レート";
 
   return (
     <Modal
@@ -157,6 +187,42 @@ export default function RecordDetail({
             value={editState.result}
             onChange={(result) => setEditState((s) => ({ ...s, result }))}
           />
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-gray-700">対戦モード</span>
+            <ToggleButtonGroup label="対戦モード選択">
+              {BATTLE_MODE_OPTIONS.map((opt) => (
+                <ToggleButton
+                  key={opt.value}
+                  isSelected={editState.battleMode === opt.value}
+                  onClick={() => handleBattleModeChange(opt.value)}
+                >
+                  {opt.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </div>
+          {editState.battleMode !== null && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">
+                {editScoreLabel}
+              </label>
+              <input
+                type="number"
+                value={editState.score}
+                onChange={(e) =>
+                  setEditState((s) => ({ ...s, score: e.target.value }))
+                }
+                placeholder={
+                  editState.battleMode === "duelists-cup"
+                    ? "例: 50000"
+                    : "例: 1500"
+                }
+                min={editState.battleMode === "duelists-cup" ? 0 : 1000}
+                max={editState.battleMode === "duelists-cup" ? 100000 : 2000}
+                className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          )}
           <TagInput
             tags={editState.reasonTags}
             knownTags={knownTags}
@@ -207,6 +273,24 @@ export default function RecordDetail({
               <p className="text-xs text-gray-500 mb-0.5">相手のデッキ</p>
               <p className="font-medium text-gray-800">{opponentDeckName}</p>
             </div>
+            {record.battleMode !== undefined && (
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">対戦モード</p>
+                <p className="font-medium text-gray-800">
+                  {battleModeLabel[record.battleMode]}
+                </p>
+              </div>
+            )}
+            {record.score !== undefined && (
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">
+                  {record.battleMode === "duelists-cup" ? "DP" : "レート"}
+                </p>
+                <p className="font-medium text-gray-800">
+                  {record.score.toLocaleString()}
+                </p>
+              </div>
+            )}
           </div>
 
           {record.reasonTags.length > 0 && (

@@ -6,6 +6,11 @@ const RESULT_LABELS: Record<string, string> = {
   loss: "×",
 };
 
+const BATTLE_MODE_LABELS: Record<string, string> = {
+  "duelists-cup": "デュエリストカップ",
+  rated: "レート戦",
+};
+
 const TURN_ORDER_LABELS: Record<string, string> = {
   first: "先攻",
   second: "後攻",
@@ -30,6 +35,8 @@ export function buildCsvString(
     "相手のデッキ",
     "手番",
     "結果",
+    "モード",
+    "スコア",
     "タグ",
     "メモ",
   ];
@@ -41,6 +48,8 @@ export function buildCsvString(
       : (opponentDeckMap.get(r.opponentDeckId) ?? r.opponentDeckId),
     TURN_ORDER_LABELS[r.turnOrder] ?? r.turnOrder,
     RESULT_LABELS[r.result] ?? r.result,
+    r.battleMode !== undefined ? (BATTLE_MODE_LABELS[r.battleMode] ?? r.battleMode) : "",
+    r.score !== undefined ? String(r.score) : "",
     r.reasonTags.join(" "),
     r.memo,
   ]);

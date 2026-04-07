@@ -42,6 +42,9 @@ export default function RecordTable({
             <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-32">
               相手のデッキ
             </th>
+            <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap w-20">
+              スコア
+            </th>
             <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-24">
               タグ
             </th>
@@ -85,6 +88,11 @@ export default function RecordTable({
                 </td>
                 <td className="px-3 py-2 max-w-[12rem] truncate text-gray-900">
                   {opponentName}
+                </td>
+                <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                  {record.score !== undefined
+                    ? record.score.toLocaleString()
+                    : ""}
                 </td>
                 <td className="px-3 py-2">
                   {record.reasonTags.length > 0 && (

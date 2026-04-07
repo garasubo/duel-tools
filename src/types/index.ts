@@ -1,5 +1,6 @@
 export type BattleResult = 'win' | 'loss';
 export type TurnOrder = 'first' | 'second' | 'third';
+export type BattleMode = 'duelists-cup' | 'rated';
 
 export interface Deck {
   id: string;
@@ -15,6 +16,8 @@ export interface BattleRecord {
   turnOrder: TurnOrder;
   reasonTags: string[];
   memo: string;
+  battleMode?: BattleMode;
+  score?: number;
 }
 
 export interface AppStorage {
