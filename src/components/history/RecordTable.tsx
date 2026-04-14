@@ -105,7 +105,7 @@ export default function RecordTable({
                   tabIndex={0}
                   role="button"
                   aria-label={`${ownName} vs ${opponentName} の戦績詳細を開く`}
-                  className="border-t border-gray-100 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 cursor-pointer transition-colors duration-100"
+                  className={`${recordIndex === 0 ? "border-t-2 border-gray-300" : "border-t border-gray-100"} hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 cursor-pointer transition-colors duration-100`}
                 >
                   <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
                     {formatDate(record.createdAt)}
