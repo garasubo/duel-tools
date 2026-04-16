@@ -1,20 +1,22 @@
 import { useState, useCallback, useEffect } from "react";
-import type { AppStorage, BattleRecord, Deck } from "../types";
+import type {
+  AppStorage,
+  BattleRecord,
+  Deck,
+  OverlayStatSetting,
+} from "../types";
 import type { CsvImportRow } from "../utils/csvImportHelpers";
 import { STORAGE_KEY } from "../utils/constants";
+import { createDefaultStorage, normalizeStorage } from "../utils/storage";
+import { isValidOverlayStatSettings } from "../utils/overlayStats";
 
-const DEFAULT_STORAGE: AppStorage = {
-  records: [],
-  ownDecks: [],
-  opponentDecks: [],
-  knownTags: [],
-};
+const DEFAULT_STORAGE: AppStorage = createDefaultStorage();
 
 function loadStorage(): AppStorage {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STORAGE;
-    return { ...DEFAULT_STORAGE, ...JSON.parse(raw) };
+    return normalizeStorage(JSON.parse(raw));
   } catch {
     return DEFAULT_STORAGE;
   }
@@ -306,11 +308,26 @@ export function useBattles() {
     [storage],
   );
 
+  const setOverlayStatSettings = useCallback(
+    (overlayStats: OverlayStatSetting[]) => {
+      if (!isValidOverlayStatSettings(overlayStats)) {
+        throw new Error("Invalid overlay stat settings");
+      }
+
+      updateStorage((prev) => ({
+        ...prev,
+        overlayStats,
+      }));
+    },
+    [updateStorage],
+  );
+
   return {
     records: storage.records,
     ownDecks: storage.ownDecks,
     opponentDecks: storage.opponentDecks,
     knownTags: storage.knownTags,
+    overlayStatSettings: storage.overlayStats,
     addRecord,
     importRecords,
     updateRecord,
@@ -328,5 +345,6 @@ export function useBattles() {
     isOwnDeckUsed,
     isOpponentDeckUsed,
     isTagUsed,
+    setOverlayStatSettings,
   };
 }

@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { useBattles } from "../hooks/useBattles";
 
-type BattlesContextValue = ReturnType<typeof useBattles>;
+export type BattlesContextValue = ReturnType<typeof useBattles>;
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const BattlesContext = createContext<BattlesContextValue | null>(null);
