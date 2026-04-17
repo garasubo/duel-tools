@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { BattleRecord, BattleResult, TurnOrder } from '../types';
+import { isWithinDateRange } from '../utils/dateRange';
 
 export interface FilterState {
   ownDeckId: string;
@@ -28,8 +29,7 @@ export function useFilter(records: BattleRecord[]) {
       if (filter.opponentDeckId && r.opponentDeckId !== filter.opponentDeckId) return false;
       if (filter.result && r.result !== filter.result) return false;
       if (filter.turnOrder && r.turnOrder !== filter.turnOrder) return false;
-      if (filter.dateFrom && r.createdAt < filter.dateFrom) return false;
-      if (filter.dateTo && r.createdAt > filter.dateTo + 'T23:59:59') return false;
+      if (!isWithinDateRange(r.createdAt, filter.dateFrom, filter.dateTo)) return false;
       return true;
     });
   }, [records, filter]);

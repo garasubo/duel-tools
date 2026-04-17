@@ -1,4 +1,6 @@
 import type { BattleMode, BattleResult, TurnOrder } from "../types";
+import { battleModeFromLabel } from "./battleMode";
+import { turnOrderFromLabel } from "./turnOrder";
 
 export interface CsvImportRow {
   createdAt: string;
@@ -27,16 +29,8 @@ const RESULT_MAP: Record<string, BattleResult> = {
   "×": "loss",
 };
 
-const TURN_ORDER_MAP: Record<string, TurnOrder> = {
-  先攻: "first",
-  後攻: "second",
-  ゆずられ先攻: "third",
-};
-
-const BATTLE_MODE_MAP: Record<string, BattleMode> = {
-  デュエリストカップ: "duelists-cup",
-  レート戦: "rated",
-};
+const TURN_ORDER_MAP: Record<string, TurnOrder> = turnOrderFromLabel;
+const BATTLE_MODE_MAP: Record<string, BattleMode> = battleModeFromLabel;
 
 /** RFC 4180 に準拠した1行分のフィールドをパースする */
 function parseCsvLine(line: string): string[] {

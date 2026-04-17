@@ -1,40 +1,11 @@
 import { useState } from "react";
 import { useBattlesContext } from "../../context/BattlesContext";
-import type { BattleMode, BattleResult, TurnOrder } from "../../types";
+import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
-import ToggleButton, { ToggleButtonGroup } from "../ui/ToggleButton";
-import DeckSelect from "./DeckSelect";
-import ResultSelector from "./ResultSelector";
-import TurnOrderSelector from "./TurnOrderSelector";
-import TagInput from "./TagInput";
-import MemoInput from "./MemoInput";
-
-interface FormState {
-  ownDeckId: string;
-  opponentDeckId: string;
-  result: BattleResult | null;
-  turnOrder: TurnOrder | null;
-  reasonTags: string[];
-  memo: string;
-  battleMode: BattleMode | null;
-  score: string;
-}
-
-const INITIAL_STATE: FormState = {
-  ownDeckId: "",
-  opponentDeckId: "",
-  result: null,
-  turnOrder: null,
-  reasonTags: [],
-  memo: "",
-  battleMode: null,
-  score: "",
-};
-
-const BATTLE_MODE_OPTIONS: { value: BattleMode; label: string }[] = [
-  { value: "duelists-cup", label: "デュエリストカップ" },
-  { value: "rated", label: "レート戦" },
-];
+import BattleFields from "./BattleFields";
+import { EMPTY_BATTLE_FORM_STATE, isBattleFormValid } from "./types";
+import type { BattleFormState } from "./types";
+import { autoCalcDuelistsCupScore } from "./autoCalcScore";
 
 export default function BattleForm() {
   const {
@@ -53,54 +24,43 @@ export default function BattleForm() {
       ? records.reduce((a, b) => (a.createdAt > b.createdAt ? a : b))
       : null;
 
-  const [form, setForm] = useState<FormState>(
+  const [form, setForm] = useState<BattleFormState>(
     latestRecord
       ? {
-          ...INITIAL_STATE,
+          ...EMPTY_BATTLE_FORM_STATE,
           ownDeckId: latestRecord.ownDeckId,
           battleMode: latestRecord.battleMode ?? null,
         }
-      : INITIAL_STATE,
+      : EMPTY_BATTLE_FORM_STATE,
   );
   const [saved, setSaved] = useState(false);
 
-  const isValid =
-    form.ownDeckId !== "" && form.result !== null && form.turnOrder !== null;
+  const isValid = isBattleFormValid(form);
+
+  function patchForm(patch: Partial<BattleFormState>) {
+    setForm((f) => ({ ...f, ...patch }));
+  }
 
   function handleAddOwnDeck(name: string) {
     const deck = addOwnDeck(name);
-    setForm((f) => ({ ...f, ownDeckId: deck.id }));
+    patchForm({ ownDeckId: deck.id });
   }
 
   function handleAddOpponentDeck(name: string) {
     const deck = addOpponentDeck(name);
-    setForm((f) => ({ ...f, opponentDeckId: deck.id }));
+    patchForm({ opponentDeckId: deck.id });
   }
 
   function handleResultChange(result: BattleResult) {
     setForm((f) => {
       if (f.battleMode === "duelists-cup" && f.score === "") {
-        const lastRecord = records.find(
-          (r) => r.battleMode === "duelists-cup" && r.score !== undefined,
-        );
-        if (lastRecord !== undefined && lastRecord.score !== undefined) {
-          const autoScore =
-            result === "win"
-              ? lastRecord.score + 1000
-              : lastRecord.score - 1000;
-          return { ...f, result, score: String(autoScore) };
+        const autoScore = autoCalcDuelistsCupScore(result, records);
+        if (autoScore !== null) {
+          return { ...f, result, score: autoScore };
         }
       }
       return { ...f, result };
     });
-  }
-
-  function handleBattleModeChange(mode: BattleMode) {
-    setForm((f) => ({
-      ...f,
-      battleMode: f.battleMode === mode ? null : mode,
-      score: "",
-    }));
   }
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
@@ -116,83 +76,27 @@ export default function BattleForm() {
       battleMode: form.battleMode ?? undefined,
       score: form.score !== "" ? Number(form.score) : undefined,
     });
-    setForm({ ...INITIAL_STATE, ownDeckId: form.ownDeckId, battleMode: form.battleMode });
+    setForm({
+      ...EMPTY_BATTLE_FORM_STATE,
+      ownDeckId: form.ownDeckId,
+      battleMode: form.battleMode,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   }
 
-  const scoreLabel = form.battleMode === "duelists-cup" ? "DP" : "レート";
-
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-4 max-w-lg">
-      <DeckSelect
-        label="自分のデッキ"
-        decks={ownDecks}
-        value={form.ownDeckId}
-        onChange={(id) => setForm((f) => ({ ...f, ownDeckId: id }))}
-        onAddDeck={handleAddOwnDeck}
-      />
-
-      <DeckSelect
-        label="相手のデッキ"
-        decks={opponentDecks}
-        value={form.opponentDeckId}
-        onChange={(id) => setForm((f) => ({ ...f, opponentDeckId: id }))}
-        onAddDeck={handleAddOpponentDeck}
-        allowUnknown
-      />
-
-      <TurnOrderSelector
-        value={form.turnOrder}
-        onChange={(turnOrder) => setForm((f) => ({ ...f, turnOrder }))}
-      />
-
-      <ResultSelector value={form.result} onChange={handleResultChange} />
-
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">対戦モード</span>
-        <ToggleButtonGroup label="対戦モード選択">
-          {BATTLE_MODE_OPTIONS.map((opt) => (
-            <ToggleButton
-              key={opt.value}
-              isSelected={form.battleMode === opt.value}
-              onClick={() => handleBattleModeChange(opt.value)}
-            >
-              {opt.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </div>
-
-      {form.battleMode !== null && (
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">
-            {scoreLabel}
-          </label>
-          <input
-            type="number"
-            value={form.score}
-            onChange={(e) => setForm((f) => ({ ...f, score: e.target.value }))}
-            placeholder={
-              form.battleMode === "duelists-cup" ? "例: 50000" : "例: 1500"
-            }
-            min={form.battleMode === "duelists-cup" ? 0 : 1000}
-            max={form.battleMode === "duelists-cup" ? 100000 : 2000}
-            className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-      )}
-
-      <TagInput
-        tags={form.reasonTags}
+      <BattleFields
+        value={form}
+        onChange={patchForm}
+        ownDecks={ownDecks}
+        opponentDecks={opponentDecks}
         knownTags={knownTags}
-        onChange={(reasonTags) => setForm((f) => ({ ...f, reasonTags }))}
+        onAddOwnDeck={handleAddOwnDeck}
+        onAddOpponentDeck={handleAddOpponentDeck}
         onAddKnownTag={addKnownTag}
-      />
-
-      <MemoInput
-        value={form.memo}
-        onChange={(memo) => setForm((f) => ({ ...f, memo }))}
+        onResultChange={handleResultChange}
       />
 
       <div className="flex items-center gap-3">
