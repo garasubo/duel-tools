@@ -9,11 +9,11 @@ import {
 describe('overlayStats helpers', () => {
   it('デフォルト設定は全項目表示で返す', () => {
     expect(createDefaultOverlayStatSettings()).toEqual([
+      { id: 'matchCount', visible: true },
       { id: 'overall', visible: true },
       { id: 'asFirst', visible: true },
       { id: 'asSecond', visible: true },
       { id: 'coinToss', visible: true },
-      { id: 'matchCount', visible: true },
     ]);
   });
 

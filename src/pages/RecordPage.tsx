@@ -1,7 +1,12 @@
+import { useState } from 'react';
+import CaptureSection from '../components/capture/CaptureSection';
 import BattleForm from '../components/battle-form/BattleForm';
 import { openOverlay } from '../utils/openOverlay';
+import type { BattleResult } from '../types';
 
 export default function RecordPage() {
+  const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
+
   return (
     <div>
       <div className="flex justify-end px-4 pt-4">
@@ -12,7 +17,11 @@ export default function RecordPage() {
           オーバーレイを開く
         </button>
       </div>
-      <BattleForm />
+      <CaptureSection onResultDetected={(result) => setSuggestedResult(result)} />
+      <BattleForm
+        suggestedResult={suggestedResult}
+        onSuggestedResultConsumed={() => setSuggestedResult(null)}
+      />
     </div>
   );
 }

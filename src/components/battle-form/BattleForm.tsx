@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useBattlesContext } from "../../context/BattlesContext";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
@@ -7,7 +7,12 @@ import { EMPTY_BATTLE_FORM_STATE, isBattleFormValid } from "./types";
 import type { BattleFormState } from "./types";
 import { autoCalcDuelistsCupScore } from "./autoCalcScore";
 
-export default function BattleForm() {
+interface BattleFormProps {
+  suggestedResult?: BattleResult | null;
+  onSuggestedResultConsumed?: () => void;
+}
+
+export default function BattleForm({ suggestedResult, onSuggestedResultConsumed }: BattleFormProps) {
   const {
     records,
     ownDecks,
@@ -29,11 +34,58 @@ export default function BattleForm() {
       ? {
           ...EMPTY_BATTLE_FORM_STATE,
           ownDeckId: latestRecord.ownDeckId,
+          turnOrder: latestRecord.turnOrder,
           battleMode: latestRecord.battleMode ?? null,
         }
       : EMPTY_BATTLE_FORM_STATE,
   );
   const [saved, setSaved] = useState(false);
+  const autoSubmitRef = useRef(false);
+
+  function submitForm(currentForm: BattleFormState) {
+    addRecord({
+      ownDeckId: currentForm.ownDeckId,
+      opponentDeckId: currentForm.opponentDeckId,
+      result: currentForm.result!,
+      turnOrder: currentForm.turnOrder!,
+      reasonTags: currentForm.reasonTags,
+      memo: currentForm.memo,
+      battleMode: currentForm.battleMode ?? undefined,
+      score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
+    });
+    setForm({
+      ...EMPTY_BATTLE_FORM_STATE,
+      ownDeckId: currentForm.ownDeckId,
+      turnOrder: currentForm.turnOrder,
+      battleMode: currentForm.battleMode,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  useEffect(() => {
+    if (suggestedResult) {
+      autoSubmitRef.current = true;
+      setForm((f) => {
+        if (f.battleMode === "duelists-cup" && f.score === "") {
+          const autoScore = autoCalcDuelistsCupScore(suggestedResult, records);
+          if (autoScore !== null) {
+            return { ...f, result: suggestedResult, score: autoScore };
+          }
+        }
+        return { ...f, result: suggestedResult };
+      });
+      onSuggestedResultConsumed?.();
+    }
+  }, [suggestedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!autoSubmitRef.current) return;
+    autoSubmitRef.current = false;
+    if (isBattleFormValid(form)) {
+      submitForm(form);
+    }
+  }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isValid = isBattleFormValid(form);
 
@@ -66,23 +118,7 @@ export default function BattleForm() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isValid) return;
-    addRecord({
-      ownDeckId: form.ownDeckId,
-      opponentDeckId: form.opponentDeckId,
-      result: form.result!,
-      turnOrder: form.turnOrder!,
-      reasonTags: form.reasonTags,
-      memo: form.memo,
-      battleMode: form.battleMode ?? undefined,
-      score: form.score !== "" ? Number(form.score) : undefined,
-    });
-    setForm({
-      ...EMPTY_BATTLE_FORM_STATE,
-      ownDeckId: form.ownDeckId,
-      battleMode: form.battleMode,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    submitForm(form);
   }
 
   return (
