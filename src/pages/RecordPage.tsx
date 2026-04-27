@@ -1,11 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CaptureSection from '../components/capture/CaptureSection';
 import BattleForm from '../components/battle-form/BattleForm';
+import { useCaptureContext } from '../capture/CaptureContext';
 import { openOverlay } from '../utils/openOverlay';
 import type { BattleResult } from '../types';
 
 export default function RecordPage() {
   const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
+  const { setResultCallback, clearResultCallback } = useCaptureContext();
+
+  useEffect(() => {
+    setResultCallback((result) => setSuggestedResult(result));
+    return () => clearResultCallback();
+  }, [setResultCallback, clearResultCallback]);
 
   return (
     <div>
@@ -17,7 +24,7 @@ export default function RecordPage() {
           オーバーレイを開く
         </button>
       </div>
-      <CaptureSection onResultDetected={(result) => setSuggestedResult(result)} />
+      <CaptureSection />
       <BattleForm
         suggestedResult={suggestedResult}
         onSuggestedResultConsumed={() => setSuggestedResult(null)}

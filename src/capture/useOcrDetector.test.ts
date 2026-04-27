@@ -45,11 +45,11 @@ describe('parseDetectionResult', () => {
 
   it('LOSE を含むテキストは loss を返す', () => {
     expect(parseDetectionResult('LOSE', 85)).toEqual({ result: 'loss', confidence: 85 });
-    expect(parseDetectionResult('o LOSE /', 35)).toEqual({ result: 'loss', confidence: 35 });
+    expect(parseDetectionResult('o LOSE /', 60)).toEqual({ result: 'loss', confidence: 60 });
   });
 
   it('LOSER のように LOSE を部分文字列として含む場合も loss を返す（仕様）', () => {
-    expect(parseDetectionResult('LOSER', 50)).toEqual({ result: 'loss', confidence: 50 });
+    expect(parseDetectionResult('LOSER', 60)).toEqual({ result: 'loss', confidence: 60 });
   });
 
   it('VICTORY と LOSE を両方含む場合は VICTORY 優先で win を返す', () => {
@@ -61,6 +61,13 @@ describe('parseDetectionResult', () => {
     expect(parseDetectionResult('', 0)).toBeNull();
     expect(parseDetectionResult('12345', 50)).toBeNull();
     expect(parseDetectionResult('!@#$%', 50)).toBeNull();
+  });
+
+  it('信頼度が閾値未満の場合は勝敗候補にしない', () => {
+    expect(parseDetectionResult('VICTORY', 59)).toBeNull();
+    expect(parseDetectionResult('VICTORY', 60)).toEqual({ result: 'win', confidence: 60 });
+    expect(parseDetectionResult('LOSE', 59)).toBeNull();
+    expect(parseDetectionResult('LOSE', 60)).toEqual({ result: 'loss', confidence: 60 });
   });
 });
 

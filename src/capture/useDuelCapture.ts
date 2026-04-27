@@ -11,7 +11,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sampler = useFrameSampler(750);
-  const { detect } = useOcrDetector();
+  const { detect, dispose } = useOcrDetector();
 
   const [captureState, setCaptureState] = useState<DuelCaptureState>('idle');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
@@ -20,6 +20,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
 
   const consecutiveRef = useRef(0);
   const lastResultRef = useRef<'win' | 'loss' | null>(null);
+  const recentResultsRef = useRef<DetectionResult[]>([]);
   const captureStateRef = useRef<DuelCaptureState>('idle');
 
   // captureState の ref を同期（クロージャ内で使うため）
@@ -37,6 +38,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
   const resetOcrState = useCallback(() => {
     consecutiveRef.current = 0;
     lastResultRef.current = null;
+    recentResultsRef.current = [];
     setLastOcrResult(null);
     setConsecutiveCount(0);
   }, []);
@@ -51,7 +53,8 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     resetOcrState();
     setPendingResult(null);
     setCaptureState('idle');
-  }, [stopCapture, sampler, resetOcrState]);
+    dispose();
+  }, [stopCapture, sampler, resetOcrState, dispose]);
 
   const confirm = useCallback(() => {
     if (pendingResult) {
@@ -85,21 +88,29 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
       if (!result) {
         consecutiveRef.current = 0;
         lastResultRef.current = null;
+        recentResultsRef.current = [];
         setLastOcrResult(null);
         setConsecutiveCount(0);
         return;
       }
       if (result.result === lastResultRef.current) {
         consecutiveRef.current += 1;
+        recentResultsRef.current = [...recentResultsRef.current, result].slice(-REQUIRED_CONSECUTIVE);
       } else {
         consecutiveRef.current = 1;
         lastResultRef.current = result.result;
+        recentResultsRef.current = [result];
       }
       setLastOcrResult(result.result);
       setConsecutiveCount(consecutiveRef.current);
       if (consecutiveRef.current >= REQUIRED_CONSECUTIVE) {
+        const recentResults = recentResultsRef.current;
+        const averageConfidence = recentResults.reduce(
+          (sum, item) => sum + item.confidence,
+          0,
+        ) / recentResults.length;
         consecutiveRef.current = 0;
-        setPendingResult(result);
+        setPendingResult({ ...result, confidence: averageConfidence });
         setCaptureState('detected');
       }
     }, 800);
@@ -110,6 +121,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
         clearInterval(ocrTimerRef.current);
         ocrTimerRef.current = null;
       }
+      dispose();
     };
   }, [isCapturing]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -1,23 +1,17 @@
-import { useDuelCapture } from '../../capture/useDuelCapture';
+import { useCaptureContext } from '../../capture/CaptureContext';
 
-interface CaptureSectionProps {
-  onResultDetected: (result: 'win' | 'loss') => void;
-}
-
-export default function CaptureSection({ onResultDetected }: CaptureSectionProps) {
+export default function CaptureSection() {
   const {
     captureState,
     pendingResult,
     lastOcrResult,
     consecutiveCount,
-    videoRef,
-    canvasRef,
     error,
     start,
     stop,
     confirm,
     dismiss,
-  } = useDuelCapture(onResultDetected);
+  } = useCaptureContext();
 
   return (
     <div className="px-4 pb-2">
@@ -41,13 +35,6 @@ export default function CaptureSection({ onResultDetected }: CaptureSectionProps
           </button>
         </div>
       )}
-
-      {/* canvas は常にDOMに存在させる（isCapturing直後にrefが必要なため） */}
-      <canvas
-        ref={canvasRef}
-        className={`border border-gray-200 rounded max-w-xs ${captureState === 'idle' ? 'hidden' : ''}`}
-        style={{ maxHeight: '120px', objectFit: 'contain' }}
-      />
 
       {captureState === 'capturing' && (
         <div className="flex items-center gap-2 text-sm mt-1">
@@ -106,9 +93,6 @@ export default function CaptureSection({ onResultDetected }: CaptureSectionProps
       {error && (
         <p className="text-sm text-red-500 mt-1">{error}</p>
       )}
-
-      {/* 非表示のビデオ要素 */}
-      <video ref={videoRef} className="hidden" muted playsInline />
     </div>
   );
 }

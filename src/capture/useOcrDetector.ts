@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
-import { detectFromImageLike } from './ocrDetect';
+import type { Worker } from 'tesseract.js';
+import { createOcrWorker, detectWithOcrWorker } from './ocrDetect';
 import type { DetectionResult, ROI } from './types';
 
 function extractAndPreprocessROI(src: HTMLCanvasElement, roi: ROI): HTMLCanvasElement {
@@ -29,26 +30,65 @@ function extractAndPreprocessROI(src: HTMLCanvasElement, roi: ROI): HTMLCanvasEl
 
 export function useOcrDetector() {
   const runningRef = useRef(false);
+  const workerRef = useRef<Worker | null>(null);
+  const workerInitPromiseRef = useRef<Promise<Worker> | null>(null);
+  const disposeGenerationRef = useRef(0);
+
+  const getWorker = useCallback(async () => {
+    if (workerRef.current) return workerRef.current;
+    if (!workerInitPromiseRef.current) {
+      const generation = disposeGenerationRef.current;
+      workerInitPromiseRef.current = createOcrWorker().then(async (worker) => {
+        if (generation !== disposeGenerationRef.current) {
+          await worker.terminate();
+          throw new Error('OCR worker initialization was disposed');
+        }
+        workerRef.current = worker;
+        return worker;
+      }).finally(() => {
+        workerInitPromiseRef.current = null;
+      });
+    }
+    return workerInitPromiseRef.current;
+  }, []);
 
   const detect = useCallback(
     async (_canvas: HTMLCanvasElement, _roi: ROI): Promise<DetectionResult | null> => {
       if (runningRef.current) return null;
       runningRef.current = true;
       try {
+        void _roi;
+        const worker = await getWorker();
         // フルキャンバスを 2 パス OCR に渡す（サイズを一緒に渡して ROI も自動適用）
-        return await detectFromImageLike(
+        return await detectWithOcrWorker(
+          worker,
           _canvas as unknown as Blob,
           _canvas.width,
           _canvas.height,
         );
+      } catch (error) {
+        if (error instanceof Error && error.message === 'OCR worker initialization was disposed') {
+          return null;
+        }
+        throw error;
       } finally {
         runningRef.current = false;
       }
     },
-    [],
+    [getWorker],
   );
 
-  return { detect };
+  const dispose = useCallback(() => {
+    disposeGenerationRef.current += 1;
+    const worker = workerRef.current;
+    workerRef.current = null;
+
+    if (worker) {
+      void worker.terminate();
+    }
+  }, []);
+
+  return { detect, dispose };
 }
 
 // extractAndPreprocessROI は将来の高精度モードで利用可能
