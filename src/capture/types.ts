@@ -5,7 +5,7 @@ export interface ROI {
   height: number;
 }
 
-export type DuelCaptureState = 'idle' | 'capturing' | 'detected';
+export type DuelCaptureState = 'idle' | 'capturing' | 'detected' | 'waiting-clear';
 
 export interface DetectionResult {
   result: 'win' | 'loss';

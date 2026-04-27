@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_RESULT_ROI } from './types';
 import type { DetectionResult, DuelCaptureState } from './types';
+import { updateResultScreenGate } from './resultScreenGate';
 import { useFrameSampler } from './useFrameSampler';
 import { useOcrDetector } from './useOcrDetector';
 import { useScreenCapture } from './useScreenCapture';
@@ -22,6 +23,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
   const lastResultRef = useRef<'win' | 'loss' | null>(null);
   const recentResultsRef = useRef<DetectionResult[]>([]);
   const captureStateRef = useRef<DuelCaptureState>('idle');
+  const clearFrameCountRef = useRef(0);
 
   // captureState の ref を同期（クロージャ内で使うため）
   useEffect(() => {
@@ -40,6 +42,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     consecutiveRef.current = 0;
     lastResultRef.current = null;
     recentResultsRef.current = [];
+    clearFrameCountRef.current = 0;
     setLastOcrResult(null);
     setConsecutiveCount(0);
   }, []);
@@ -63,7 +66,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     }
     setPendingResult(null);
     resetOcrState();
-    setCaptureState('capturing');
+    setCaptureState('waiting-clear');
   }, [pendingResult, onResultDetected, resetOcrState]);
 
   const dismiss = useCallback(() => {
@@ -85,6 +88,15 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     ocrTimerRef.current = setInterval(async () => {
       if (captureStateRef.current === 'detected') return;
       const result = await detect(canvas, DEFAULT_RESULT_ROI);
+      if (captureStateRef.current === 'waiting-clear') {
+        const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
+        clearFrameCountRef.current = gate.clearFrameCount;
+        if (gate.isReadyForNextDetection) {
+          resetOcrState();
+          setCaptureState('capturing');
+        }
+        return;
+      }
       if (!result) {
         consecutiveRef.current = 0;
         lastResultRef.current = null;

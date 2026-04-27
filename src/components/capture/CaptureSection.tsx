@@ -57,6 +57,13 @@ export default function CaptureSection() {
         </div>
       )}
 
+      {captureState === 'waiting-clear' && (
+        <div className="flex items-center gap-2 text-sm mt-1">
+          <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+          <span className="text-gray-400">結果画面の終了待ち...</span>
+        </div>
+      )}
+
       {captureState === 'detected' && pendingResult && (
         <div
           className={`mt-2 p-3 rounded-lg flex items-center gap-4 ${
