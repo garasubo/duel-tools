@@ -6,7 +6,14 @@ export default function CaptureSection() {
     pendingResult,
     lastOcrResult,
     consecutiveCount,
+    requiredConsecutiveCount,
     error,
+    autoConfirmEnabled,
+    setAutoConfirmEnabled,
+    isCaptureDebugEnabled,
+    hasFirstCandidateFrame,
+    downloadCurrentFrame,
+    downloadFirstCandidateFrame,
     start,
     stop,
     confirm,
@@ -25,8 +32,17 @@ export default function CaptureSection() {
       )}
 
       {captureState !== 'idle' && (
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
           <span className="text-sm text-gray-500">キャプチャ中</span>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={autoConfirmEnabled}
+              onChange={(e) => setAutoConfirmEnabled(e.target.checked)}
+              className="h-4 w-4 accent-blue-600"
+            />
+            自動確定
+          </label>
           <button
             onClick={stop}
             className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
@@ -51,7 +67,9 @@ export default function CaptureSection() {
               <span className={lastOcrResult === 'win' ? 'text-blue-600' : 'text-red-600'}>
                 {lastOcrResult === 'win' ? 'VICTORY' : 'LOSE'} 検出中
               </span>
-              <span className="text-gray-400">{consecutiveCount}/3</span>
+              <span className="text-gray-400">
+                {consecutiveCount}/{requiredConsecutiveCount}
+              </span>
             </>
           )}
         </div>
@@ -60,7 +78,11 @@ export default function CaptureSection() {
       {captureState === 'waiting-clear' && (
         <div className="flex items-center gap-2 text-sm mt-1">
           <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
-          <span className="text-gray-400">結果画面の終了待ち...</span>
+          <span className="text-gray-400">
+            {pendingResult && autoConfirmEnabled
+              ? '自動確定のため結果画面の終了待ち...'
+              : '結果画面の終了待ち...'}
+          </span>
         </div>
       )}
 
@@ -99,6 +121,26 @@ export default function CaptureSection() {
 
       {error && (
         <p className="text-sm text-red-500 mt-1">{error}</p>
+      )}
+
+      {isCaptureDebugEnabled && (
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={downloadCurrentFrame}
+            className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            現在フレームを保存
+          </button>
+          <button
+            type="button"
+            onClick={downloadFirstCandidateFrame}
+            disabled={!hasFirstCandidateFrame}
+            className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            初回候補を保存
+          </button>
+        </div>
       )}
     </div>
   );

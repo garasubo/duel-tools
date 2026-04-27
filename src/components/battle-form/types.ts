@@ -1,4 +1,4 @@
-import type { BattleMode, BattleResult, TurnOrder } from "../../types";
+import type { BattleMode, BattleRecord, BattleResult, TurnOrder } from "../../types";
 
 export interface BattleFormState {
   ownDeckId: string;
@@ -28,4 +28,22 @@ export function isBattleFormValid(state: BattleFormState): boolean {
     state.result !== null &&
     state.turnOrder !== null
   );
+}
+
+export function createInitialBattleFormState(latestRecord: BattleRecord | null): BattleFormState {
+  if (!latestRecord) return EMPTY_BATTLE_FORM_STATE;
+
+  return {
+    ...EMPTY_BATTLE_FORM_STATE,
+    ownDeckId: latestRecord.ownDeckId,
+    battleMode: latestRecord.battleMode ?? null,
+  };
+}
+
+export function createNextBattleFormState(currentForm: BattleFormState): BattleFormState {
+  return {
+    ...EMPTY_BATTLE_FORM_STATE,
+    ownDeckId: currentForm.ownDeckId,
+    battleMode: currentForm.battleMode,
+  };
 }

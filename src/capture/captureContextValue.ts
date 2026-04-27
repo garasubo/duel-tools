@@ -6,8 +6,15 @@ export interface CaptureContextValue {
   pendingResult: DetectionResult | null;
   lastOcrResult: 'win' | 'loss' | null;
   consecutiveCount: number;
+  requiredConsecutiveCount: number;
   isCapturing: boolean;
   error: string | null;
+  autoConfirmEnabled: boolean;
+  setAutoConfirmEnabled: (enabled: boolean) => void;
+  isCaptureDebugEnabled: boolean;
+  hasFirstCandidateFrame: boolean;
+  downloadCurrentFrame: () => void;
+  downloadFirstCandidateFrame: () => void;
   start: () => Promise<void>;
   stop: () => void;
   confirm: () => void;

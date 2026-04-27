@@ -3,7 +3,7 @@ import { useBattlesContext } from "../../context/BattlesContext";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
-import { EMPTY_BATTLE_FORM_STATE, isBattleFormValid } from "./types";
+import { createInitialBattleFormState, createNextBattleFormState, isBattleFormValid } from "./types";
 import type { BattleFormState } from "./types";
 import { autoCalcDuelistsCupScore } from "./autoCalcScore";
 
@@ -30,14 +30,7 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
       : null;
 
   const [form, setForm] = useState<BattleFormState>(
-    latestRecord
-      ? {
-          ...EMPTY_BATTLE_FORM_STATE,
-          ownDeckId: latestRecord.ownDeckId,
-          turnOrder: latestRecord.turnOrder,
-          battleMode: latestRecord.battleMode ?? null,
-        }
-      : EMPTY_BATTLE_FORM_STATE,
+    createInitialBattleFormState(latestRecord),
   );
   const [saved, setSaved] = useState(false);
   const autoSubmitRef = useRef(false);
@@ -53,12 +46,7 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
       battleMode: currentForm.battleMode ?? undefined,
       score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
     });
-    setForm({
-      ...EMPTY_BATTLE_FORM_STATE,
-      ownDeckId: currentForm.ownDeckId,
-      turnOrder: currentForm.turnOrder,
-      battleMode: currentForm.battleMode,
-    });
+    setForm(createNextBattleFormState(currentForm));
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   }
