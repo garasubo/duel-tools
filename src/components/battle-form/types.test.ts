@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BattleFormState } from './types';
 import {
+  applySuggestedResultToBattleForm,
   createInitialBattleFormState,
   createNextBattleFormState,
   EMPTY_BATTLE_FORM_STATE,
@@ -53,6 +54,21 @@ describe('battle-form state helpers', () => {
       ownDeckId: 'own-1',
       battleMode: 'duelists-cup',
     });
+    expect(isBattleFormValid(next)).toBe(false);
+  });
+
+  it('未入力が残っていてもキャプチャ判定の勝敗だけを反映できる', () => {
+    const next = applySuggestedResultToBattleForm(
+      {
+        ...EMPTY_BATTLE_FORM_STATE,
+        ownDeckId: 'own-1',
+      },
+      'win',
+      [],
+    );
+
+    expect(next.result).toBe('win');
+    expect(next.turnOrder).toBeNull();
     expect(isBattleFormValid(next)).toBe(false);
   });
 });

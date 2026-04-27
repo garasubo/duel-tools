@@ -3,9 +3,13 @@ import { useBattlesContext } from "../../context/BattlesContext";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
-import { createInitialBattleFormState, createNextBattleFormState, isBattleFormValid } from "./types";
+import {
+  applySuggestedResultToBattleForm,
+  createInitialBattleFormState,
+  createNextBattleFormState,
+  isBattleFormValid,
+} from "./types";
 import type { BattleFormState } from "./types";
-import { autoCalcDuelistsCupScore } from "./autoCalcScore";
 
 interface BattleFormProps {
   suggestedResult?: BattleResult | null;
@@ -33,6 +37,7 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
     createInitialBattleFormState(latestRecord),
   );
   const [saved, setSaved] = useState(false);
+  const [captureResultApplied, setCaptureResultApplied] = useState(false);
   const autoSubmitRef = useRef(false);
 
   function submitForm(currentForm: BattleFormState) {
@@ -48,6 +53,7 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
     });
     setForm(createNextBattleFormState(currentForm));
     setSaved(true);
+    setCaptureResultApplied(false);
     setTimeout(() => setSaved(false), 3000);
   }
 
@@ -55,14 +61,9 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
     if (suggestedResult) {
       autoSubmitRef.current = true;
       queueMicrotask(() => {
+        setCaptureResultApplied(true);
         setForm((f) => {
-          if (f.battleMode === "duelists-cup" && f.score === "") {
-            const autoScore = autoCalcDuelistsCupScore(suggestedResult, records);
-            if (autoScore !== null) {
-              return { ...f, result: suggestedResult, score: autoScore };
-            }
-          }
-          return { ...f, result: suggestedResult };
+          return applySuggestedResultToBattleForm(f, suggestedResult, records);
         });
         onSuggestedResultConsumed?.();
       });
@@ -94,14 +95,9 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
   }
 
   function handleResultChange(result: BattleResult) {
+    setCaptureResultApplied(false);
     setForm((f) => {
-      if (f.battleMode === "duelists-cup" && f.score === "") {
-        const autoScore = autoCalcDuelistsCupScore(result, records);
-        if (autoScore !== null) {
-          return { ...f, result, score: autoScore };
-        }
-      }
-      return { ...f, result };
+      return applySuggestedResultToBattleForm(f, result, records);
     });
   }
 
@@ -132,6 +128,11 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
         {saved && (
           <span className="text-sm text-green-600 font-medium">
             記録しました！
+          </span>
+        )}
+        {captureResultApplied && !isValid && !saved && (
+          <span className="text-sm text-blue-600 font-medium">
+            勝敗だけ反映しました。未入力を埋めると記録できます。
           </span>
         )}
       </div>

@@ -1,4 +1,5 @@
 import type { BattleMode, BattleRecord, BattleResult, TurnOrder } from "../../types";
+import { autoCalcDuelistsCupScore } from "./autoCalcScore";
 
 export interface BattleFormState {
   ownDeckId: string;
@@ -28,6 +29,21 @@ export function isBattleFormValid(state: BattleFormState): boolean {
     state.result !== null &&
     state.turnOrder !== null
   );
+}
+
+export function applySuggestedResultToBattleForm(
+  state: BattleFormState,
+  suggestedResult: BattleResult,
+  records: BattleRecord[],
+): BattleFormState {
+  if (state.battleMode === "duelists-cup" && state.score === "") {
+    const autoScore = autoCalcDuelistsCupScore(suggestedResult, records);
+    if (autoScore !== null) {
+      return { ...state, result: suggestedResult, score: autoScore };
+    }
+  }
+
+  return { ...state, result: suggestedResult };
 }
 
 export function createInitialBattleFormState(latestRecord: BattleRecord | null): BattleFormState {
