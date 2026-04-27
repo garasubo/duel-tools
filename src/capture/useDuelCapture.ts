@@ -33,6 +33,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
 
   const start = useCallback(async () => {
     await startCapture();
+    setCaptureState('capturing');
   }, [startCapture]);
 
   const resetOcrState = useCallback(() => {
@@ -79,7 +80,6 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    setCaptureState('capturing');
     sampler.start(video, canvas);
 
     ocrTimerRef.current = setInterval(async () => {

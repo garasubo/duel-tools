@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import CaptureSection from '../components/capture/CaptureSection';
 import BattleForm from '../components/battle-form/BattleForm';
-import { useCaptureContext } from '../capture/CaptureContext';
+import { useCaptureContext } from '../capture/useCaptureContext';
 import { openOverlay } from '../utils/openOverlay';
 import type { BattleResult } from '../types';
 

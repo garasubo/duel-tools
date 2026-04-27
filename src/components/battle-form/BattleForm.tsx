@@ -66,16 +66,18 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
   useEffect(() => {
     if (suggestedResult) {
       autoSubmitRef.current = true;
-      setForm((f) => {
-        if (f.battleMode === "duelists-cup" && f.score === "") {
-          const autoScore = autoCalcDuelistsCupScore(suggestedResult, records);
-          if (autoScore !== null) {
-            return { ...f, result: suggestedResult, score: autoScore };
+      queueMicrotask(() => {
+        setForm((f) => {
+          if (f.battleMode === "duelists-cup" && f.score === "") {
+            const autoScore = autoCalcDuelistsCupScore(suggestedResult, records);
+            if (autoScore !== null) {
+              return { ...f, result: suggestedResult, score: autoScore };
+            }
           }
-        }
-        return { ...f, result: suggestedResult };
+          return { ...f, result: suggestedResult };
+        });
+        onSuggestedResultConsumed?.();
       });
-      onSuggestedResultConsumed?.();
     }
   }, [suggestedResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -83,7 +85,7 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
     if (!autoSubmitRef.current) return;
     autoSubmitRef.current = false;
     if (isBattleFormValid(form)) {
-      submitForm(form);
+      queueMicrotask(() => submitForm(form));
     }
   }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
 

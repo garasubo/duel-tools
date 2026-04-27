@@ -1,4 +1,4 @@
-import { useCaptureContext } from '../../capture/CaptureContext';
+import { useCaptureContext } from '../../capture/useCaptureContext';
 
 export default function CaptureSection() {
   const {

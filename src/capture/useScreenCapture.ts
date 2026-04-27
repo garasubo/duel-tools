@@ -6,6 +6,18 @@ export function useScreenCapture() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const stopCapture = useCallback(() => {
+    const stream = streamRef.current;
+    streamRef.current = null;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCapturing(false);
+  }, []);
+
   const startCapture = useCallback(async () => {
     try {
       setError(null);
@@ -23,18 +35,7 @@ export function useScreenCapture() {
     } catch (err) {
       setError(err instanceof Error ? err.message : '画面キャプチャを開始できませんでした');
     }
-  }, []);
-
-  const stopCapture = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCapturing(false);
-  }, []);
+  }, [stopCapture]);
 
   return { videoRef, isCapturing, error, startCapture, stopCapture };
 }
