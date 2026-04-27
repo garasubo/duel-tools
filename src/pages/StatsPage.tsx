@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { useBattlesContext } from '../context/BattlesContext';
-import { useStats } from '../hooks/useStats';
-import EmptyState from '../components/ui/EmptyState';
-import OverallSummaryCard from '../components/stats/OverallSummaryCard';
-import DeckStatsTable from '../components/stats/DeckStatsTable';
-import MatchupTable from '../components/stats/MatchupTable';
-import { openOverlay } from '../utils/openOverlay';
+import { useState } from "react";
+import { useBattlesContext } from "../context/BattlesContext";
+import { useStats } from "../hooks/useStats";
+import EmptyState from "../components/ui/EmptyState";
+import OverallSummaryCard from "../components/stats/OverallSummaryCard";
+import DeckStatsTable from "../components/stats/DeckStatsTable";
+import MatchupTable from "../components/stats/MatchupTable";
+import { openOverlay } from "../utils/openOverlay";
+import DPTransitionChart from "../components/stats/DPTransitionChart";
 
 export default function StatsPage() {
   const { records, ownDecks, opponentDecks } = useBattlesContext();
@@ -46,13 +47,25 @@ export default function StatsPage() {
           onChange={(e) => setIncludeGrantedFirst(e.target.checked)}
           className="w-4 h-4 accent-blue-600"
         />
-        <label htmlFor="include-granted-first" className="text-sm text-gray-600 select-none cursor-pointer">
+        <label
+          htmlFor="include-granted-first"
+          className="text-sm text-gray-600 select-none cursor-pointer"
+        >
           ゆずられ先攻を先攻に含める
         </label>
       </div>
-      <OverallSummaryCard overall={overall} asFirst={asFirst} asSecond={asSecond} />
+      <OverallSummaryCard
+        overall={overall}
+        asFirst={asFirst}
+        asSecond={asSecond}
+      />
       <DeckStatsTable deckStats={deckStats} />
-      <MatchupTable matchupCells={matchupCells} ownDecks={ownDecks} opponentDecks={opponentDecks} />
+      <MatchupTable
+        matchupCells={matchupCells}
+        ownDecks={ownDecks}
+        opponentDecks={opponentDecks}
+      />
+      <DPTransitionChart records={records} />
     </div>
   );
 }
