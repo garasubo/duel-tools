@@ -6,7 +6,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import type { DotProps } from "recharts";
+import type { LineProps } from "recharts";
 import type { BattleRecord } from "../../types";
 
 interface DPDataPoint {
@@ -16,9 +16,16 @@ interface DPDataPoint {
   createdAt: string;
 }
 
-interface CustomDotProps extends DotProps {
+type LineDotProps = Extract<
+  NonNullable<LineProps<DPDataPoint>["dot"]>,
+  (...args: never[]) => React.ReactNode
+> extends (props: infer P) => React.ReactNode
+  ? P
+  : never;
+
+type CustomDotProps = LineDotProps & {
   payload?: DPDataPoint;
-}
+};
 
 function CustomDot(props: CustomDotProps) {
   const { cx, cy, payload } = props;
@@ -110,7 +117,7 @@ export default function DPTransitionChart({ records }: Props) {
             dataKey="dp"
             stroke="#6366f1"
             strokeWidth={2}
-            dot={(props) => <CustomDot key={props.index} {...props} />}
+            dot={CustomDot}
             activeDot={{ r: 6 }}
           />
         </LineChart>
