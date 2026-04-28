@@ -4,6 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { parseCoinTossText, parseInDuelTurnOrder, detectCoinTossScreen, createJpnOcrWorker } from './coinTossDetect';
 import { updateCoinTossState, INITIAL_COIN_TOSS_STATE } from './coinTossState';
 
+function readPngDimensions(filepath: string): { width: number; height: number } {
+  const buf = Buffer.alloc(24);
+  const fd = openSync(filepath, 'r');
+  readSync(fd, buf, 0, 24, 0);
+  closeSync(fd);
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
 // ---------------------------------------------------------------------------
 // parseCoinTossText
 // ---------------------------------------------------------------------------
@@ -51,7 +59,6 @@ describe('parseCoinTossText', () => {
   });
 
   it('「選択してください」が「選択しています」より優先される', () => {
-    // 実際の coin_win_001 テキストが「選択してください」を含む
     expect(parseCoinTossText('先攻・後攻を選択してください')).toBe('user-selecting');
   });
 
@@ -140,28 +147,29 @@ describe('updateCoinTossState', () => {
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 
-function readPngDimensions(filepath: string): { width: number; height: number } {
-  const buf = Buffer.alloc(24);
-  const fd = openSync(filepath, 'r');
-  readSync(fd, buf, 0, 24, 0);
-  closeSync(fd);
-  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
-}
-
+// 命名規則:
+//   coin_win_NNN.png    → user-selecting（コイントス勝ち → 自分が選択する画面）
+//   coin_lose_NNN.png   → opponent-selecting（コイントス負け → 相手が選択中の画面）
+//   coin_first_NNN.png  → you-are-first（先攻確定画面）
+//   coin_second_NNN.png → you-are-second（後攻確定画面）
+//   in_duel_NNN.png     → null（デュエル中の通常画面、コイントス誤検知しないことを確認）
 function classifyCoinFixture(filename: string): {
   type: 'coin';
   expected: ReturnType<typeof parseCoinTossText>;
 } | undefined {
-  if (filename === 'coin_win_001.png') return { type: 'coin', expected: 'user-selecting' };
-  if (filename === 'coin_lose_001.png') return { type: 'coin', expected: 'opponent-selecting' };
-  if (filename === 'coin_win_002.png') return { type: 'coin', expected: 'you-are-first' };
-  if (filename === 'coin_lose_002.png') return { type: 'coin', expected: 'you-are-second' };
+  if (filename.startsWith('coin_win_')) return { type: 'coin', expected: 'user-selecting' };
+  if (filename.startsWith('coin_lose_')) return { type: 'coin', expected: 'opponent-selecting' };
+  if (filename.startsWith('coin_first_')) return { type: 'coin', expected: 'you-are-first' };
+  if (filename.startsWith('coin_second_')) return { type: 'coin', expected: 'you-are-second' };
   return undefined;
 }
 
-const coinFixtureFiles = existsSync(FIXTURES)
-  ? readdirSync(FIXTURES).filter((f) => f.endsWith('.png') && classifyCoinFixture(f) !== undefined)
+const allFixtureFiles = existsSync(FIXTURES)
+  ? readdirSync(FIXTURES).filter((f: string) => f.endsWith('.png'))
   : [];
+
+const coinFixtureFiles = allFixtureFiles.filter((f) => classifyCoinFixture(f) !== undefined);
+const inDuelFixtureFiles = allFixtureFiles.filter((f) => f.startsWith('in_duel_'));
 
 if (coinFixtureFiles.length > 0) {
   describe('coin toss fixture image classification', () => {
@@ -177,6 +185,29 @@ if (coinFixtureFiles.length > 0) {
           try {
             const result = await detectCoinTossScreen(worker, filepath, width, height);
             expect(result).toBe(meta.expected);
+          } finally {
+            await worker.terminate();
+          }
+        },
+        60000,
+      );
+    }
+  });
+}
+
+if (inDuelFixtureFiles.length > 0) {
+  describe('in-duel screens should not trigger coin toss detection', () => {
+    for (const file of inDuelFixtureFiles) {
+      const filepath = path.join(FIXTURES, file);
+
+      it(
+        `${file} → null`,
+        async () => {
+          const { width, height } = readPngDimensions(filepath);
+          const worker = await createJpnOcrWorker();
+          try {
+            const result = await detectCoinTossScreen(worker, filepath, width, height);
+            expect(result).toBeNull();
           } finally {
             await worker.terminate();
           }

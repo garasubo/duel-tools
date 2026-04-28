@@ -1,4 +1,5 @@
 import type { ImageLike, Worker } from 'tesseract.js';
+import { minWordDistance, normalizeOcrLatinChars } from '../utils/fuzzyText';
 import type { DetectionResult, ROI } from './types';
 
 type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
@@ -10,15 +11,27 @@ const PSM_SINGLE_WORD = '8' as PageSegmentationMode;
 export const MIN_RESULT_CONFIDENCE = 60;
 const CLEAR_RESULT_TEXT_CONFIDENCE = 85;
 
+/** VICTORY / LOSE のいずれかと完全一致（または正規化後一致）する場合に confidence を 85 に引き上げる。 */
 function confidenceWithTextMatch(text: string, confidence: number): number {
   const upper = text.toUpperCase();
-  if (/(^|[^A-Z0-9])VICTORY([^A-Z0-9]|$)/.test(upper)
-    || /(^|[^A-Z0-9])LOSE([^A-Z0-9]|$)/.test(upper)) {
+  const norm = normalizeOcrLatinChars(text);
+  if (
+    upper.includes('VICTORY') || norm.includes('VICTORY') ||
+    upper.includes('LOSE') || norm.includes('LOSE')
+  ) {
     return Math.max(confidence, CLEAR_RESULT_TEXT_CONFIDENCE);
   }
   return confidence;
 }
 
+/**
+ * OCR テキストと信頼度から勝敗を判定する。
+ *
+ * マッチング優先順:
+ *   1. 完全一致（toUpperCase().includes）
+ *   2. OCR 文字正規化後の一致（0→O / 1→I / 5→S など）
+ *   3. 単語レベルのファジーマッチ（Levenshtein ≤ 1）※ confidence boost なし
+ */
 export function parseDetectionResult(
   text: string,
   confidence: number,
@@ -26,8 +39,20 @@ export function parseDetectionResult(
   if (confidence < MIN_RESULT_CONFIDENCE) return null;
 
   const upper = text.toUpperCase();
+
+  // 1. 完全一致
   if (upper.includes('VICTORY')) return { result: 'win', confidence };
   if (upper.includes('LOSE')) return { result: 'loss', confidence };
+
+  // 2. 正規化後の一致（0→O, 1→I, 5→S 等）
+  const norm = normalizeOcrLatinChars(text);
+  if (norm.includes('VICTORY')) return { result: 'win', confidence };
+  if (norm.includes('LOSE')) return { result: 'loss', confidence };
+
+  // 3. ファジーワードマッチ（Levenshtein ≤ 1）- confidence boost なし
+  if (minWordDistance(upper, 'VICTORY') <= 1) return { result: 'win', confidence };
+  if (minWordDistance(upper, 'LOSE') <= 1) return { result: 'loss', confidence };
+
   return null;
 }
 

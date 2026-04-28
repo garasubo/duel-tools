@@ -249,6 +249,8 @@ export function useDuelCapture(
         const screen = await detectCoinTossScreen(
           worker,
           canvas as unknown as Blob,
+          canvas.width,
+          canvas.height,
         );
 
         const prevState = coinTossStateRef.current;

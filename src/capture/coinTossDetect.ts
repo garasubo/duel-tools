@@ -2,16 +2,17 @@ import type { ImageLike, Worker } from 'tesseract.js';
 import type { ROI } from './types';
 
 export type CoinTossScreen =
-  | 'user-selecting'      // coin_win_001: 「先攻・後攻を選択してください」
-  | 'opponent-selecting'  // coin_lose_001: 「対戦相手が先攻・後攻を選択しています」
-  | 'you-are-first'       // coin_win_002: 「あなたが先攻です。」
-  | 'you-are-second';     // coin_lose_002: 「あなたが後攻です。」
+  | 'user-selecting'      // coin_win_NNN: 「先攻・後攻を選択してください」
+  | 'opponent-selecting'  // coin_lose_NNN: 「対戦相手が先攻・後攻を選択しています」
+  | 'you-are-first'       // coin_first_NNN: 「あなたが先攻です。」
+  | 'you-are-second';     // coin_second_NNN: 「あなたが後攻です。」
 
-export const COIN_TOSS_TEXT_ROI: ROI = {
+// テキストが表示される下部帯領域（コイントス結果画面で使用）
+const COIN_TOSS_TEXT_ROI: ROI = {
   x: 0.15,
-  y: 0.38,
+  y: 0.65,
   width: 0.70,
-  height: 0.28,
+  height: 0.20,
 };
 
 // Tesseract.js は日本語テキストを認識する際に単語間にスペースを挿入することがある。
@@ -41,10 +42,25 @@ export async function createJpnOcrWorker(): Promise<Worker> {
 export async function detectCoinTossScreen(
   worker: Worker,
   input: ImageLike,
+  imageWidth?: number,
+  imageHeight?: number,
 ): Promise<CoinTossScreen | null> {
-  // フル画像スキャン: ROIより精度が高い（コンテキストが多いほど認識精度が上がる）
-  const { data } = await worker.recognize(input);
-  return parseCoinTossText(data.text);
+  if (imageWidth && imageHeight) {
+    // パス1: テキスト表示下部ROI（複雑な背景でも精度が高い）
+    const rect = {
+      left: Math.floor(COIN_TOSS_TEXT_ROI.x * imageWidth),
+      top: Math.floor(COIN_TOSS_TEXT_ROI.y * imageHeight),
+      width: Math.floor(COIN_TOSS_TEXT_ROI.width * imageWidth),
+      height: Math.floor(COIN_TOSS_TEXT_ROI.height * imageHeight),
+    };
+    const { data: d1 } = await worker.recognize(input, { rectangle: rect });
+    const r1 = parseCoinTossText(d1.text);
+    if (r1) return r1;
+  }
+
+  // パス2（フォールバック）: 全画像スキャン
+  const { data: d2 } = await worker.recognize(input);
+  return parseCoinTossText(d2.text);
 }
 
 // デュエル中のターン番号を英語OCRテキストから解析する（フォールバック用）

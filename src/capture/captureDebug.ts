@@ -3,7 +3,12 @@ export function isCaptureDebugSearch(search: string): boolean {
   return params.get('captureDebug') === '1';
 }
 
-export function isCaptureDebugUrl(url: Pick<Location, 'search' | 'hash'>): boolean {
+interface LocationLike {
+  search: string;
+  hash: string;
+}
+
+export function isCaptureDebugUrl(url: LocationLike): boolean {
   if (isCaptureDebugSearch(url.search)) return true;
 
   const queryStart = url.hash.indexOf('?');
@@ -13,8 +18,9 @@ export function isCaptureDebugUrl(url: Pick<Location, 'search' | 'hash'>): boole
 }
 
 export function getCaptureDebugEnabled(): boolean {
-  if (typeof window === 'undefined') return false;
-  return isCaptureDebugUrl(window.location);
+  const w = (globalThis as Record<string, unknown>)['window'] as { location?: LocationLike } | undefined;
+  if (!w?.location) return false;
+  return isCaptureDebugUrl(w.location);
 }
 
 export function createCaptureFilename(kind: 'current' | 'result-candidate', date = new Date()): string {
