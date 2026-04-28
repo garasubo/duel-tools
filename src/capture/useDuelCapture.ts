@@ -24,8 +24,8 @@ import { useScreenCapture } from './useScreenCapture';
 
 const AUTO_CONFIRM_STORAGE_KEY = 'duel-tools:auto-confirm-result';
 
-// コイントス検出は250ms間隔、キャプチャ開始から60秒間有効
-const COIN_TOSS_INTERVAL_MS = 250;
+// コイントス検出は200ms間隔、キャプチャ開始から60秒間有効
+const COIN_TOSS_INTERVAL_MS = 200;
 const COIN_TOSS_ACTIVE_DURATION_MS = 60_000;
 // 相手選択画面検出後30秒以内に結果が出なければ後攻とみなす
 const OPPONENT_SELECTING_TIMEOUT_MS = 30_000;
