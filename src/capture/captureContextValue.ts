@@ -1,4 +1,5 @@
 import { createContext } from 'react';
+import type { TurnOrder } from '../types';
 import type { DetectionResult, DuelCaptureState } from './types';
 
 export interface CaptureContextValue {
@@ -21,6 +22,8 @@ export interface CaptureContextValue {
   dismiss: () => void;
   setResultCallback: (cb: (result: 'win' | 'loss') => void) => void;
   clearResultCallback: () => void;
+  setTurnOrderCallback: (cb: (order: TurnOrder) => void) => void;
+  clearTurnOrderCallback: () => void;
 }
 
 export const CaptureContext = createContext<CaptureContextValue | null>(null);

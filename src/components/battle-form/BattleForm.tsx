@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useBattlesContext } from "../../context/BattlesContext";
-import type { BattleResult } from "../../types";
+import type { BattleResult, TurnOrder } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
 import {
@@ -14,9 +14,16 @@ import type { BattleFormState } from "./types";
 interface BattleFormProps {
   suggestedResult?: BattleResult | null;
   onSuggestedResultConsumed?: () => void;
+  suggestedTurnOrder?: TurnOrder | null;
+  onSuggestedTurnOrderConsumed?: () => void;
 }
 
-export default function BattleForm({ suggestedResult, onSuggestedResultConsumed }: BattleFormProps) {
+export default function BattleForm({
+  suggestedResult,
+  onSuggestedResultConsumed,
+  suggestedTurnOrder,
+  onSuggestedTurnOrderConsumed,
+}: BattleFormProps) {
   const {
     records,
     ownDecks,
@@ -69,6 +76,15 @@ export default function BattleForm({ suggestedResult, onSuggestedResultConsumed 
       });
     }
   }, [suggestedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (suggestedTurnOrder) {
+      queueMicrotask(() => {
+        setForm((f) => ({ ...f, turnOrder: suggestedTurnOrder }));
+        onSuggestedTurnOrderConsumed?.();
+      });
+    }
+  }, [suggestedTurnOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!autoSubmitRef.current) return;

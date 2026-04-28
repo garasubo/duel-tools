@@ -6,14 +6,31 @@ import {
   REQUIRED_CONSECUTIVE,
 } from './captureTiming';
 import { createCaptureFilename } from './captureDebug';
+import {
+  createJpnOcrWorker,
+  detectCoinTossScreen,
+  IN_DUEL_BADGE_ROI,
+  parseInDuelTurnOrder,
+} from './coinTossDetect';
+import { INITIAL_COIN_TOSS_STATE, updateCoinTossState } from './coinTossState';
+import type { CoinTossDetectionState } from './coinTossState';
 import { DEFAULT_RESULT_ROI } from './types';
 import type { DetectionResult, DuelCaptureState } from './types';
+import type { TurnOrder } from '../types';
 import { updateResultScreenGate } from './resultScreenGate';
 import { useFrameSampler } from './useFrameSampler';
 import { useOcrDetector } from './useOcrDetector';
 import { useScreenCapture } from './useScreenCapture';
 
 const AUTO_CONFIRM_STORAGE_KEY = 'duel-tools:auto-confirm-result';
+
+// コイントス検出は250ms間隔、キャプチャ開始から60秒間有効
+const COIN_TOSS_INTERVAL_MS = 250;
+const COIN_TOSS_ACTIVE_DURATION_MS = 60_000;
+// 相手選択画面検出後30秒以内に結果が出なければ後攻とみなす
+const OPPONENT_SELECTING_TIMEOUT_MS = 30_000;
+// デュエル中フォールバック: キャプチャ開始から45秒後に有効化
+const IN_DUEL_FALLBACK_DELAY_MS = 45_000;
 
 function getInitialAutoConfirmEnabled() {
   if (typeof window === 'undefined') return false;
@@ -32,11 +49,14 @@ function canvasToDataUrl(canvas: HTMLCanvasElement): string | null {
   return canvas.toDataURL('image/png');
 }
 
-export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => void) {
+export function useDuelCapture(
+  onResultDetected: (result: 'win' | 'loss') => void,
+  onTurnOrderDetected: (order: TurnOrder) => void,
+) {
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sampler = useFrameSampler(750);
-  const { detect, dispose } = useOcrDetector();
+  const { detect, detectRawText, dispose } = useOcrDetector();
 
   const [captureState, setCaptureState] = useState<DuelCaptureState>('idle');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
@@ -57,7 +77,15 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
   const firstCandidateFrameRef = useRef<string | null>(null);
   const isStoppedRef = useRef(false);
 
-  // captureState の ref を同期（クロージャ内で使うため）
+  // コイントス関連 ref
+  const coinTossStateRef = useRef<CoinTossDetectionState>(INITIAL_COIN_TOSS_STATE);
+  const turnOrderDetectedRef = useRef(false);
+  const coinTossTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coinTossWorkerRef = useRef<Awaited<ReturnType<typeof createJpnOcrWorker>> | null>(null);
+  const coinTossRunningRef = useRef(false);
+  const captureStartTimeRef = useRef<number>(0);
+  const opponentSelectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     captureStateRef.current = captureState;
   }, [captureState]);
@@ -70,7 +98,6 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     autoConfirmEnabledRef.current = autoConfirmEnabled;
   }, [autoConfirmEnabled]);
 
-  // フレームサンプリング後に OCR を実行するタイマー
   const ocrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setAutoConfirmEnabled = useCallback((enabled: boolean) => {
@@ -101,6 +128,20 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     setHasFirstCandidateFrame(false);
   }, []);
 
+  const stopCoinTossDetection = useCallback(() => {
+    if (coinTossTimerRef.current) {
+      clearTimeout(coinTossTimerRef.current);
+      coinTossTimerRef.current = null;
+    }
+    if (opponentSelectingTimeoutRef.current) {
+      clearTimeout(opponentSelectingTimeoutRef.current);
+      opponentSelectingTimeoutRef.current = null;
+    }
+    const worker = coinTossWorkerRef.current;
+    coinTossWorkerRef.current = null;
+    if (worker) void worker.terminate();
+  }, []);
+
   const stop = useCallback(() => {
     isStoppedRef.current = true;
     stopCapture();
@@ -109,12 +150,15 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
       clearTimeout(ocrTimerRef.current);
       ocrTimerRef.current = null;
     }
+    stopCoinTossDetection();
     resetOcrState();
     resetCandidateFrame();
     setPendingResult(null);
     setCaptureState('idle');
     dispose();
-  }, [stopCapture, sampler, resetOcrState, resetCandidateFrame, dispose]);
+    coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
+    turnOrderDetectedRef.current = false;
+  }, [stopCapture, sampler, resetOcrState, resetCandidateFrame, dispose, stopCoinTossDetection]);
 
   const confirm = useCallback(() => {
     if (pendingResult) {
@@ -146,7 +190,6 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     downloadDataUrl(dataUrl, createCaptureFilename('result-candidate'));
   }, []);
 
-  // isCapturing が変わったときにフレームサンプリングと OCR を開始/停止
   useEffect(() => {
     if (!isCapturing) return;
 
@@ -155,6 +198,9 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
     if (!video || !canvas) return;
 
     isStoppedRef.current = false;
+    captureStartTimeRef.current = Date.now();
+    coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
+    turnOrderDetectedRef.current = false;
     sampler.start(video, canvas);
 
     const scheduleNextOcr = () => {
@@ -168,6 +214,84 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
+    };
+
+    // コイントス検出ループ（日本語OCRワーカー、250ms間隔）
+    const startCoinTossLoop = async () => {
+      try {
+        coinTossWorkerRef.current = await createJpnOcrWorker();
+      } catch {
+        return;
+      }
+      scheduleCoinTossOcr();
+    };
+
+    const scheduleCoinTossOcr = () => {
+      if (isStoppedRef.current || turnOrderDetectedRef.current) return;
+      coinTossTimerRef.current = setTimeout(runCoinTossOcr, COIN_TOSS_INTERVAL_MS);
+    };
+
+    const runCoinTossOcr = async () => {
+      if (isStoppedRef.current || turnOrderDetectedRef.current || coinTossRunningRef.current) return;
+
+      const elapsed = Date.now() - captureStartTimeRef.current;
+      if (elapsed > COIN_TOSS_ACTIVE_DURATION_MS) {
+        stopCoinTossDetection();
+        return;
+      }
+
+      const worker = coinTossWorkerRef.current;
+      if (!worker) return;
+
+      coinTossRunningRef.current = true;
+      captureVideoFrame();
+      try {
+        const screen = await detectCoinTossScreen(
+          worker,
+          canvas as unknown as Blob,
+        );
+
+        const prevState = coinTossStateRef.current;
+        const newState = updateCoinTossState(prevState, screen);
+        coinTossStateRef.current = newState;
+
+        // 相手選択画面を初めて検出したらタイムアウトタイマーを設定
+        if (newState.opponentSelectingDetected && !prevState.opponentSelectingDetected) {
+          opponentSelectingTimeoutRef.current = setTimeout(() => {
+            if (!turnOrderDetectedRef.current && coinTossStateRef.current.opponentSelectingDetected) {
+              turnOrderDetectedRef.current = true;
+              onTurnOrderDetected('second');
+            }
+          }, OPPONENT_SELECTING_TIMEOUT_MS);
+        }
+
+        if (newState.result && !turnOrderDetectedRef.current) {
+          turnOrderDetectedRef.current = true;
+          onTurnOrderDetected(newState.result);
+          stopCoinTossDetection();
+          return;
+        }
+      } catch {
+        // OCRエラーは無視して継続
+      } finally {
+        coinTossRunningRef.current = false;
+      }
+
+      scheduleCoinTossOcr();
+    };
+
+    void startCoinTossLoop();
+
+    // デュエル中ターン判定フォールバック（既存Englishワーカーのバッジ領域OCR）
+    const runInDuelTurnDetection = async () => {
+      if (turnOrderDetectedRef.current || !canvas.width || !canvas.height) return;
+      const text = await detectRawText(canvas, IN_DUEL_BADGE_ROI);
+      if (!text) return;
+      const order = parseInDuelTurnOrder(text);
+      if (order && !turnOrderDetectedRef.current) {
+        turnOrderDetectedRef.current = true;
+        onTurnOrderDetected(order);
+      }
     };
 
     const runOcr = async () => {
@@ -194,6 +318,15 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
         scheduleNextOcr();
         return;
       }
+
+      // デュエル中フォールバック: 45秒経過後かつ手番未確定の場合に実行
+      if (!turnOrderDetectedRef.current) {
+        const elapsed = Date.now() - captureStartTimeRef.current;
+        if (elapsed >= IN_DUEL_FALLBACK_DELAY_MS) {
+          await runInDuelTurnDetection();
+        }
+      }
+
       if (!result) {
         consecutiveRef.current = 0;
         lastResultRef.current = null;
@@ -238,6 +371,7 @@ export function useDuelCapture(onResultDetected: (result: 'win' | 'loss') => voi
         clearTimeout(ocrTimerRef.current);
         ocrTimerRef.current = null;
       }
+      stopCoinTossDetection();
       dispose();
     };
   }, [isCapturing]); // eslint-disable-line react-hooks/exhaustive-deps
