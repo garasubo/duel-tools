@@ -18,7 +18,11 @@ const COIN_TOSS_TEXT_ROI: ROI = {
 // Tesseract.js は日本語テキストを認識する際に単語間にスペースを挿入することがある。
 // スペースを除去してから判定する。
 function normalizeOcrText(text: string): string {
-  return text.replace(/\s+/g, '');
+  return text
+    .replace(/[\s・、。，．.｡:：／/\\|｜\-ー―‐=＝_＿]+/g, '')
+    .replace(/[「」『』（）()［］【】<>＜＞]+/g, '')
+    .replaceAll('[', '')
+    .replaceAll(']', '');
 }
 
 export function parseCoinTossText(text: string): CoinTossScreen | null {
@@ -26,7 +30,12 @@ export function parseCoinTossText(text: string): CoinTossScreen | null {
   // 「選択してください」→ ユーザーが先攻/後攻を選択する画面（コイントス勝ち）
   if (normalized.includes('選択してください')) return 'user-selecting';
   // 「対戦相手」→ 相手が選択中（コイントス負け）
-  if (normalized.includes('対戦相手') && normalized.includes('選択')) return 'opponent-selecting';
+  if (
+    (normalized.includes('対戦相手') || normalized.includes('相手')) &&
+    normalized.includes('選択')
+  ) {
+    return 'opponent-selecting';
+  }
   // 「先攻で」→ あなたが先攻（「先攻です。」の「す」がOCRで欠落する場合も対応）
   if (normalized.includes('先攻で')) return 'you-are-first';
   // 「後攻で」→ あなたが後攻

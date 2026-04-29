@@ -1,6 +1,7 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import type { Worker } from 'tesseract.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseCoinTossText, parseInDuelTurnOrder, detectCoinTossScreen, createJpnOcrWorker } from './coinTossDetect';
 import { updateCoinTossState, INITIAL_COIN_TOSS_STATE } from './coinTossState';
 
@@ -177,6 +178,16 @@ const coinFixtures = loadCoinFixtures();
 
 if (coinFixtures.length > 0) {
   describe('fixture image classification', () => {
+    let worker: Worker;
+
+    beforeAll(async () => {
+      worker = await createJpnOcrWorker();
+    }, 30000);
+
+    afterAll(async () => {
+      await worker.terminate();
+    });
+
     for (const { filename, coinExpected } of coinFixtures) {
       const filepath = path.join(FIXTURES, filename);
 
@@ -184,13 +195,8 @@ if (coinFixtures.length > 0) {
         `${filename} → ${coinExpected ?? 'null'}`,
         async () => {
           const { width, height } = readPngDimensions(filepath);
-          const worker = await createJpnOcrWorker();
-          try {
-            const result = await detectCoinTossScreen(worker, filepath, width, height);
-            expect(result).toBe(coinExpected);
-          } finally {
-            await worker.terminate();
-          }
+          const result = await detectCoinTossScreen(worker, filepath, width, height);
+          expect(result).toBe(coinExpected);
         },
         60000,
       );

@@ -1,7 +1,13 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
-import { detectFromImageLike, parseDetectionResult, roiToRectangle } from './ocrDetect';
+import type { Worker } from 'tesseract.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  createOcrWorker,
+  detectWithOcrWorker,
+  parseDetectionResult,
+  roiToRectangle,
+} from './ocrDetect';
 import { DEFAULT_RESULT_ROI } from './types';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
@@ -139,13 +145,23 @@ const ocrFixtures = loadOcrFixtures();
 
 if (ocrFixtures.length > 0) {
   describe('fixture image classification', () => {
+    let worker: Worker;
+
+    beforeAll(async () => {
+      worker = await createOcrWorker();
+    }, 30000);
+
+    afterAll(async () => {
+      await worker.terminate();
+    });
+
     for (const { filename, ocrExpected } of ocrFixtures) {
       const filepath = path.join(FIXTURES, filename);
       it(
         `${filename} → ${ocrExpected ?? 'null'} と認識する`,
         async () => {
           const { width, height } = readPngDimensions(filepath);
-          const result = await detectFromImageLike(filepath, width, height);
+          const result = await detectWithOcrWorker(worker, filepath, width, height);
           if (ocrExpected === null) {
             expect(result).toBeNull();
           } else {

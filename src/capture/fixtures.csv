@@ -21,3 +21,9 @@ filename,coin_expected,ocr_expected
 0020.png,none,
 0021.png,none,
 0022.png,none,
+0023.png,you-are-second
+0024.png,opponent-selecting
+0025.png,,win
+0026.png,,loss
+0027.png,,none
+0028.png,,win
