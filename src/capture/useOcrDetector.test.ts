@@ -1,21 +1,34 @@
-import { closeSync, existsSync, openSync, readdirSync, readSync } from 'fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { detectFromImageLike, parseDetectionResult, roiToRectangle } from './ocrDetect';
 import { DEFAULT_RESULT_ROI } from './types';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
+const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
 
-// ファイル名のプレフィックスで期待結果を分類する。
-// 命名規則:
-//   result_win_NNN.png  → 勝ち画面
-//   result_lose_NNN.png → 負け画面
-//   no_result_NNN.png   → 結果なし画面（null を期待）
-function classifyFixture(filename: string): 'win' | 'loss' | null | undefined {
-  if (filename.startsWith('result_win_')) return 'win';
-  if (filename.startsWith('result_lose_')) return 'loss';
-  if (filename.startsWith('no_result_')) return null;
-  return undefined; // 命名規則外は無視
+interface OcrFixtureRow {
+  filename: string;
+  ocrExpected: 'win' | 'loss' | null;
+}
+
+function loadOcrFixtures(): OcrFixtureRow[] {
+  if (!existsSync(FIXTURES_CSV) || !existsSync(FIXTURES)) return [];
+  const content = readFileSync(FIXTURES_CSV, 'utf-8');
+  return content
+    .split('\n')
+    .slice(1)
+    .filter((line) => line.trim())
+    .flatMap((line) => {
+      const parts = line.split(',');
+      const filename = parts[0];
+      const ocrExpectedStr = parts[2];
+      if (!ocrExpectedStr) return [];
+      const filepath = path.join(FIXTURES, filename);
+      if (!existsSync(filepath)) return [];
+      const ocrExpected = ocrExpectedStr === 'none' ? null : (ocrExpectedStr as 'win' | 'loss');
+      return [{ filename, ocrExpected }];
+    });
 }
 
 // PNG ファイルヘッダー（先頭 24 バイト）から幅・高さを読む。
@@ -121,27 +134,22 @@ describe('roiToRectangle', () => {
 // ディレクトリが存在しない、またはファイルがなければテストは生成されない。
 // ---------------------------------------------------------------------------
 
-// fixtures/ が存在し命名規則に合う PNG がある場合のみ describe ブロックを生成する。
-// ディレクトリがない・ファイルがない場合はブロック自体を作らずエラーを回避する。
-const fixtureFiles = existsSync(FIXTURES)
-  ? readdirSync(FIXTURES)
-      .filter((f) => f.endsWith('.png') && classifyFixture(f) !== undefined)
-  : [];
+// fixtures.csv と fixtures/ が存在する場合のみ describe ブロックを生成する。
+const ocrFixtures = loadOcrFixtures();
 
-if (fixtureFiles.length > 0) {
+if (ocrFixtures.length > 0) {
   describe('fixture image classification', () => {
-    for (const file of fixtureFiles) {
-      const expected = classifyFixture(file)!;
-      const filepath = path.join(FIXTURES, file);
+    for (const { filename, ocrExpected } of ocrFixtures) {
+      const filepath = path.join(FIXTURES, filename);
       it(
-        `${file} → ${expected ?? 'null'} と認識する`,
+        `${filename} → ${ocrExpected ?? 'null'} と認識する`,
         async () => {
           const { width, height } = readPngDimensions(filepath);
           const result = await detectFromImageLike(filepath, width, height);
-          if (expected === null) {
+          if (ocrExpected === null) {
             expect(result).toBeNull();
           } else {
-            expect(result?.result).toBe(expected);
+            expect(result?.result).toBe(ocrExpected);
           }
         },
         30000,

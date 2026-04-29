@@ -1,4 +1,4 @@
-import { closeSync, existsSync, openSync, readdirSync, readSync } from 'fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { parseCoinTossText, parseInDuelTurnOrder, detectCoinTossScreen, createJpnOcrWorker } from './coinTossDetect';
@@ -142,72 +142,52 @@ describe('updateCoinTossState', () => {
 });
 
 // ---------------------------------------------------------------------------
-// fixture 画像による統合テスト（coin_xxx.png / in_duel_xxx.png）
+// fixture 画像による統合テスト
 // ---------------------------------------------------------------------------
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
+const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
 
-// 命名規則:
-//   coin_win_NNN.png    → user-selecting（コイントス勝ち → 自分が選択する画面）
-//   coin_lose_NNN.png   → opponent-selecting（コイントス負け → 相手が選択中の画面）
-//   coin_first_NNN.png  → you-are-first（先攻確定画面）
-//   coin_second_NNN.png → you-are-second（後攻確定画面）
-//   in_duel_NNN.png     → null（デュエル中の通常画面、コイントス誤検知しないことを確認）
-function classifyCoinFixture(filename: string): {
-  type: 'coin';
-  expected: ReturnType<typeof parseCoinTossText>;
-} | undefined {
-  if (filename.startsWith('coin_win_')) return { type: 'coin', expected: 'user-selecting' };
-  if (filename.startsWith('coin_lose_')) return { type: 'coin', expected: 'opponent-selecting' };
-  if (filename.startsWith('coin_first_')) return { type: 'coin', expected: 'you-are-first' };
-  if (filename.startsWith('coin_second_')) return { type: 'coin', expected: 'you-are-second' };
-  return undefined;
+interface CoinFixtureRow {
+  filename: string;
+  coinExpected: ReturnType<typeof parseCoinTossText>;
 }
 
-const allFixtureFiles = existsSync(FIXTURES)
-  ? readdirSync(FIXTURES).filter((f: string) => f.endsWith('.png'))
-  : [];
+function loadCoinFixtures(): CoinFixtureRow[] {
+  if (!existsSync(FIXTURES_CSV) || !existsSync(FIXTURES)) return [];
+  const content = readFileSync(FIXTURES_CSV, 'utf-8');
+  return content
+    .split('\n')
+    .slice(1)
+    .filter((line) => line.trim())
+    .flatMap((line) => {
+      const [filename, coinExpectedStr] = line.split(',');
+      if (!coinExpectedStr) return [];
+      const filepath = path.join(FIXTURES, filename);
+      if (!existsSync(filepath)) return [];
+      const coinExpected =
+        coinExpectedStr === 'none'
+          ? null
+          : (coinExpectedStr as Exclude<ReturnType<typeof parseCoinTossText>, null>);
+      return [{ filename, coinExpected }];
+    });
+}
 
-const coinFixtureFiles = allFixtureFiles.filter((f) => classifyCoinFixture(f) !== undefined);
-const inDuelFixtureFiles = allFixtureFiles.filter((f) => f.startsWith('in_duel_'));
+const coinFixtures = loadCoinFixtures();
 
-if (coinFixtureFiles.length > 0) {
-  describe('coin toss fixture image classification', () => {
-    for (const file of coinFixtureFiles) {
-      const meta = classifyCoinFixture(file)!;
-      const filepath = path.join(FIXTURES, file);
+if (coinFixtures.length > 0) {
+  describe('fixture image classification', () => {
+    for (const { filename, coinExpected } of coinFixtures) {
+      const filepath = path.join(FIXTURES, filename);
 
       it(
-        `${file} → ${meta.expected}`,
+        `${filename} → ${coinExpected ?? 'null'}`,
         async () => {
           const { width, height } = readPngDimensions(filepath);
           const worker = await createJpnOcrWorker();
           try {
             const result = await detectCoinTossScreen(worker, filepath, width, height);
-            expect(result).toBe(meta.expected);
-          } finally {
-            await worker.terminate();
-          }
-        },
-        60000,
-      );
-    }
-  });
-}
-
-if (inDuelFixtureFiles.length > 0) {
-  describe('in-duel screens should not trigger coin toss detection', () => {
-    for (const file of inDuelFixtureFiles) {
-      const filepath = path.join(FIXTURES, file);
-
-      it(
-        `${file} → null`,
-        async () => {
-          const { width, height } = readPngDimensions(filepath);
-          const worker = await createJpnOcrWorker();
-          try {
-            const result = await detectCoinTossScreen(worker, filepath, width, height);
-            expect(result).toBeNull();
+            expect(result).toBe(coinExpected);
           } finally {
             await worker.terminate();
           }
