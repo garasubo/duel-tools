@@ -25,6 +25,7 @@ export default function ResultSelector({
           <ToggleButton
             key={opt.value}
             isSelected={value === opt.value}
+            className="px-8"
             onClick={() => onChange(opt.value)}
           >
             {opt.label}

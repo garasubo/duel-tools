@@ -86,7 +86,7 @@ export default function DeckSelect({
         <select
           value={value}
           onChange={handleSelectChange}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         >
           <option value="">{allowUnknown ? "不明" : "選択してください"}</option>
           {decks.map((d) => (

@@ -56,7 +56,7 @@ export default function BattleFields({
     value.battleMode !== null ? getScoreBounds(value.battleMode) : null;
 
   return (
-    <>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <DeckSelect
         label="自分のデッキ"
         decks={ownDecks}
@@ -81,49 +81,55 @@ export default function BattleFields({
 
       <ResultSelector value={value.result} onChange={handleResult} />
 
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">対戦モード</span>
-        <ToggleButtonGroup label="対戦モード選択">
-          {BATTLE_MODE_OPTIONS.map((opt) => (
-            <ToggleButton
-              key={opt.value}
-              isSelected={value.battleMode === opt.value}
-              onClick={() => handleBattleModeChange(opt.value)}
-            >
-              {opt.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+      <div className="md:col-span-2 flex flex-wrap items-end gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">対戦モード</span>
+          <ToggleButtonGroup label="対戦モード選択">
+            {BATTLE_MODE_OPTIONS.map((opt) => (
+              <ToggleButton
+                key={opt.value}
+                isSelected={value.battleMode === opt.value}
+                onClick={() => handleBattleModeChange(opt.value)}
+              >
+                {opt.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </div>
+
+        {value.battleMode !== null && scoreBounds && (
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">
+              {scoreLabel}
+            </label>
+            <input
+              type="number"
+              value={value.score}
+              onChange={(e) => onChange({ score: e.target.value })}
+              placeholder={getScorePlaceholder(value.battleMode)}
+              min={scoreBounds.min}
+              max={scoreBounds.max}
+              className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        )}
       </div>
 
-      {value.battleMode !== null && scoreBounds && (
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">
-            {scoreLabel}
-          </label>
-          <input
-            type="number"
-            value={value.score}
-            onChange={(e) => onChange({ score: e.target.value })}
-            placeholder={getScorePlaceholder(value.battleMode)}
-            min={scoreBounds.min}
-            max={scoreBounds.max}
-            className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-      )}
+      <div className="md:col-span-2">
+        <TagInput
+          tags={value.reasonTags}
+          knownTags={knownTags}
+          onChange={(reasonTags) => onChange({ reasonTags })}
+          onAddKnownTag={onAddKnownTag}
+        />
+      </div>
 
-      <TagInput
-        tags={value.reasonTags}
-        knownTags={knownTags}
-        onChange={(reasonTags) => onChange({ reasonTags })}
-        onAddKnownTag={onAddKnownTag}
-      />
-
-      <MemoInput
-        value={value.memo}
-        onChange={(memo) => onChange({ memo })}
-      />
-    </>
+      <div className="md:col-span-2">
+        <MemoInput
+          value={value.memo}
+          onChange={(memo) => onChange({ memo })}
+        />
+      </div>
+    </div>
   );
 }
