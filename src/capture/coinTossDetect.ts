@@ -15,6 +15,28 @@ const COIN_TOSS_TEXT_ROI: ROI = {
   height: 0.20,
 };
 
+// 古い/別解像度のスクリーンショットではメッセージ帯が少し上に出る。
+const COIN_TOSS_FALLBACK_TEXT_ROI: ROI = {
+  x: 0.05,
+  y: 0.50,
+  width: 0.90,
+  height: 0.28,
+};
+
+const COIN_TOSS_HIGH_TEXT_ROI: ROI = {
+  x: 0.05,
+  y: 0.45,
+  width: 0.90,
+  height: 0.25,
+};
+
+const COIN_TOSS_WIDE_TEXT_ROI: ROI = {
+  x: 0.05,
+  y: 0.45,
+  width: 0.90,
+  height: 0.33,
+};
+
 // Tesseract.js は日本語テキストを認識する際に単語間にスペースを挿入することがある。
 // スペースを除去してから判定する。
 function normalizeOcrText(text: string): string {
@@ -38,8 +60,10 @@ export function parseCoinTossText(text: string): CoinTossScreen | null {
   }
   // 「先攻で」→ あなたが先攻（「先攻です。」の「す」がOCRで欠落する場合も対応）
   if (normalized.includes('先攻で')) return 'you-are-first';
+  if (normalized.includes('あなたが先') && normalized.includes('です')) return 'you-are-first';
   // 「後攻で」→ あなたが後攻
   if (normalized.includes('後攻で')) return 'you-are-second';
+  if (normalized.includes('あなたが後') && normalized.includes('です')) return 'you-are-second';
   return null;
 }
 
@@ -55,21 +79,28 @@ export async function detectCoinTossScreen(
   imageHeight?: number,
 ): Promise<CoinTossScreen | null> {
   if (imageWidth && imageHeight) {
-    // パス1: テキスト表示下部ROI（複雑な背景でも精度が高い）
-    const rect = {
-      left: Math.floor(COIN_TOSS_TEXT_ROI.x * imageWidth),
-      top: Math.floor(COIN_TOSS_TEXT_ROI.y * imageHeight),
-      width: Math.floor(COIN_TOSS_TEXT_ROI.width * imageWidth),
-      height: Math.floor(COIN_TOSS_TEXT_ROI.height * imageHeight),
-    };
-    const { data: d1 } = await worker.recognize(input, { rectangle: rect });
-    const r1 = parseCoinTossText(d1.text);
-    if (r1) return r1;
+    const rois =
+      imageWidth >= 1500
+        ? [COIN_TOSS_WIDE_TEXT_ROI]
+        : [COIN_TOSS_TEXT_ROI, COIN_TOSS_FALLBACK_TEXT_ROI, COIN_TOSS_HIGH_TEXT_ROI];
+
+    for (const roi of rois) {
+      const rect = {
+        left: Math.floor(roi.x * imageWidth),
+        top: Math.floor(roi.y * imageHeight),
+        width: Math.floor(roi.width * imageWidth),
+        height: Math.floor(roi.height * imageHeight),
+      };
+      const { data } = await worker.recognize(input, { rectangle: rect });
+      const result = parseCoinTossText(data.text);
+      if (result) return result;
+    }
+
+    return null;
   }
 
-  // パス2（フォールバック）: 全画像スキャン
-  const { data: d2 } = await worker.recognize(input);
-  return parseCoinTossText(d2.text);
+  const { data } = await worker.recognize(input);
+  return parseCoinTossText(data.text);
 }
 
 // デュエル中のターン番号を英語OCRテキストから解析する（フォールバック用）
