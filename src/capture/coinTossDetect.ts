@@ -32,10 +32,10 @@ const COIN_TOSS_HIGH_TEXT_ROI: ROI = {
 };
 
 const COIN_TOSS_WIDE_TEXT_ROI: ROI = {
-  x: 0.05,
-  y: 0.45,
-  width: 0.90,
-  height: 0.33,
+  x: 0.30,
+  y: 0.61,
+  width: 0.40,
+  height: 0.12,
 };
 
 // Tesseract.js は日本語テキストを認識する際に単語間にスペースを挿入することがある。
@@ -51,7 +51,13 @@ function normalizeOcrText(text: string): string {
 export function parseCoinTossText(text: string): CoinTossScreen | null {
   const normalized = normalizeOcrText(text);
   // 「選択してください」→ ユーザーが先攻/後攻を選択する画面（コイントス勝ち）
-  if (normalized.includes('選択してください')) return 'user-selecting';
+  if (
+    normalized.includes('先攻') &&
+    normalized.includes('後攻') &&
+    normalized.includes('選択してください')
+  ) {
+    return 'user-selecting';
+  }
   // 「対戦相手」→ 相手が選択中（コイントス負け）
   if (
     (normalized.includes('対戦相手') || normalized.includes('相手')) &&
@@ -209,7 +215,7 @@ function isBlueBadge(stats: ColorBlobStats | null): boolean {
 
   return (
     stats.roiDensity >= 0.10 &&
-    stats.blobDensity >= 0.12 &&
+    stats.blobDensity >= 0.115 &&
     stats.blobWidthRatio >= 0.08 &&
     stats.blobWidthRatio <= 0.18 &&
     stats.blobHeightRatio >= 0.09 &&

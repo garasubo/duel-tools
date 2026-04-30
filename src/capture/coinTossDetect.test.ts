@@ -25,7 +25,7 @@ function readPngDimensions(filepath: string): { width: number; height: number } 
 describe('parseCoinTossText', () => {
   it('「選択してください」を含む → user-selecting', () => {
     expect(parseCoinTossText('先攻・後攻を選択してください')).toBe('user-selecting');
-    expect(parseCoinTossText('  選択してください  ')).toBe('user-selecting');
+    expect(parseCoinTossText('  先攻 後攻 選択してください  ')).toBe('user-selecting');
   });
 
   it('「対戦相手」+「選択」を含む → opponent-selecting', () => {
@@ -62,6 +62,8 @@ describe('parseCoinTossText', () => {
     expect(parseCoinTossText('コイントス')).toBeNull();
     expect(parseCoinTossText('VICTORY')).toBeNull();
     expect(parseCoinTossText('先攻・後攻')).toBeNull(); // 「です」や「してください」がない
+    expect(parseCoinTossText('選択してください')).toBeNull();
+    expect(parseCoinTossText('デッキから手札に加えるカードを選択してください。')).toBeNull();
   });
 
   it('「選択してください」が「選択しています」より優先される', () => {

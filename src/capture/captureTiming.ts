@@ -1,6 +1,6 @@
 import type { DetectionResult } from './types';
 
-export const NORMAL_OCR_INTERVAL_MS = 800;
+export const NORMAL_OCR_INTERVAL_MS = 700;
 export const FAST_OCR_INTERVAL_MS = 250;
 export const REQUIRED_CONSECUTIVE = 3;
 export const HIGH_CONFIDENCE_THRESHOLD = 85;
