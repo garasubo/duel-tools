@@ -9,8 +9,7 @@ import { createCaptureFilename } from './captureDebug';
 import {
   createJpnOcrWorker,
   detectCoinTossScreen,
-  IN_DUEL_BADGE_ROI,
-  parseInDuelTurnOrder,
+  detectInDuelBadgeTurnOrderByImageFeatures,
 } from './coinTossDetect';
 import { INITIAL_COIN_TOSS_STATE, updateCoinTossState } from './coinTossState';
 import type { CoinTossDetectionState } from './coinTossState';
@@ -29,8 +28,8 @@ const COIN_TOSS_INTERVAL_MS = 200;
 const COIN_TOSS_ACTIVE_DURATION_MS = 60_000;
 // 相手選択画面検出後30秒以内に結果が出なければ後攻とみなす
 const OPPONENT_SELECTING_TIMEOUT_MS = 30_000;
-// デュエル中フォールバック: キャプチャ開始から45秒後に有効化
-const IN_DUEL_FALLBACK_DELAY_MS = 45_000;
+// 右側バッジの画像特徴判定はデュエル開始直後向け。長時間後の結果画面等での誤検知を避ける。
+const IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS = 75_000;
 
 function getInitialAutoConfirmEnabled() {
   if (typeof window === 'undefined') return false;
@@ -56,7 +55,7 @@ export function useDuelCapture(
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sampler = useFrameSampler(750);
-  const { detect, detectRawText, dispose } = useOcrDetector();
+  const { detect, dispose } = useOcrDetector();
 
   const [captureState, setCaptureState] = useState<DuelCaptureState>('idle');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
@@ -284,12 +283,12 @@ export function useDuelCapture(
 
     void startCoinTossLoop();
 
-    // デュエル中ターン判定フォールバック（既存Englishワーカーのバッジ領域OCR）
-    const runInDuelTurnDetection = async () => {
+    // デュエル中ターン判定: 開始直後の右側バッジ形状/色を優先して読む。
+    const runInDuelBadgeImageDetection = async () => {
       if (turnOrderDetectedRef.current || !canvas.width || !canvas.height) return;
-      const text = await detectRawText(canvas, IN_DUEL_BADGE_ROI);
-      if (!text) return;
-      const order = parseInDuelTurnOrder(text);
+      const elapsed = Date.now() - captureStartTimeRef.current;
+      if (elapsed > IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS) return;
+      const order = await detectInDuelBadgeTurnOrderByImageFeatures(canvas as unknown as Blob);
       if (order && !turnOrderDetectedRef.current) {
         turnOrderDetectedRef.current = true;
         onTurnOrderDetected(order);
@@ -303,6 +302,7 @@ export function useDuelCapture(
       }
 
       captureVideoFrame();
+      await runInDuelBadgeImageDetection();
       const result = await detect(canvas, DEFAULT_RESULT_ROI);
       if (captureStateRef.current === 'waiting-clear') {
         const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
@@ -319,14 +319,6 @@ export function useDuelCapture(
         }
         scheduleNextOcr();
         return;
-      }
-
-      // デュエル中フォールバック: 45秒経過後かつ手番未確定の場合に実行
-      if (!turnOrderDetectedRef.current) {
-        const elapsed = Date.now() - captureStartTimeRef.current;
-        if (elapsed >= IN_DUEL_FALLBACK_DELAY_MS) {
-          await runInDuelTurnDetection();
-        }
       }
 
       if (!result) {

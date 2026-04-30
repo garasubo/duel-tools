@@ -13,7 +13,7 @@ type CanvasLike = {
   } | null;
 };
 
-interface ImagePixels {
+export interface ImagePixels {
   width: number;
   height: number;
   data: Uint8ClampedArray | Uint8Array;
@@ -26,6 +26,7 @@ const PSM_SINGLE_WORD = '8' as PageSegmentationMode;
 export const MIN_RESULT_CONFIDENCE = 60;
 const CLEAR_RESULT_TEXT_CONFIDENCE = 85;
 const IMAGE_FEATURE_CONFIDENCE = 92;
+const MIN_RESULT_BBOX_DENSITY = 0.35;
 
 const RESULT_BANNER_ROI: ROI = {
   x: 0.02,
@@ -244,7 +245,7 @@ async function readPngPixels(filepath: string): Promise<ImagePixels | null> {
   return { width, height, data };
 }
 
-async function readImagePixels(input: ImageLike): Promise<ImagePixels | null> {
+export async function readImagePixels(input: ImageLike): Promise<ImagePixels | null> {
   try {
     if (typeof input === 'string') return await readPngPixels(input);
     if (isCanvasLike(input)) return getCanvasPixels(input);
@@ -332,7 +333,7 @@ export async function detectResultByImageFeatures(input: ImageLike): Promise<Det
     centerX > 0.65 ||
     centerY < 0.35 ||
     centerY > 0.55 ||
-    bboxDensity < 0.12
+    bboxDensity < MIN_RESULT_BBOX_DENSITY
   ) {
     return null;
   }

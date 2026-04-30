@@ -2,7 +2,12 @@ import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
 import type { Worker } from 'tesseract.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseCoinTossText, parseInDuelTurnOrder, detectCoinTossScreen, createJpnOcrWorker } from './coinTossDetect';
+import {
+  createJpnOcrWorker,
+  detectCoinTossScreen,
+  detectInDuelBadgeTurnOrderByImageFeatures,
+  parseCoinTossText,
+} from './coinTossDetect';
 import { updateCoinTossState, INITIAL_COIN_TOSS_STATE } from './coinTossState';
 
 function readPngDimensions(filepath: string): { width: number; height: number } {
@@ -70,30 +75,6 @@ describe('parseCoinTossText', () => {
 });
 
 // ---------------------------------------------------------------------------
-// parseInDuelTurnOrder
-// ---------------------------------------------------------------------------
-
-describe('parseInDuelTurnOrder', () => {
-  it('「MAIN」+「TURN 1」→ first', () => {
-    expect(parseInDuelTurnOrder('Turn 1\nMain 1')).toBe('first');
-    expect(parseInDuelTurnOrder('MAIN PHASE 1\nTURN 1')).toBe('first');
-  });
-
-  it('「MAIN」+「TURN 2」→ second', () => {
-    expect(parseInDuelTurnOrder('Turn 2\nMain 1')).toBe('second');
-  });
-
-  it('「MAIN」がなければ null', () => {
-    expect(parseInDuelTurnOrder('Turn 1')).toBeNull();
-    expect(parseInDuelTurnOrder('')).toBeNull();
-  });
-
-  it('「TURN」数字がなければ null', () => {
-    expect(parseInDuelTurnOrder('MAIN PHASE 1')).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // updateCoinTossState
 // ---------------------------------------------------------------------------
 
@@ -154,6 +135,11 @@ interface CoinFixtureRow {
   coinExpected: ReturnType<typeof parseCoinTossText>;
 }
 
+interface BadgeFixtureRow {
+  filename: string;
+  badgeExpected: 'first' | 'second' | null;
+}
+
 function loadCoinFixtures(): CoinFixtureRow[] {
   if (!existsSync(FIXTURES_CSV) || !existsSync(FIXTURES)) return [];
   const content = readFileSync(FIXTURES_CSV, 'utf-8');
@@ -174,7 +160,28 @@ function loadCoinFixtures(): CoinFixtureRow[] {
     });
 }
 
+function loadBadgeFixtures(): BadgeFixtureRow[] {
+  if (!existsSync(FIXTURES_CSV) || !existsSync(FIXTURES)) return [];
+  const content = readFileSync(FIXTURES_CSV, 'utf-8');
+  return content
+    .split('\n')
+    .slice(1)
+    .filter((line) => line.trim())
+    .flatMap((line) => {
+      const parts = line.split(',');
+      const filename = parts[0];
+      const badgeExpectedStr = parts[3];
+      if (!badgeExpectedStr) return [];
+      const filepath = path.join(FIXTURES, filename);
+      if (!existsSync(filepath)) return [];
+      const badgeExpected =
+        badgeExpectedStr === 'none' ? null : (badgeExpectedStr as 'first' | 'second');
+      return [{ filename, badgeExpected }];
+    });
+}
+
 const coinFixtures = loadCoinFixtures();
+const badgeFixtures = loadBadgeFixtures();
 
 if (coinFixtures.length > 0) {
   describe('fixture image classification', () => {
@@ -200,6 +207,19 @@ if (coinFixtures.length > 0) {
         },
         60000,
       );
+    }
+  });
+}
+
+if (badgeFixtures.length > 0) {
+  describe('in-duel badge fixture image classification', () => {
+    for (const { filename, badgeExpected } of badgeFixtures) {
+      const filepath = path.join(FIXTURES, filename);
+
+      it(`${filename} → ${badgeExpected ?? 'null'}`, async () => {
+        const result = await detectInDuelBadgeTurnOrderByImageFeatures(filepath);
+        expect(result).toBe(badgeExpected);
+      });
     }
   });
 }

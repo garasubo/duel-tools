@@ -78,33 +78,6 @@ export function useOcrDetector() {
     [getWorker],
   );
 
-  // 指定ROIの生テキストを返す（デュエル中ターン判定フォールバック用）
-  const detectRawText = useCallback(
-    async (canvas: HTMLCanvasElement, roi: ROI): Promise<string | null> => {
-      if (runningRef.current) return null;
-      runningRef.current = true;
-      try {
-        const worker = await getWorker();
-        const rect = {
-          left: Math.floor(roi.x * canvas.width),
-          top: Math.floor(roi.y * canvas.height),
-          width: Math.floor(roi.width * canvas.width),
-          height: Math.floor(roi.height * canvas.height),
-        };
-        const { data } = await worker.recognize(canvas as unknown as Blob, { rectangle: rect });
-        return data.text;
-      } catch (error) {
-        if (error instanceof Error && error.message === 'OCR worker initialization was disposed') {
-          return null;
-        }
-        throw error;
-      } finally {
-        runningRef.current = false;
-      }
-    },
-    [getWorker],
-  );
-
   const dispose = useCallback(() => {
     disposeGenerationRef.current += 1;
     const worker = workerRef.current;
@@ -115,7 +88,7 @@ export function useOcrDetector() {
     }
   }, []);
 
-  return { detect, detectRawText, dispose };
+  return { detect, dispose };
 }
 
 // extractAndPreprocessROI は将来の高精度モードで利用可能
