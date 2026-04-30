@@ -12,6 +12,7 @@ export default function CaptureSection() {
     setAutoConfirmEnabled,
     isCaptureDebugEnabled,
     hasFirstCandidateFrame,
+    coinTossDebug,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     start,
@@ -124,22 +125,31 @@ export default function CaptureSection() {
       )}
 
       {isCaptureDebugEnabled && (
-        <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={downloadCurrentFrame}
-            className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            現在フレームを保存
-          </button>
-          <button
-            type="button"
-            onClick={downloadFirstCandidateFrame}
-            disabled={!hasFirstCandidateFrame}
-            className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            初回候補を保存
-          </button>
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={downloadCurrentFrame}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              現在フレームを保存
+            </button>
+            <button
+              type="button"
+              onClick={downloadFirstCandidateFrame}
+              disabled={!hasFirstCandidateFrame}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              初回候補を保存
+            </button>
+          </div>
+          <div className="text-xs text-gray-500 font-mono break-all">
+            Coin: screen={coinTossDebug?.screen ?? 'null'} / opponent=
+            {coinTossDebug?.opponentSelectingDetected ? 'true' : 'false'} / result=
+            {coinTossDebug?.result ?? 'null'} / elapsed=
+            {coinTossDebug ? `${coinTossDebug.elapsedMs}ms` : '-'} / updated=
+            {coinTossDebug ? new Date(coinTossDebug.updatedAt).toLocaleTimeString() : '-'}
+          </div>
         </div>
       )}
     </div>

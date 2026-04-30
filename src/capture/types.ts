@@ -1,3 +1,6 @@
+import type { TurnOrder } from '../types';
+import type { CoinTossScreen } from './coinTossDetect';
+
 export interface ROI {
   x: number;
   y: number;
@@ -10,6 +13,14 @@ export type DuelCaptureState = 'idle' | 'capturing' | 'detected' | 'waiting-clea
 export interface DetectionResult {
   result: 'win' | 'loss';
   confidence: number;
+}
+
+export interface CoinTossDebugInfo {
+  screen: CoinTossScreen | null;
+  opponentSelectingDetected: boolean;
+  result: TurnOrder | null;
+  elapsedMs: number;
+  updatedAt: number;
 }
 
 // Master Duel 結果画面のデフォルトROI（VICTORY テキストが出る中央帯）

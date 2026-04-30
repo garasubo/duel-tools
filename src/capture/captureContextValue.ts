@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 import type { TurnOrder } from '../types';
-import type { DetectionResult, DuelCaptureState } from './types';
+import type { CoinTossDebugInfo, DetectionResult, DuelCaptureState } from './types';
 
 export interface CaptureContextValue {
   captureState: DuelCaptureState;
@@ -14,6 +14,7 @@ export interface CaptureContextValue {
   setAutoConfirmEnabled: (enabled: boolean) => void;
   isCaptureDebugEnabled: boolean;
   hasFirstCandidateFrame: boolean;
+  coinTossDebug: CoinTossDebugInfo | null;
   downloadCurrentFrame: () => void;
   downloadFirstCandidateFrame: () => void;
   start: () => Promise<void>;

@@ -14,7 +14,7 @@ import {
 import { INITIAL_COIN_TOSS_STATE, updateCoinTossState } from './coinTossState';
 import type { CoinTossDetectionState } from './coinTossState';
 import { DEFAULT_RESULT_ROI } from './types';
-import type { DetectionResult, DuelCaptureState } from './types';
+import type { CoinTossDebugInfo, DetectionResult, DuelCaptureState } from './types';
 import type { TurnOrder } from '../types';
 import { updateResultScreenGate } from './resultScreenGate';
 import { useFrameSampler } from './useFrameSampler';
@@ -64,6 +64,7 @@ export function useDuelCapture(
   const [requiredConsecutiveCount, setRequiredConsecutiveCount] = useState(REQUIRED_CONSECUTIVE);
   const [autoConfirmEnabled, setAutoConfirmEnabledState] = useState(getInitialAutoConfirmEnabled);
   const [hasFirstCandidateFrame, setHasFirstCandidateFrame] = useState(false);
+  const [coinTossDebug, setCoinTossDebug] = useState<CoinTossDebugInfo | null>(null);
 
   const consecutiveRef = useRef(0);
   const lastResultRef = useRef<'win' | 'loss' | null>(null);
@@ -127,6 +128,10 @@ export function useDuelCapture(
     setHasFirstCandidateFrame(false);
   }, []);
 
+  const resetCoinTossDebug = useCallback(() => {
+    setCoinTossDebug(null);
+  }, []);
+
   const stopCoinTossDetection = useCallback(() => {
     if (coinTossTimerRef.current) {
       clearTimeout(coinTossTimerRef.current);
@@ -157,7 +162,16 @@ export function useDuelCapture(
     dispose();
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
-  }, [stopCapture, sampler, resetOcrState, resetCandidateFrame, dispose, stopCoinTossDetection]);
+    resetCoinTossDebug();
+  }, [
+    stopCapture,
+    sampler,
+    resetOcrState,
+    resetCandidateFrame,
+    dispose,
+    stopCoinTossDetection,
+    resetCoinTossDebug,
+  ]);
 
   const confirm = useCallback(() => {
     if (pendingResult) {
@@ -200,6 +214,7 @@ export function useDuelCapture(
     captureStartTimeRef.current = Date.now();
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
+    resetCoinTossDebug();
     sampler.start(video, canvas);
 
     const scheduleNextOcr = () => {
@@ -255,12 +270,35 @@ export function useDuelCapture(
         const prevState = coinTossStateRef.current;
         const newState = updateCoinTossState(prevState, screen);
         coinTossStateRef.current = newState;
+        setCoinTossDebug({
+          screen,
+          opponentSelectingDetected: newState.opponentSelectingDetected,
+          result: newState.result,
+          elapsedMs: elapsed,
+          updatedAt: Date.now(),
+        });
 
         // 相手選択画面を初めて検出したらタイムアウトタイマーを設定
         if (newState.opponentSelectingDetected && !prevState.opponentSelectingDetected) {
           opponentSelectingTimeoutRef.current = setTimeout(() => {
             if (!turnOrderDetectedRef.current && coinTossStateRef.current.opponentSelectingDetected) {
               turnOrderDetectedRef.current = true;
+              setCoinTossDebug((current) =>
+                current
+                  ? {
+                      ...current,
+                      result: 'second',
+                      elapsedMs: Date.now() - captureStartTimeRef.current,
+                      updatedAt: Date.now(),
+                    }
+                  : {
+                      screen: null,
+                      opponentSelectingDetected: true,
+                      result: 'second',
+                      elapsedMs: Date.now() - captureStartTimeRef.current,
+                      updatedAt: Date.now(),
+                    },
+              );
               onTurnOrderDetected('second');
             }
           }, OPPONENT_SELECTING_TIMEOUT_MS);
@@ -383,6 +421,7 @@ export function useDuelCapture(
     autoConfirmEnabled,
     setAutoConfirmEnabled,
     hasFirstCandidateFrame,
+    coinTossDebug,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     start,
