@@ -35,3 +35,13 @@ filename,coin_expected,ocr_expected,badge_expected
 0034.png,user-selecting,none,none
 0035.png,you-are-first,none,none
 0036.png,none,none,first
+0037.png,none,none,second
+0038.png,none,loss,
+0039.png,none,none,none
+0040.png,user-selecting,none,none
+0041.png,you-are-first,none,none
+0042.png,none,none,
+0043.png,none,none,
+0044.png,none,none,
+0045.png,none,none,
+0046.png,none,win,

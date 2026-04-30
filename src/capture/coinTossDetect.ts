@@ -147,6 +147,14 @@ function isGoldBadgePixel(data: Uint8ClampedArray | Uint8Array, offset: number):
   return r >= 120 && g >= 80 && r > b * 1.25 && g > b * 1.05;
 }
 
+function isBadgeColorPixel(data: Uint8ClampedArray | Uint8Array, offset: number): boolean {
+  return (
+    isGoldBadgePixel(data, offset) ||
+    isRedBadgePixel(data, offset) ||
+    isBlueBadgePixel(data, offset)
+  );
+}
+
 interface ColorBlobStats {
   roiDensity: number;
   blobDensity: number;
@@ -210,6 +218,35 @@ function hasBadgeFrame(stats: ColorBlobStats | null): boolean {
   );
 }
 
+function isSplitRedBlueSecondBadge(
+  redStats: ColorBlobStats | null,
+  blueStats: ColorBlobStats | null,
+  badgeColorStats: ColorBlobStats | null,
+): boolean {
+  if (!redStats || !blueStats || !badgeColorStats) return false;
+
+  return (
+    badgeColorStats.roiDensity >= 0.12 &&
+    badgeColorStats.roiDensity <= 0.25 &&
+    badgeColorStats.blobWidthRatio >= 0.10 &&
+    badgeColorStats.blobWidthRatio <= 0.15 &&
+    badgeColorStats.blobHeightRatio >= 0.16 &&
+    badgeColorStats.blobHeightRatio <= 0.20 &&
+    redStats.roiDensity >= 0.03 &&
+    redStats.blobDensity >= 0.25 &&
+    redStats.blobWidthRatio >= 0.02 &&
+    redStats.blobWidthRatio <= 0.05 &&
+    redStats.blobHeightRatio >= 0.09 &&
+    redStats.blobHeightRatio <= 0.13 &&
+    blueStats.roiDensity >= 0.09 &&
+    blueStats.roiDensity <= 0.14 &&
+    blueStats.blobWidthRatio >= 0.09 &&
+    blueStats.blobWidthRatio <= 0.13 &&
+    blueStats.blobHeightRatio >= 0.16 &&
+    blueStats.blobHeightRatio <= 0.20
+  );
+}
+
 function isBlueBadge(stats: ColorBlobStats | null): boolean {
   if (!stats) return false;
 
@@ -243,12 +280,16 @@ export async function detectInDuelBadgeTurnOrderByImageFeatures(
   if (!pixels) return null;
 
   const goldStats = getColorBlobStats(pixels, isGoldBadgePixel);
-  if (!hasBadgeFrame(goldStats)) return null;
-
+  const badgeColorStats = getColorBlobStats(pixels, isBadgeColorPixel);
   const redStats = getColorBlobStats(pixels, isRedBadgePixel);
+  const blueStats = getColorBlobStats(pixels, isBlueBadgePixel);
+
+  if (!hasBadgeFrame(goldStats)) {
+    return isSplitRedBlueSecondBadge(redStats, blueStats, badgeColorStats) ? 'second' : null;
+  }
+
   if (isRedBadge(redStats)) return 'second';
 
-  const blueStats = getColorBlobStats(pixels, isBlueBadgePixel);
   if (isBlueBadge(blueStats)) return 'first';
 
   return null;
