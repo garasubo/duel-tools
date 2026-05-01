@@ -38,6 +38,13 @@ const COIN_TOSS_WIDE_TEXT_ROI: ROI = {
   height: 0.12,
 };
 
+const COIN_TOSS_MESSAGE_FEATURE_ROI: ROI = {
+  x: 0.25,
+  y: 0.60,
+  width: 0.50,
+  height: 0.14,
+};
+
 // Tesseract.js は日本語テキストを認識する際に単語間にスペースを挿入することがある。
 // スペースを除去してから判定する。
 function normalizeOcrText(text: string): string {
@@ -79,6 +86,75 @@ export async function createJpnOcrWorker(): Promise<Worker> {
   return createWorker('jpn');
 }
 
+interface CoinTossMessageFeatureStats {
+  darkDensity: number;
+  cyanDensity: number;
+  blueDensity: number;
+  textDensity: number;
+}
+
+function getCoinTossMessageFeatureStats(
+  pixels: Awaited<ReturnType<typeof readImagePixels>>,
+): CoinTossMessageFeatureStats | null {
+  if (!pixels) return null;
+
+  const rect = roiToRectangle(COIN_TOSS_MESSAGE_FEATURE_ROI, pixels.width, pixels.height);
+  const left = Math.max(0, rect.left);
+  const top = Math.max(0, rect.top);
+  const right = Math.min(pixels.width, rect.left + rect.width);
+  const bottom = Math.min(pixels.height, rect.top + rect.height);
+  if (right <= left || bottom <= top) return null;
+
+  let total = 0;
+  let dark = 0;
+  let cyan = 0;
+  let blue = 0;
+  let text = 0;
+
+  for (let y = top; y < bottom; y += 2) {
+    for (let x = left; x < right; x += 2) {
+      const offset = (y * pixels.width + x) * 4;
+      const r = pixels.data[offset];
+      const g = pixels.data[offset + 1];
+      const b = pixels.data[offset + 2];
+      const a = pixels.data[offset + 3];
+      if (a < 180) continue;
+
+      total += 1;
+      const max = Math.max(r, g, b);
+      if (max < 80) dark += 1;
+      if (g > 90 && b > 100 && b > r * 1.4) cyan += 1;
+      if (b > 100 && b > r * 1.2 && b > g * 1.05) blue += 1;
+      if ((r > 190 && g > 190 && b > 190) || (r > 180 && g > 160 && b < 90)) {
+        text += 1;
+      }
+    }
+  }
+
+  if (total === 0) return null;
+
+  return {
+    darkDensity: dark / total,
+    cyanDensity: cyan / total,
+    blueDensity: blue / total,
+    textDensity: text / total,
+  };
+}
+
+function hasCoinTossMessagePanel(stats: CoinTossMessageFeatureStats | null): boolean {
+  if (!stats) return false;
+
+  return (
+    stats.darkDensity >= 0.60 &&
+    stats.darkDensity <= 0.75 &&
+    stats.cyanDensity >= 0.02 &&
+    stats.cyanDensity <= 0.06 &&
+    stats.blueDensity >= 0.10 &&
+    stats.blueDensity <= 0.22 &&
+    stats.textDensity >= 0.014
+  );
+}
+
 export async function detectCoinTossScreen(
   worker: Worker,
   input: ImageLike,
@@ -86,18 +162,28 @@ export async function detectCoinTossScreen(
   imageHeight?: number,
 ): Promise<CoinTossScreen | null> {
   if (imageWidth && imageHeight) {
+    const pixels = await readImagePixels(input);
+    if (pixels && !hasCoinTossMessagePanel(getCoinTossMessageFeatureStats(pixels))) {
+      return null;
+    }
+
     const rois =
       imageWidth >= 1500
-        ? [COIN_TOSS_WIDE_TEXT_ROI]
-        : [COIN_TOSS_TEXT_ROI, COIN_TOSS_FALLBACK_TEXT_ROI, COIN_TOSS_HIGH_TEXT_ROI];
+        ? [
+            COIN_TOSS_WIDE_TEXT_ROI,
+            COIN_TOSS_TEXT_ROI,
+            COIN_TOSS_FALLBACK_TEXT_ROI,
+            COIN_TOSS_HIGH_TEXT_ROI,
+          ]
+        : [
+            COIN_TOSS_TEXT_ROI,
+            COIN_TOSS_WIDE_TEXT_ROI,
+            COIN_TOSS_FALLBACK_TEXT_ROI,
+            COIN_TOSS_HIGH_TEXT_ROI,
+          ];
 
     for (const roi of rois) {
-      const rect = {
-        left: Math.floor(roi.x * imageWidth),
-        top: Math.floor(roi.y * imageHeight),
-        width: Math.floor(roi.width * imageWidth),
-        height: Math.floor(roi.height * imageHeight),
-      };
+      const rect = roiToRectangle(roi, imageWidth, imageHeight);
       const { data } = await worker.recognize(input, { rectangle: rect });
       const result = parseCoinTossText(data.text);
       if (result) return result;
