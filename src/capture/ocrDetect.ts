@@ -19,6 +19,11 @@ export interface ImagePixels {
   data: Uint8ClampedArray | Uint8Array;
 }
 
+export type ResultScreenFeatureClassification =
+  | { kind: 'result'; result: DetectionResult }
+  | { kind: 'possible' }
+  | { kind: 'none' };
+
 const PSM_SINGLE_BLOCK = '6' as PageSegmentationMode;
 const PSM_SINGLE_LINE = '7' as PageSegmentationMode;
 const PSM_SINGLE_WORD = '8' as PageSegmentationMode;
@@ -27,6 +32,8 @@ export const MIN_RESULT_CONFIDENCE = 60;
 const CLEAR_RESULT_TEXT_CONFIDENCE = 85;
 const IMAGE_FEATURE_CONFIDENCE = 92;
 const MIN_RESULT_BBOX_DENSITY = 0.35;
+const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
+const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 
 const RESULT_BANNER_ROI: ROI = {
   x: 0.02,
@@ -269,8 +276,15 @@ function isResultTextPixel(data: ImagePixels['data'], offset: number): boolean {
 }
 
 export async function detectResultByImageFeatures(input: ImageLike): Promise<DetectionResult | null> {
+  const classification = await classifyResultScreenByImageFeatures(input);
+  return classification.kind === 'result' ? classification.result : null;
+}
+
+export async function classifyResultScreenByImageFeatures(
+  input: ImageLike,
+): Promise<ResultScreenFeatureClassification> {
   const pixels = await readImagePixels(input);
-  if (!pixels) return null;
+  if (!pixels) return { kind: 'possible' };
 
   const rect = roiToRectangle(RESULT_BANNER_ROI, pixels.width, pixels.height);
   const left = Math.max(0, rect.left);
@@ -279,7 +293,7 @@ export async function detectResultByImageFeatures(input: ImageLike): Promise<Det
   const bottom = Math.min(pixels.height, rect.top + rect.height);
   const width = right - left;
   const height = bottom - top;
-  if (width <= 0 || height <= 0) return null;
+  if (width <= 0 || height <= 0) return { kind: 'possible' };
 
   const cols = new Uint16Array(width);
   const rows = new Uint16Array(height);
@@ -296,7 +310,7 @@ export async function detectResultByImageFeatures(input: ImageLike): Promise<Det
   }
 
   const density = brightPixels / (width * height);
-  if (density < 0.012) return null;
+  if (density < MIN_POSSIBLE_RESULT_DENSITY) return { kind: 'none' };
 
   const colThreshold = Math.max(4, Math.floor(height * 0.035));
   const rowThreshold = Math.max(6, Math.floor(width * 0.025));
@@ -318,7 +332,7 @@ export async function detectResultByImageFeatures(input: ImageLike): Promise<Det
     }
   }
 
-  if (maxX < minX || maxY < minY) return null;
+  if (maxX < minX || maxY < minY) return { kind: 'none' };
 
   const bannerWidthRatio = (maxX - minX + 1) / pixels.width;
   const bannerHeightRatio = (maxY - minY + 1) / pixels.height;
@@ -335,17 +349,34 @@ export async function detectResultByImageFeatures(input: ImageLike): Promise<Det
     centerY > 0.55 ||
     bboxDensity < MIN_RESULT_BBOX_DENSITY
   ) {
-    return null;
+    if (
+      bannerHeightRatio >= 0.10 &&
+      bannerHeightRatio <= 0.34 &&
+      centerX >= 0.35 &&
+      centerX <= 0.65 &&
+      centerY >= 0.35 &&
+      centerY <= 0.56 &&
+      bboxDensity >= MIN_POSSIBLE_RESULT_BBOX_DENSITY
+    ) {
+      return { kind: 'possible' };
+    }
+    return { kind: 'none' };
   }
 
   if (bannerWidthRatio >= 0.58) {
-    return { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE };
+    return {
+      kind: 'result',
+      result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },
+    };
   }
   if (bannerWidthRatio >= 0.24 && bannerWidthRatio <= 0.50) {
-    return { result: 'loss', confidence: IMAGE_FEATURE_CONFIDENCE };
+    return {
+      kind: 'result',
+      result: { result: 'loss', confidence: IMAGE_FEATURE_CONFIDENCE },
+    };
   }
 
-  return null;
+  return { kind: 'possible' };
 }
 
 export async function createOcrWorker(): Promise<Worker> {
@@ -365,8 +396,9 @@ export async function detectWithOcrWorker(
   imageWidth?: number,
   imageHeight?: number,
 ): Promise<DetectionResult | null> {
-  const imageFeatureResult = await detectResultByImageFeatures(input);
-  if (imageFeatureResult) return imageFeatureResult;
+  const imageFeatureResult = await classifyResultScreenByImageFeatures(input);
+  if (imageFeatureResult.kind === 'result') return imageFeatureResult.result;
+  if (imageFeatureResult.kind === 'none') return null;
 
   if (imageWidth && imageHeight) {
     const rect = {

@@ -3,6 +3,7 @@ import path from 'path';
 import type { Worker } from 'tesseract.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  classifyResultScreenByImageFeatures,
   createOcrWorker,
   detectWithOcrWorker,
   parseDetectionResult,
@@ -131,6 +132,40 @@ describe('roiToRectangle', () => {
     const rect = roiToRectangle(DEFAULT_RESULT_ROI, 1601, 901);
     expect(rect.left).toBe(200); // floor(0.125 * 1601) = floor(200.125)
     expect(rect.top).toBe(270);  // floor(0.30  * 901)  = floor(270.3)
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyResultScreenByImageFeatures
+// ---------------------------------------------------------------------------
+
+describe('classifyResultScreenByImageFeatures', () => {
+  it('結果画面は OCR 前に画像特徴量で分類できる', async () => {
+    await expect(
+      classifyResultScreenByImageFeatures(path.join(FIXTURES, '0007.png')),
+    ).resolves.toEqual({
+      kind: 'result',
+      result: { result: 'win', confidence: 92 },
+    });
+
+    await expect(
+      classifyResultScreenByImageFeatures(path.join(FIXTURES, '0038.png')),
+    ).resolves.toEqual({
+      kind: 'result',
+      result: { result: 'loss', confidence: 92 },
+    });
+  });
+
+  it('明らかに結果画面ではない画像は OCR 前に none に分類する', async () => {
+    await expect(
+      classifyResultScreenByImageFeatures(path.join(FIXTURES, '0017.png')),
+    ).resolves.toEqual({ kind: 'none' });
+  });
+
+  it('画像特徴量を読めない入力は従来 OCR にフォールバックできる', async () => {
+    await expect(
+      classifyResultScreenByImageFeatures('missing-or-non-png-image.png'),
+    ).resolves.toEqual({ kind: 'possible' });
   });
 });
 
