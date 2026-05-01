@@ -13,6 +13,7 @@ export default function CaptureSection() {
     isCaptureDebugEnabled,
     hasFirstCandidateFrame,
     coinTossDebug,
+    turnOrderDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     start,
@@ -148,7 +149,10 @@ export default function CaptureSection() {
             {coinTossDebug?.opponentSelectingDetected ? 'true' : 'false'} / result=
             {coinTossDebug?.result ?? 'null'} / elapsed=
             {coinTossDebug ? `${coinTossDebug.elapsedMs}ms` : '-'} / updated=
-            {coinTossDebug ? new Date(coinTossDebug.updatedAt).toLocaleTimeString() : '-'}
+            {coinTossDebug ? new Date(coinTossDebug.updatedAt).toLocaleTimeString() : '-'} / accepted=
+            {turnOrderDetection
+              ? `${turnOrderDetection.order}:${turnOrderDetection.source}#${turnOrderDetection.id}`
+              : 'null'}
           </div>
         </div>
       )}

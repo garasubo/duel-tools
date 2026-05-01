@@ -46,6 +46,10 @@ export function applySuggestedResultToBattleForm(
   return { ...state, result: suggestedResult };
 }
 
+export function shouldNotifyManualResultRecorded(captureResultApplied: boolean): boolean {
+  return !captureResultApplied;
+}
+
 export function createInitialBattleFormState(latestRecord: BattleRecord | null): BattleFormState {
   if (!latestRecord) return EMPTY_BATTLE_FORM_STATE;
 

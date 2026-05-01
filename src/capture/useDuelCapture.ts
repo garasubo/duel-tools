@@ -14,7 +14,13 @@ import {
 import { INITIAL_COIN_TOSS_STATE, updateCoinTossState } from './coinTossState';
 import type { CoinTossDetectionState } from './coinTossState';
 import { DEFAULT_RESULT_ROI } from './types';
-import type { CoinTossDebugInfo, DetectionResult, DuelCaptureState } from './types';
+import type {
+  CoinTossDebugInfo,
+  DetectionResult,
+  DuelCaptureState,
+  TurnOrderDetectionEvent,
+  TurnOrderDetectionSource,
+} from './types';
 import type { TurnOrder } from '../types';
 import { updateResultScreenGate } from './resultScreenGate';
 import { useFrameSampler } from './useFrameSampler';
@@ -65,6 +71,10 @@ export function useDuelCapture(
   const [autoConfirmEnabled, setAutoConfirmEnabledState] = useState(getInitialAutoConfirmEnabled);
   const [hasFirstCandidateFrame, setHasFirstCandidateFrame] = useState(false);
   const [coinTossDebug, setCoinTossDebug] = useState<CoinTossDebugInfo | null>(null);
+  const [turnOrderDetection, setTurnOrderDetection] = useState<TurnOrderDetectionEvent | null>(
+    null,
+  );
+  const [coinTossDetectionSession, setCoinTossDetectionSession] = useState(0);
 
   const consecutiveRef = useRef(0);
   const lastResultRef = useRef<'win' | 'loss' | null>(null);
@@ -85,6 +95,7 @@ export function useDuelCapture(
   const coinTossRunningRef = useRef(false);
   const captureStartTimeRef = useRef<number>(0);
   const opponentSelectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnOrderDetectionIdRef = useRef(0);
 
   useEffect(() => {
     captureStateRef.current = captureState;
@@ -105,6 +116,24 @@ export function useDuelCapture(
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(AUTO_CONFIRM_STORAGE_KEY, enabled ? '1' : '0');
     }
+  }, []);
+
+  const publishTurnOrderDetected = useCallback(
+    (order: TurnOrder, source: TurnOrderDetectionSource) => {
+      const event = {
+        id: ++turnOrderDetectionIdRef.current,
+        order,
+        source,
+        detectedAt: Date.now(),
+      };
+      setTurnOrderDetection(event);
+      onTurnOrderDetected(order);
+    },
+    [onTurnOrderDetected],
+  );
+
+  const clearTurnOrderDetection = useCallback(() => {
+    setTurnOrderDetection(null);
   }, []);
 
   const start = useCallback(async () => {
@@ -143,6 +172,7 @@ export function useDuelCapture(
     }
     const worker = coinTossWorkerRef.current;
     coinTossWorkerRef.current = null;
+    coinTossRunningRef.current = false;
     if (worker) void worker.terminate();
   }, []);
 
@@ -189,6 +219,31 @@ export function useDuelCapture(
     setCaptureState('capturing');
   }, [resetOcrState, resetCandidateFrame]);
 
+  const prepareNextDuelDetection = useCallback(() => {
+    setPendingResult(null);
+    resetOcrState();
+    resetCandidateFrame();
+    if (isCapturing) {
+      setCaptureState('capturing');
+    }
+    stopCoinTossDetection();
+    coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
+    turnOrderDetectedRef.current = false;
+    captureStartTimeRef.current = Date.now();
+    resetCoinTossDebug();
+    clearTurnOrderDetection();
+    if (isCapturing) {
+      setCoinTossDetectionSession((session) => session + 1);
+    }
+  }, [
+    clearTurnOrderDetection,
+    isCapturing,
+    resetCandidateFrame,
+    resetCoinTossDebug,
+    resetOcrState,
+    stopCoinTossDetection,
+  ]);
+
   const downloadCurrentFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -210,6 +265,7 @@ export function useDuelCapture(
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
+    let isEffectActive = true;
     isStoppedRef.current = false;
     captureStartTimeRef.current = Date.now();
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
@@ -218,7 +274,7 @@ export function useDuelCapture(
     sampler.start(video, canvas);
 
     const scheduleNextOcr = () => {
-      if (isStoppedRef.current) return;
+      if (!isEffectActive || isStoppedRef.current) return;
       ocrTimerRef.current = setTimeout(runOcr, getOcrInterval(hasCandidateRef.current));
     };
 
@@ -232,21 +288,34 @@ export function useDuelCapture(
 
     // コイントス検出ループ（日本語OCRワーカー、250ms間隔）
     const startCoinTossLoop = async () => {
+      let worker: Awaited<ReturnType<typeof createJpnOcrWorker>>;
       try {
-        coinTossWorkerRef.current = await createJpnOcrWorker();
+        worker = await createJpnOcrWorker();
       } catch {
         return;
       }
+      if (!isEffectActive || isStoppedRef.current) {
+        void worker.terminate();
+        return;
+      }
+      coinTossWorkerRef.current = worker;
       scheduleCoinTossOcr();
     };
 
     const scheduleCoinTossOcr = () => {
-      if (isStoppedRef.current || turnOrderDetectedRef.current) return;
+      if (!isEffectActive || isStoppedRef.current || turnOrderDetectedRef.current) return;
       coinTossTimerRef.current = setTimeout(runCoinTossOcr, COIN_TOSS_INTERVAL_MS);
     };
 
     const runCoinTossOcr = async () => {
-      if (isStoppedRef.current || turnOrderDetectedRef.current || coinTossRunningRef.current) return;
+      if (
+        !isEffectActive ||
+        isStoppedRef.current ||
+        turnOrderDetectedRef.current ||
+        coinTossRunningRef.current
+      ) {
+        return;
+      }
 
       const elapsed = Date.now() - captureStartTimeRef.current;
       if (elapsed > COIN_TOSS_ACTIVE_DURATION_MS) {
@@ -266,6 +335,7 @@ export function useDuelCapture(
           canvas.width,
           canvas.height,
         );
+        if (!isEffectActive || isStoppedRef.current) return;
 
         const prevState = coinTossStateRef.current;
         const newState = updateCoinTossState(prevState, screen);
@@ -299,14 +369,14 @@ export function useDuelCapture(
                       updatedAt: Date.now(),
                     },
               );
-              onTurnOrderDetected('second');
+              publishTurnOrderDetected('second', 'opponent-timeout');
             }
           }, OPPONENT_SELECTING_TIMEOUT_MS);
         }
 
         if (newState.result && !turnOrderDetectedRef.current) {
           turnOrderDetectedRef.current = true;
-          onTurnOrderDetected(newState.result);
+          publishTurnOrderDetected(newState.result, 'coin-toss-ocr');
           stopCoinTossDetection();
           return;
         }
@@ -323,17 +393,18 @@ export function useDuelCapture(
 
     // デュエル中ターン判定: 開始直後の右側バッジ形状/色を優先して読む。
     const runInDuelBadgeImageDetection = async () => {
-      if (turnOrderDetectedRef.current || !canvas.width || !canvas.height) return;
+      if (!isEffectActive || turnOrderDetectedRef.current || !canvas.width || !canvas.height) return;
       const elapsed = Date.now() - captureStartTimeRef.current;
       if (elapsed > IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS) return;
       const order = await detectInDuelBadgeTurnOrderByImageFeatures(canvas as unknown as Blob);
-      if (order && !turnOrderDetectedRef.current) {
+      if (isEffectActive && order && !turnOrderDetectedRef.current) {
         turnOrderDetectedRef.current = true;
-        onTurnOrderDetected(order);
+        publishTurnOrderDetected(order, 'in-duel-badge');
       }
     };
 
     const runOcr = async () => {
+      if (!isEffectActive) return;
       if (captureStateRef.current === 'detected' && !autoConfirmEnabledRef.current) {
         scheduleNextOcr();
         return;
@@ -342,6 +413,7 @@ export function useDuelCapture(
       captureVideoFrame();
       await runInDuelBadgeImageDetection();
       const result = await detect(canvas, DEFAULT_RESULT_ROI);
+      if (!isEffectActive || isStoppedRef.current) return;
       if (captureStateRef.current === 'waiting-clear') {
         const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
         clearFrameCountRef.current = gate.clearFrameCount;
@@ -397,6 +469,7 @@ export function useDuelCapture(
     scheduleNextOcr();
 
     return () => {
+      isEffectActive = false;
       isStoppedRef.current = true;
       sampler.stop();
       if (ocrTimerRef.current) {
@@ -406,7 +479,7 @@ export function useDuelCapture(
       stopCoinTossDetection();
       dispose();
     };
-  }, [isCapturing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isCapturing, coinTossDetectionSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     captureState,
@@ -422,6 +495,9 @@ export function useDuelCapture(
     setAutoConfirmEnabled,
     hasFirstCandidateFrame,
     coinTossDebug,
+    turnOrderDetection,
+    clearTurnOrderDetection,
+    prepareNextDuelDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     start,

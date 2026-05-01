@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useBattlesContext } from "../../context/BattlesContext";
-import type { BattleResult, TurnOrder } from "../../types";
+import type { TurnOrderDetectionEvent } from "../../capture/types";
+import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
 import {
@@ -8,14 +9,16 @@ import {
   createInitialBattleFormState,
   createNextBattleFormState,
   isBattleFormValid,
+  shouldNotifyManualResultRecorded,
 } from "./types";
 import type { BattleFormState } from "./types";
 
 interface BattleFormProps {
   suggestedResult?: BattleResult | null;
   onSuggestedResultConsumed?: () => void;
-  suggestedTurnOrder?: TurnOrder | null;
+  suggestedTurnOrder?: TurnOrderDetectionEvent | null;
   onSuggestedTurnOrderConsumed?: () => void;
+  onManualResultRecorded?: () => void;
 }
 
 export default function BattleForm({
@@ -23,6 +26,7 @@ export default function BattleForm({
   onSuggestedResultConsumed,
   suggestedTurnOrder,
   onSuggestedTurnOrderConsumed,
+  onManualResultRecorded,
 }: BattleFormProps) {
   const {
     records,
@@ -58,6 +62,9 @@ export default function BattleForm({
       battleMode: currentForm.battleMode ?? undefined,
       score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
     });
+    if (shouldNotifyManualResultRecorded(captureResultApplied)) {
+      onManualResultRecorded?.();
+    }
     setForm(createNextBattleFormState(currentForm));
     setSaved(true);
     setCaptureResultApplied(false);
@@ -80,11 +87,11 @@ export default function BattleForm({
   useEffect(() => {
     if (suggestedTurnOrder) {
       queueMicrotask(() => {
-        setForm((f) => ({ ...f, turnOrder: suggestedTurnOrder }));
+        setForm((f) => ({ ...f, turnOrder: suggestedTurnOrder.order }));
         onSuggestedTurnOrderConsumed?.();
       });
     }
-  }, [suggestedTurnOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [suggestedTurnOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!autoSubmitRef.current) return;

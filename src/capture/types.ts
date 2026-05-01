@@ -15,6 +15,15 @@ export interface DetectionResult {
   confidence: number;
 }
 
+export type TurnOrderDetectionSource = 'coin-toss-ocr' | 'opponent-timeout' | 'in-duel-badge';
+
+export interface TurnOrderDetectionEvent {
+  id: number;
+  order: TurnOrder;
+  source: TurnOrderDetectionSource;
+  detectedAt: number;
+}
+
 export interface CoinTossDebugInfo {
   screen: CoinTossScreen | null;
   opponentSelectingDetected: boolean;

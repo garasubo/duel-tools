@@ -6,6 +6,7 @@ import {
   createNextBattleFormState,
   EMPTY_BATTLE_FORM_STATE,
   isBattleFormValid,
+  shouldNotifyManualResultRecorded,
 } from './types';
 import type { BattleRecord } from '../../types';
 
@@ -70,5 +71,10 @@ describe('battle-form state helpers', () => {
     expect(next.result).toBe('win');
     expect(next.turnOrder).toBeNull();
     expect(isBattleFormValid(next)).toBe(false);
+  });
+
+  it('OCR結果が反映されていない保存だけを手入力扱いにする', () => {
+    expect(shouldNotifyManualResultRecorded(false)).toBe(true);
+    expect(shouldNotifyManualResultRecorded(true)).toBe(false);
   });
 });

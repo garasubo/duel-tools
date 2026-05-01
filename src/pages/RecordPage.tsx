@@ -4,16 +4,23 @@ import BattleForm from '../components/battle-form/BattleForm';
 import LastBattleQuickEdit from '../components/battle-form/LastBattleQuickEdit';
 import { useCaptureContext } from '../capture/useCaptureContext';
 import { openOverlay } from '../utils/openOverlay';
-import type { BattleResult, TurnOrder } from '../types';
+import type { BattleResult } from '../types';
 
 export default function RecordPage() {
   const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
-  const [suggestedTurnOrder, setSuggestedTurnOrder] = useState<TurnOrder | null>(null);
-  const { setResultCallback, clearResultCallback, setTurnOrderCallback, clearTurnOrderCallback } = useCaptureContext();
+  const {
+    turnOrderDetection,
+    clearTurnOrderDetection,
+    prepareNextDuelDetection,
+    setResultCallback,
+    clearResultCallback,
+    setTurnOrderCallback,
+    clearTurnOrderCallback,
+  } = useCaptureContext();
 
   useEffect(() => {
     setResultCallback((result) => setSuggestedResult(result));
-    setTurnOrderCallback((order) => setSuggestedTurnOrder(order));
+    setTurnOrderCallback(() => {});
     return () => {
       clearResultCallback();
       clearTurnOrderCallback();
@@ -35,8 +42,11 @@ export default function RecordPage() {
       <BattleForm
         suggestedResult={suggestedResult}
         onSuggestedResultConsumed={() => setSuggestedResult(null)}
-        suggestedTurnOrder={suggestedTurnOrder}
-        onSuggestedTurnOrderConsumed={() => setSuggestedTurnOrder(null)}
+        suggestedTurnOrder={turnOrderDetection}
+        onSuggestedTurnOrderConsumed={() => {
+          clearTurnOrderDetection();
+        }}
+        onManualResultRecorded={prepareNextDuelDetection}
       />
     </div>
   );
