@@ -9,7 +9,6 @@ import {
   createInitialBattleFormState,
   createNextBattleFormState,
   isBattleFormValid,
-  shouldNotifyManualResultRecorded,
 } from "./types";
 import type { BattleFormState } from "./types";
 
@@ -18,7 +17,7 @@ interface BattleFormProps {
   onSuggestedResultConsumed?: () => void;
   suggestedTurnOrder?: TurnOrderDetectionEvent | null;
   onSuggestedTurnOrderConsumed?: () => void;
-  onManualResultRecorded?: () => void;
+  onRecordSaved?: () => void;
 }
 
 export default function BattleForm({
@@ -26,7 +25,7 @@ export default function BattleForm({
   onSuggestedResultConsumed,
   suggestedTurnOrder,
   onSuggestedTurnOrderConsumed,
-  onManualResultRecorded,
+  onRecordSaved,
 }: BattleFormProps) {
   const {
     records,
@@ -62,9 +61,7 @@ export default function BattleForm({
       battleMode: currentForm.battleMode ?? undefined,
       score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
     });
-    if (shouldNotifyManualResultRecorded(captureResultApplied)) {
-      onManualResultRecorded?.();
-    }
+    onRecordSaved?.();
     setForm(createNextBattleFormState(currentForm));
     setSaved(true);
     setCaptureResultApplied(false);

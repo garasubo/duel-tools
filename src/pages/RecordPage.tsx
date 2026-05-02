@@ -46,7 +46,7 @@ export default function RecordPage() {
         onSuggestedTurnOrderConsumed={() => {
           clearTurnOrderDetection();
         }}
-        onManualResultRecorded={prepareNextDuelDetection}
+        onRecordSaved={prepareNextDuelDetection}
       />
     </div>
   );

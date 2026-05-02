@@ -6,7 +6,6 @@ import {
   createNextBattleFormState,
   EMPTY_BATTLE_FORM_STATE,
   isBattleFormValid,
-  shouldNotifyManualResultRecorded,
 } from './types';
 import type { BattleRecord } from '../../types';
 
@@ -73,8 +72,17 @@ describe('battle-form state helpers', () => {
     expect(isBattleFormValid(next)).toBe(false);
   });
 
-  it('OCR結果が反映されていない保存だけを手入力扱いにする', () => {
-    expect(shouldNotifyManualResultRecorded(false)).toBe(true);
-    expect(shouldNotifyManualResultRecorded(true)).toBe(false);
+  it('キャプチャ結果を含む保存後も次の試合用フォームに戻す', () => {
+    const next = createNextBattleFormState({
+      ...filledForm,
+      result: 'loss',
+      turnOrder: 'second',
+    });
+
+    expect(next).toEqual({
+      ...EMPTY_BATTLE_FORM_STATE,
+      ownDeckId: 'own-1',
+      battleMode: 'duelists-cup',
+    });
   });
 });
