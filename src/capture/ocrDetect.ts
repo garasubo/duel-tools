@@ -34,6 +34,7 @@ const IMAGE_FEATURE_CONFIDENCE = 92;
 const MIN_RESULT_BBOX_DENSITY = 0.35;
 const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
+const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
 
 const RESULT_BANNER_ROI: ROI = {
   x: 0.02,
@@ -363,7 +364,7 @@ export async function classifyResultScreenByImageFeatures(
     return { kind: 'none' };
   }
 
-  if (bannerWidthRatio >= 0.58) {
+  if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO) {
     return {
       kind: 'result',
       result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },

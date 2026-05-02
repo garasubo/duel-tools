@@ -162,6 +162,12 @@ describe('classifyResultScreenByImageFeatures', () => {
     ).resolves.toEqual({ kind: 'none' });
   });
 
+  it('RESOLVE 演出は VICTORY として画像特徴量で確定しない', async () => {
+    await expect(
+      classifyResultScreenByImageFeatures(path.join(FIXTURES, '0049.png')),
+    ).resolves.toEqual({ kind: 'possible' });
+  });
+
   it('画像特徴量を読めない入力は従来 OCR にフォールバックできる', async () => {
     await expect(
       classifyResultScreenByImageFeatures('missing-or-non-png-image.png'),
