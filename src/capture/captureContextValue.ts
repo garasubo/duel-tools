@@ -22,6 +22,7 @@ export interface CaptureContextValue {
   coinTossDebug: CoinTossDebugInfo | null;
   turnOrderDetection: TurnOrderDetectionEvent | null;
   clearTurnOrderDetection: () => void;
+  restartTurnOrderDetection: () => void;
   prepareNextDuelDetection: () => void;
   downloadCurrentFrame: () => void;
   downloadFirstCandidateFrame: () => void;

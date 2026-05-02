@@ -2,6 +2,7 @@ import ToggleButton, {
   ToggleButtonGroup,
 } from "../ui/ToggleButton";
 import type { TurnOrder } from "../../types";
+import { getNextTurnOrderSelection } from "./turnOrderSelection";
 
 const OPTIONS: { value: TurnOrder; label: string }[] = [
   { value: "first", label: "先攻" },
@@ -11,7 +12,7 @@ const OPTIONS: { value: TurnOrder; label: string }[] = [
 
 export interface TurnOrderSelectorProps {
   value: TurnOrder | null;
-  onChange: (order: TurnOrder) => void;
+  onChange: (order: TurnOrder | null) => void;
 }
 
 export default function TurnOrderSelector({
@@ -26,7 +27,7 @@ export default function TurnOrderSelector({
           <ToggleButton
             key={opt.value}
             isSelected={value === opt.value}
-            onClick={() => onChange(opt.value)}
+            onClick={() => onChange(getNextTurnOrderSelection(value, opt.value))}
           >
             {opt.label}
           </ToggleButton>

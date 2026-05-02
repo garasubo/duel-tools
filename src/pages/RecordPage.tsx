@@ -11,6 +11,7 @@ export default function RecordPage() {
   const {
     turnOrderDetection,
     clearTurnOrderDetection,
+    restartTurnOrderDetection,
     prepareNextDuelDetection,
     setResultCallback,
     clearResultCallback,
@@ -47,6 +48,7 @@ export default function RecordPage() {
           clearTurnOrderDetection();
         }}
         onRecordSaved={prepareNextDuelDetection}
+        onTurnOrderCleared={restartTurnOrderDetection}
       />
     </div>
   );

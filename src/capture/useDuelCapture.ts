@@ -244,6 +244,23 @@ export function useDuelCapture(
     stopCoinTossDetection,
   ]);
 
+  const restartTurnOrderDetection = useCallback(() => {
+    stopCoinTossDetection();
+    coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
+    turnOrderDetectedRef.current = false;
+    captureStartTimeRef.current = Date.now();
+    resetCoinTossDebug();
+    clearTurnOrderDetection();
+    if (isCapturing) {
+      setCoinTossDetectionSession((session) => session + 1);
+    }
+  }, [
+    clearTurnOrderDetection,
+    isCapturing,
+    resetCoinTossDebug,
+    stopCoinTossDetection,
+  ]);
+
   const downloadCurrentFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -497,6 +514,7 @@ export function useDuelCapture(
     coinTossDebug,
     turnOrderDetection,
     clearTurnOrderDetection,
+    restartTurnOrderDetection,
     prepareNextDuelDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,

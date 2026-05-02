@@ -18,6 +18,7 @@ interface BattleFormProps {
   suggestedTurnOrder?: TurnOrderDetectionEvent | null;
   onSuggestedTurnOrderConsumed?: () => void;
   onRecordSaved?: () => void;
+  onTurnOrderCleared?: () => void;
 }
 
 export default function BattleForm({
@@ -26,6 +27,7 @@ export default function BattleForm({
   suggestedTurnOrder,
   onSuggestedTurnOrderConsumed,
   onRecordSaved,
+  onTurnOrderCleared,
 }: BattleFormProps) {
   const {
     records,
@@ -104,6 +106,13 @@ export default function BattleForm({
     setForm((f) => ({ ...f, ...patch }));
   }
 
+  function handleFieldsChange(patch: Partial<BattleFormState>) {
+    if (patch.turnOrder === null && form.turnOrder !== null) {
+      onTurnOrderCleared?.();
+    }
+    patchForm(patch);
+  }
+
   function handleAddOwnDeck(name: string) {
     const deck = addOwnDeck(name);
     patchForm({ ownDeckId: deck.id });
@@ -131,7 +140,7 @@ export default function BattleForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-4 max-w-4xl">
       <BattleFields
         value={form}
-        onChange={patchForm}
+        onChange={handleFieldsChange}
         ownDecks={ownDecks}
         opponentDecks={opponentDecks}
         knownTags={knownTags}

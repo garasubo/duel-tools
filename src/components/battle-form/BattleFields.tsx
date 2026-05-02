@@ -1,4 +1,4 @@
-import type { BattleMode, BattleResult, TurnOrder, Deck } from "../../types";
+import type { BattleMode, BattleResult, Deck } from "../../types";
 import {
   BATTLE_MODE_OPTIONS,
   getScoreBounds,
@@ -76,7 +76,7 @@ export default function BattleFields({
 
       <TurnOrderSelector
         value={value.turnOrder}
-        onChange={(turnOrder: TurnOrder) => onChange({ turnOrder })}
+        onChange={(turnOrder) => onChange({ turnOrder })}
       />
 
       <ResultSelector value={value.result} onChange={handleResult} />

@@ -35,6 +35,7 @@ const MIN_RESULT_BBOX_DENSITY = 0.35;
 const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
+const MAX_LOSS_BANNER_HEIGHT_RATIO = 0.20;
 
 const RESULT_BANNER_ROI: ROI = {
   x: 0.02,
@@ -370,7 +371,11 @@ export async function classifyResultScreenByImageFeatures(
       result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },
     };
   }
-  if (bannerWidthRatio >= 0.24 && bannerWidthRatio <= 0.50) {
+  if (
+    bannerWidthRatio >= 0.24 &&
+    bannerWidthRatio <= 0.50 &&
+    bannerHeightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO
+  ) {
     return {
       kind: 'result',
       result: { result: 'loss', confidence: IMAGE_FEATURE_CONFIDENCE },
