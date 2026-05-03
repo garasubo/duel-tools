@@ -5,6 +5,7 @@ import {
   NORMAL_OCR_INTERVAL_MS,
   REQUIRED_CONSECUTIVE,
   averageConfidence,
+  getElapsedMs,
   getOcrInterval,
   getRequiredConsecutive,
 } from './captureTiming';
@@ -26,5 +27,9 @@ describe('captureTiming', () => {
       { result: 'win', confidence: 90 },
       { result: 'win', confidence: 80 },
     ])).toBe(85);
+  });
+
+  it('開始時刻からの経過時間を計算する', () => {
+    expect(getElapsedMs(1000, 1750)).toBe(750);
   });
 });

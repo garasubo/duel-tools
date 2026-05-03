@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   averageConfidence,
+  getElapsedMs,
   getOcrInterval,
   getRequiredConsecutive,
   REQUIRED_CONSECUTIVE,
 } from './captureTiming';
-import { createCaptureFilename } from './captureDebug';
+import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
 import {
   createJpnOcrWorker,
   detectCoinTossScreen,
@@ -23,11 +24,10 @@ import type {
 } from './types';
 import type { TurnOrder } from '../types';
 import { updateResultScreenGate } from './resultScreenGate';
+import { useAutoConfirmSetting } from './useAutoConfirmSetting';
 import { useFrameSampler } from './useFrameSampler';
 import { useOcrDetector } from './useOcrDetector';
 import { useScreenCapture } from './useScreenCapture';
-
-const AUTO_CONFIRM_STORAGE_KEY = 'duel-tools:auto-confirm-result';
 
 // コイントス検出は200ms間隔、キャプチャ開始から60秒間有効
 const COIN_TOSS_INTERVAL_MS = 200;
@@ -36,23 +36,6 @@ const COIN_TOSS_ACTIVE_DURATION_MS = 60_000;
 const OPPONENT_SELECTING_TIMEOUT_MS = 30_000;
 // 右側バッジの画像特徴判定はデュエル開始直後向け。長時間後の結果画面等での誤検知を避ける。
 const IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS = 75_000;
-
-function getInitialAutoConfirmEnabled() {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(AUTO_CONFIRM_STORAGE_KEY) === '1';
-}
-
-function downloadDataUrl(dataUrl: string, filename: string) {
-  const link = document.createElement('a');
-  link.href = dataUrl;
-  link.download = filename;
-  link.click();
-}
-
-function canvasToDataUrl(canvas: HTMLCanvasElement): string | null {
-  if (canvas.width === 0 || canvas.height === 0) return null;
-  return canvas.toDataURL('image/png');
-}
 
 export function useDuelCapture(
   onResultDetected: (result: 'win' | 'loss') => void,
@@ -68,7 +51,7 @@ export function useDuelCapture(
   const [lastOcrResult, setLastOcrResult] = useState<'win' | 'loss' | null>(null);
   const [consecutiveCount, setConsecutiveCount] = useState(0);
   const [requiredConsecutiveCount, setRequiredConsecutiveCount] = useState(REQUIRED_CONSECUTIVE);
-  const [autoConfirmEnabled, setAutoConfirmEnabledState] = useState(getInitialAutoConfirmEnabled);
+  const { autoConfirmEnabled, setAutoConfirmEnabled } = useAutoConfirmSetting();
   const [hasFirstCandidateFrame, setHasFirstCandidateFrame] = useState(false);
   const [coinTossDebug, setCoinTossDebug] = useState<CoinTossDebugInfo | null>(null);
   const [turnOrderDetection, setTurnOrderDetection] = useState<TurnOrderDetectionEvent | null>(
@@ -110,13 +93,6 @@ export function useDuelCapture(
   }, [autoConfirmEnabled]);
 
   const ocrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setAutoConfirmEnabled = useCallback((enabled: boolean) => {
-    setAutoConfirmEnabledState(enabled);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(AUTO_CONFIRM_STORAGE_KEY, enabled ? '1' : '0');
-    }
-  }, []);
 
   const publishTurnOrderDetected = useCallback(
     (order: TurnOrder, source: TurnOrderDetectionSource) => {
@@ -334,7 +310,7 @@ export function useDuelCapture(
         return;
       }
 
-      const elapsed = Date.now() - captureStartTimeRef.current;
+      const elapsed = getElapsedMs(captureStartTimeRef.current);
       if (elapsed > COIN_TOSS_ACTIVE_DURATION_MS) {
         stopCoinTossDetection();
         return;
@@ -375,14 +351,14 @@ export function useDuelCapture(
                   ? {
                       ...current,
                       result: 'second',
-                      elapsedMs: Date.now() - captureStartTimeRef.current,
+                      elapsedMs: getElapsedMs(captureStartTimeRef.current),
                       updatedAt: Date.now(),
                     }
                   : {
                       screen: null,
                       opponentSelectingDetected: true,
                       result: 'second',
-                      elapsedMs: Date.now() - captureStartTimeRef.current,
+                      elapsedMs: getElapsedMs(captureStartTimeRef.current),
                       updatedAt: Date.now(),
                     },
               );
@@ -411,7 +387,7 @@ export function useDuelCapture(
     // デュエル中ターン判定: 開始直後の右側バッジ形状/色を優先して読む。
     const runInDuelBadgeImageDetection = async () => {
       if (!isEffectActive || turnOrderDetectedRef.current || !canvas.width || !canvas.height) return;
-      const elapsed = Date.now() - captureStartTimeRef.current;
+      const elapsed = getElapsedMs(captureStartTimeRef.current);
       if (elapsed > IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS) return;
       const order = await detectInDuelBadgeTurnOrderByImageFeatures(canvas as unknown as Blob);
       if (isEffectActive && order && !turnOrderDetectedRef.current) {

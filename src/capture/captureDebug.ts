@@ -36,3 +36,15 @@ export function createCaptureFilename(kind: 'current' | 'result-candidate', date
 
   return `duel-capture-${kind}-${timestamp}.png`;
 }
+
+export function canvasToDataUrl(canvas: HTMLCanvasElement): string | null {
+  if (canvas.width === 0 || canvas.height === 0) return null;
+  return canvas.toDataURL('image/png');
+}
+
+export function downloadDataUrl(dataUrl: string, filename: string): void {
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = filename;
+  link.click();
+}

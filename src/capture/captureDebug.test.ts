@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createCaptureFilename, isCaptureDebugSearch, isCaptureDebugUrl } from './captureDebug';
+import {
+  canvasToDataUrl,
+  createCaptureFilename,
+  isCaptureDebugSearch,
+  isCaptureDebugUrl,
+} from './captureDebug';
 
 describe('captureDebug', () => {
   it('captureDebug=1 のときだけ検索文字列を有効扱いにする', () => {
@@ -22,5 +27,22 @@ describe('captureDebug', () => {
     expect(createCaptureFilename('result-candidate', date)).toBe(
       'duel-capture-result-candidate-20260405-060708.png',
     );
+  });
+
+  it('空 canvas は data URL にしない', () => {
+    const canvas = {
+      width: 0,
+      height: 0,
+      toDataURL: () => 'data:image/png;base64,test',
+    } as HTMLCanvasElement;
+
+    expect(canvasToDataUrl(canvas)).toBeNull();
+
+    canvas.width = 1;
+    expect(canvasToDataUrl(canvas)).toBeNull();
+
+    canvas.width = 0;
+    canvas.height = 1;
+    expect(canvasToDataUrl(canvas)).toBeNull();
   });
 });

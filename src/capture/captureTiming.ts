@@ -20,3 +20,7 @@ export function averageConfidence(results: DetectionResult[]): number {
   if (results.length === 0) return 0;
   return results.reduce((sum, item) => sum + item.confidence, 0) / results.length;
 }
+
+export function getElapsedMs(startedAt: number, now = Date.now()): number {
+  return now - startedAt;
+}
