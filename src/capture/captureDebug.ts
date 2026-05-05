@@ -23,7 +23,10 @@ export function getCaptureDebugEnabled(): boolean {
   return isCaptureDebugUrl(w.location);
 }
 
-export function createCaptureFilename(kind: 'current' | 'result-candidate', date = new Date()): string {
+export function createCaptureFilename(
+  kind: 'current' | 'result-candidate' | 'coin-toss',
+  date = new Date(),
+): string {
   const timestamp = [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, '0'),

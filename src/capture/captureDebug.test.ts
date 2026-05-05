@@ -27,6 +27,9 @@ describe('captureDebug', () => {
     expect(createCaptureFilename('result-candidate', date)).toBe(
       'duel-capture-result-candidate-20260405-060708.png',
     );
+    expect(createCaptureFilename('coin-toss', date)).toBe(
+      'duel-capture-coin-toss-20260405-060708.png',
+    );
   });
 
   it('空 canvas は data URL にしない', () => {

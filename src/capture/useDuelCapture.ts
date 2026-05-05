@@ -53,6 +53,7 @@ export function useDuelCapture(
   const [requiredConsecutiveCount, setRequiredConsecutiveCount] = useState(REQUIRED_CONSECUTIVE);
   const { autoConfirmEnabled, setAutoConfirmEnabled } = useAutoConfirmSetting();
   const [hasFirstCandidateFrame, setHasFirstCandidateFrame] = useState(false);
+  const [hasCoinTossFrame, setHasCoinTossFrame] = useState(false);
   const [coinTossDebug, setCoinTossDebug] = useState<CoinTossDebugInfo | null>(null);
   const [turnOrderDetection, setTurnOrderDetection] = useState<TurnOrderDetectionEvent | null>(
     null,
@@ -68,6 +69,7 @@ export function useDuelCapture(
   const pendingResultRef = useRef<DetectionResult | null>(null);
   const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
   const firstCandidateFrameRef = useRef<string | null>(null);
+  const coinTossFrameRef = useRef<string | null>(null);
   const isStoppedRef = useRef(false);
 
   // コイントス関連 ref
@@ -133,6 +135,11 @@ export function useDuelCapture(
     setHasFirstCandidateFrame(false);
   }, []);
 
+  const resetCoinTossFrame = useCallback(() => {
+    coinTossFrameRef.current = null;
+    setHasCoinTossFrame(false);
+  }, []);
+
   const resetCoinTossDebug = useCallback(() => {
     setCoinTossDebug(null);
   }, []);
@@ -162,6 +169,7 @@ export function useDuelCapture(
     stopCoinTossDetection();
     resetOcrState();
     resetCandidateFrame();
+    resetCoinTossFrame();
     setPendingResult(null);
     setCaptureState('idle');
     dispose();
@@ -172,6 +180,7 @@ export function useDuelCapture(
     stopCapture,
     resetOcrState,
     resetCandidateFrame,
+    resetCoinTossFrame,
     dispose,
     stopCoinTossDetection,
     resetCoinTossDebug,
@@ -197,6 +206,7 @@ export function useDuelCapture(
     setPendingResult(null);
     resetOcrState();
     resetCandidateFrame();
+    resetCoinTossFrame();
     if (isCapturing) {
       setCaptureState('capturing');
     }
@@ -213,6 +223,7 @@ export function useDuelCapture(
     clearTurnOrderDetection,
     isCapturing,
     resetCandidateFrame,
+    resetCoinTossFrame,
     resetCoinTossDebug,
     resetOcrState,
     stopCoinTossDetection,
@@ -224,6 +235,7 @@ export function useDuelCapture(
     turnOrderDetectedRef.current = false;
     captureStartTimeRef.current = Date.now();
     resetCoinTossDebug();
+    resetCoinTossFrame();
     clearTurnOrderDetection();
     if (isCapturing) {
       setCoinTossDetectionSession((session) => session + 1);
@@ -231,6 +243,7 @@ export function useDuelCapture(
   }, [
     clearTurnOrderDetection,
     isCapturing,
+    resetCoinTossFrame,
     resetCoinTossDebug,
     stopCoinTossDetection,
   ]);
@@ -250,6 +263,12 @@ export function useDuelCapture(
     downloadDataUrl(dataUrl, createCaptureFilename('result-candidate'));
   }, []);
 
+  const downloadCoinTossFrame = useCallback(() => {
+    const dataUrl = coinTossFrameRef.current;
+    if (!dataUrl) return;
+    downloadDataUrl(dataUrl, createCaptureFilename('coin-toss'));
+  }, []);
+
   useEffect(() => {
     if (!isCapturing) return;
 
@@ -263,6 +282,7 @@ export function useDuelCapture(
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
     resetCoinTossDebug();
+    resetCoinTossFrame();
 
     const scheduleNextOcr = () => {
       if (!isEffectActive || isStoppedRef.current) return;
@@ -314,6 +334,11 @@ export function useDuelCapture(
         coinTossRunningRef.current = false;
         scheduleCoinTossOcr();
         return;
+      }
+      const coinTossFrame = canvasToDataUrl(canvas);
+      if (coinTossFrame) {
+        coinTossFrameRef.current = coinTossFrame;
+        setHasCoinTossFrame(true);
       }
       try {
         const screen = await detectCoinTossScreen(
@@ -483,6 +508,7 @@ export function useDuelCapture(
     autoConfirmEnabled,
     setAutoConfirmEnabled,
     hasFirstCandidateFrame,
+    hasCoinTossFrame,
     coinTossDebug,
     turnOrderDetection,
     clearTurnOrderDetection,
@@ -490,6 +516,7 @@ export function useDuelCapture(
     prepareNextDuelDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
+    downloadCoinTossFrame,
     start,
     stop,
     confirm,

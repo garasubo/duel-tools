@@ -19,6 +19,7 @@ export interface CaptureContextValue {
   setAutoConfirmEnabled: (enabled: boolean) => void;
   isCaptureDebugEnabled: boolean;
   hasFirstCandidateFrame: boolean;
+  hasCoinTossFrame: boolean;
   coinTossDebug: CoinTossDebugInfo | null;
   turnOrderDetection: TurnOrderDetectionEvent | null;
   clearTurnOrderDetection: () => void;
@@ -26,6 +27,7 @@ export interface CaptureContextValue {
   prepareNextDuelDetection: () => void;
   downloadCurrentFrame: () => void;
   downloadFirstCandidateFrame: () => void;
+  downloadCoinTossFrame: () => void;
   start: () => Promise<void>;
   stop: () => void;
   confirm: () => void;

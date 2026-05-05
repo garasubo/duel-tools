@@ -333,7 +333,18 @@ function isSplitRedBlueSecondBadge(
   );
 }
 
-function isBlueBadge(stats: ColorBlobStats | null): boolean {
+function hasWideRedNoise(stats: ColorBlobStats | null): boolean {
+  if (!stats) return false;
+
+  return stats.roiDensity >= 0.03 && stats.blobWidthRatio >= 0.14;
+}
+
+function isBlueBadge(
+  blueStats: ColorBlobStats | null,
+  redStats: ColorBlobStats | null,
+): boolean {
+  if (hasWideRedNoise(redStats)) return false;
+  const stats = blueStats;
   if (!stats) return false;
 
   return (
@@ -353,7 +364,7 @@ function isRedBadge(stats: ColorBlobStats | null): boolean {
     stats.roiDensity >= 0.03 &&
     stats.blobDensity >= 0.045 &&
     stats.blobWidthRatio >= 0.08 &&
-    stats.blobWidthRatio <= 0.18 &&
+    stats.blobWidthRatio <= 0.14 &&
     stats.blobHeightRatio >= 0.09 &&
     stats.blobHeightRatio <= 0.20
   );
@@ -376,7 +387,7 @@ export async function detectInDuelBadgeTurnOrderByImageFeatures(
 
   if (isRedBadge(redStats)) return 'second';
 
-  if (isBlueBadge(blueStats)) return 'first';
+  if (isBlueBadge(blueStats, redStats)) return 'first';
 
   return null;
 }
