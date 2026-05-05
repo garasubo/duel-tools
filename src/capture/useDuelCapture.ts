@@ -25,7 +25,7 @@ import type {
 import type { TurnOrder } from '../types';
 import { updateResultScreenGate } from './resultScreenGate';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
-import { useFrameSampler } from './useFrameSampler';
+import { useCaptureFrame } from './useCaptureFrame';
 import { useOcrDetector } from './useOcrDetector';
 import { useScreenCapture } from './useScreenCapture';
 
@@ -43,7 +43,7 @@ export function useDuelCapture(
 ) {
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sampler = useFrameSampler(750);
+  const { captureCurrentFrame } = useCaptureFrame(videoRef, canvasRef);
   const { detect, dispose } = useOcrDetector();
 
   const [captureState, setCaptureState] = useState<DuelCaptureState>('idle');
@@ -155,7 +155,6 @@ export function useDuelCapture(
   const stop = useCallback(() => {
     isStoppedRef.current = true;
     stopCapture();
-    sampler.stop();
     if (ocrTimerRef.current) {
       clearTimeout(ocrTimerRef.current);
       ocrTimerRef.current = null;
@@ -171,7 +170,6 @@ export function useDuelCapture(
     resetCoinTossDebug();
   }, [
     stopCapture,
-    sampler,
     resetOcrState,
     resetCandidateFrame,
     dispose,
@@ -238,12 +236,13 @@ export function useDuelCapture(
   ]);
 
   const downloadCurrentFrame = useCallback(() => {
+    if (!captureCurrentFrame()) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dataUrl = canvasToDataUrl(canvas);
     if (!dataUrl) return;
     downloadDataUrl(dataUrl, createCaptureFilename('current'));
-  }, []);
+  }, [captureCurrentFrame]);
 
   const downloadFirstCandidateFrame = useCallback(() => {
     const dataUrl = firstCandidateFrameRef.current;
@@ -264,19 +263,10 @@ export function useDuelCapture(
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
     resetCoinTossDebug();
-    sampler.start(video, canvas);
 
     const scheduleNextOcr = () => {
       if (!isEffectActive || isStoppedRef.current) return;
       ocrTimerRef.current = setTimeout(runOcr, getOcrInterval(hasCandidateRef.current));
-    };
-
-    const captureVideoFrame = () => {
-      const ctx = canvas.getContext('2d');
-      if (!ctx || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
     };
 
     // コイントス検出ループ（日本語OCRワーカー、250ms間隔）
@@ -320,7 +310,11 @@ export function useDuelCapture(
       if (!worker) return;
 
       coinTossRunningRef.current = true;
-      captureVideoFrame();
+      if (!captureCurrentFrame()) {
+        coinTossRunningRef.current = false;
+        scheduleCoinTossOcr();
+        return;
+      }
       try {
         const screen = await detectCoinTossScreen(
           worker,
@@ -403,7 +397,10 @@ export function useDuelCapture(
         return;
       }
 
-      captureVideoFrame();
+      if (!captureCurrentFrame()) {
+        scheduleNextOcr();
+        return;
+      }
       await runInDuelBadgeImageDetection();
       const result = await detect(canvas, DEFAULT_RESULT_ROI);
       if (!isEffectActive || isStoppedRef.current) return;
@@ -464,7 +461,6 @@ export function useDuelCapture(
     return () => {
       isEffectActive = false;
       isStoppedRef.current = true;
-      sampler.stop();
       if (ocrTimerRef.current) {
         clearTimeout(ocrTimerRef.current);
         ocrTimerRef.current = null;
