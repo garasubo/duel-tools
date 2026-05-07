@@ -1,6 +1,8 @@
+import { useState } from "react";
 import Button from "../ui/Button";
 import type { Deck } from "../../types";
 import { useListEditor } from "../../hooks/useListEditor";
+import { findDeckByName, normalizeDeckName } from "../../utils/decks";
 
 export interface DeckSectionProps {
   title: string;
@@ -19,6 +21,7 @@ export default function DeckSection({
   onDelete,
   isUsed,
 }: DeckSectionProps) {
+  const [addError, setAddError] = useState("");
   const {
     isEditing,
     editValue,
@@ -35,6 +38,30 @@ export default function DeckSection({
     commitAdd,
     cancelAdd,
   } = useListEditor<string>({ onAdd, onUpdate });
+
+  function handleStartAdd() {
+    setAddError("");
+    startAdd();
+  }
+
+  function handleCommitAdd() {
+    const trimmed = normalizeDeckName(addValue);
+    if (!trimmed) {
+      commitAdd();
+      return;
+    }
+    if (findDeckByName(decks, trimmed)) {
+      setAddError("同じデッキ名は追加できません");
+      return;
+    }
+    setAddError("");
+    commitAdd();
+  }
+
+  function handleCancelAdd() {
+    setAddError("");
+    cancelAdd();
+  }
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -100,22 +127,31 @@ export default function DeckSection({
         )}
         {isAdding && (
           <li className="flex items-center gap-2 px-4 py-2.5">
-            <input
-              ref={addInputRef}
-              type="text"
-              value={addValue}
-              placeholder="デッキ名を入力"
-              onChange={(e) => setAddValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitAdd();
-                if (e.key === "Escape") cancelAdd();
-              }}
-              className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <Button size="sm" variant="primary" onClick={commitAdd}>
+            <div className="flex-1">
+              <input
+                ref={addInputRef}
+                type="text"
+                value={addValue}
+                placeholder="デッキ名を入力"
+                onChange={(e) => {
+                  setAddValue(e.target.value);
+                  setAddError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCommitAdd();
+                  if (e.key === "Escape") handleCancelAdd();
+                }}
+                aria-invalid={addError ? true : undefined}
+                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {addError && (
+                <p className="mt-1 text-xs text-red-600">{addError}</p>
+              )}
+            </div>
+            <Button size="sm" variant="primary" onClick={handleCommitAdd}>
               追加
             </Button>
-            <Button size="sm" variant="ghost" onClick={cancelAdd}>
+            <Button size="sm" variant="ghost" onClick={handleCancelAdd}>
               キャンセル
             </Button>
           </li>
@@ -123,7 +159,7 @@ export default function DeckSection({
       </ul>
       {!isAdding && (
         <div className="px-4 py-2.5 border-t border-gray-100">
-          <Button size="sm" variant="secondary" onClick={startAdd}>
+          <Button size="sm" variant="secondary" onClick={handleStartAdd}>
             ＋ 追加
           </Button>
         </div>

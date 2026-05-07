@@ -1,23 +1,33 @@
 import { useCallback } from "react";
 import type { AppStorage, Deck } from "../types";
+import {
+  addDeckIfMissing,
+  findDeckByName,
+  normalizeDeckName,
+} from "../utils/decks";
 import type { AppStorageApi } from "./useAppStorage";
 
 type DeckKey = "ownDecks" | "opponentDecks";
 
 function useDeckActions(
   key: DeckKey,
-  { updateStorage }: Pick<AppStorageApi, "updateStorage">,
+  { storage, updateStorage }: AppStorageApi,
 ) {
   const add = useCallback(
     (name: string): Deck => {
-      const deck: Deck = { id: crypto.randomUUID(), name };
-      updateStorage((prev: AppStorage) => ({
-        ...prev,
-        [key]: [...prev[key], deck],
-      }));
+      const normalizedName = normalizeDeckName(name);
+      const existing = findDeckByName(storage[key], normalizedName);
+      if (existing) return existing;
+
+      const deck: Deck = { id: crypto.randomUUID(), name: normalizedName };
+      updateStorage((prev: AppStorage) => {
+        const next = addDeckIfMissing(prev[key], normalizedName, () => deck.id);
+        if (!next.added) return prev;
+        return { ...prev, [key]: next.decks };
+      });
       return deck;
     },
-    [key, updateStorage],
+    [key, storage, updateStorage],
   );
 
   const update = useCallback(

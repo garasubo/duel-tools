@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  averageConfidence,
-  getElapsedMs,
-  getOcrInterval,
-  getRequiredConsecutive,
-  REQUIRED_CONSECUTIVE,
-} from './captureTiming';
+import { getElapsedMs, getOcrInterval } from './captureTiming';
 import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
 import {
   createJpnOcrWorker,
@@ -14,19 +8,17 @@ import {
 } from './coinTossDetect';
 import { INITIAL_COIN_TOSS_STATE, updateCoinTossState } from './coinTossState';
 import type { CoinTossDetectionState } from './coinTossState';
-import { DEFAULT_RESULT_ROI } from './types';
 import type {
   CoinTossDebugInfo,
-  DetectionResult,
   DuelCaptureState,
   TurnOrderDetectionEvent,
   TurnOrderDetectionSource,
 } from './types';
 import type { TurnOrder } from '../types';
-import { updateResultScreenGate } from './resultScreenGate';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
 import { useCaptureFrame } from './useCaptureFrame';
 import { useOcrDetector } from './useOcrDetector';
+import { useResultCaptureLoop } from './useResultCaptureLoop';
 import { useScreenCapture } from './useScreenCapture';
 
 // コイントス検出は200ms間隔、キャプチャ開始から60秒間有効
@@ -46,13 +38,19 @@ export function useDuelCapture(
   const { captureCurrentFrame } = useCaptureFrame(videoRef, canvasRef);
   const { detect, dispose } = useOcrDetector();
 
-  const [captureState, setCaptureState] = useState<DuelCaptureState>('idle');
-  const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
-  const [lastOcrResult, setLastOcrResult] = useState<'win' | 'loss' | null>(null);
-  const [consecutiveCount, setConsecutiveCount] = useState(0);
-  const [requiredConsecutiveCount, setRequiredConsecutiveCount] = useState(REQUIRED_CONSECUTIVE);
   const { autoConfirmEnabled, setAutoConfirmEnabled } = useAutoConfirmSetting();
-  const [hasFirstCandidateFrame, setHasFirstCandidateFrame] = useState(false);
+  const resultCapture = useResultCaptureLoop({
+    canvasRef,
+    detect,
+    disposeDetector: dispose,
+    autoConfirmEnabled,
+    onResultDetected,
+  });
+  const captureState: DuelCaptureState = isCapturing
+    ? resultCapture.state === 'scanning'
+      ? 'capturing'
+      : resultCapture.state
+    : 'idle';
   const [hasCoinTossFrame, setHasCoinTossFrame] = useState(false);
   const [coinTossDebug, setCoinTossDebug] = useState<CoinTossDebugInfo | null>(null);
   const [turnOrderDetection, setTurnOrderDetection] = useState<TurnOrderDetectionEvent | null>(
@@ -60,17 +58,9 @@ export function useDuelCapture(
   );
   const [coinTossDetectionSession, setCoinTossDetectionSession] = useState(0);
 
-  const consecutiveRef = useRef(0);
-  const lastResultRef = useRef<'win' | 'loss' | null>(null);
-  const recentResultsRef = useRef<DetectionResult[]>([]);
-  const captureStateRef = useRef<DuelCaptureState>('idle');
-  const clearFrameCountRef = useRef(0);
-  const hasCandidateRef = useRef(false);
-  const pendingResultRef = useRef<DetectionResult | null>(null);
-  const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
-  const firstCandidateFrameRef = useRef<string | null>(null);
   const coinTossFrameRef = useRef<string | null>(null);
   const isStoppedRef = useRef(false);
+  const hasResultCandidateRef = useRef(false);
 
   // コイントス関連 ref
   const coinTossStateRef = useRef<CoinTossDetectionState>(INITIAL_COIN_TOSS_STATE);
@@ -81,18 +71,6 @@ export function useDuelCapture(
   const captureStartTimeRef = useRef<number>(0);
   const opponentSelectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnOrderDetectionIdRef = useRef(0);
-
-  useEffect(() => {
-    captureStateRef.current = captureState;
-  }, [captureState]);
-
-  useEffect(() => {
-    pendingResultRef.current = pendingResult;
-  }, [pendingResult]);
-
-  useEffect(() => {
-    autoConfirmEnabledRef.current = autoConfirmEnabled;
-  }, [autoConfirmEnabled]);
 
   const ocrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -116,24 +94,7 @@ export function useDuelCapture(
 
   const start = useCallback(async () => {
     await startCapture();
-    setCaptureState('capturing');
   }, [startCapture]);
-
-  const resetOcrState = useCallback(() => {
-    consecutiveRef.current = 0;
-    lastResultRef.current = null;
-    recentResultsRef.current = [];
-    clearFrameCountRef.current = 0;
-    hasCandidateRef.current = false;
-    setLastOcrResult(null);
-    setConsecutiveCount(0);
-    setRequiredConsecutiveCount(REQUIRED_CONSECUTIVE);
-  }, []);
-
-  const resetCandidateFrame = useCallback(() => {
-    firstCandidateFrameRef.current = null;
-    setHasFirstCandidateFrame(false);
-  }, []);
 
   const resetCoinTossFrame = useCallback(() => {
     coinTossFrameRef.current = null;
@@ -167,49 +128,25 @@ export function useDuelCapture(
       ocrTimerRef.current = null;
     }
     stopCoinTossDetection();
-    resetOcrState();
-    resetCandidateFrame();
+    hasResultCandidateRef.current = false;
+    resultCapture.reset();
     resetCoinTossFrame();
-    setPendingResult(null);
-    setCaptureState('idle');
-    dispose();
+    resultCapture.dispose();
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
     resetCoinTossDebug();
   }, [
     stopCapture,
-    resetOcrState,
-    resetCandidateFrame,
+    resultCapture,
     resetCoinTossFrame,
-    dispose,
     stopCoinTossDetection,
     resetCoinTossDebug,
   ]);
 
-  const confirm = useCallback(() => {
-    if (pendingResult) {
-      onResultDetected(pendingResult.result);
-    }
-    setPendingResult(null);
-    resetOcrState();
-    setCaptureState('waiting-clear');
-  }, [pendingResult, onResultDetected, resetOcrState]);
-
-  const dismiss = useCallback(() => {
-    setPendingResult(null);
-    resetOcrState();
-    resetCandidateFrame();
-    setCaptureState('capturing');
-  }, [resetOcrState, resetCandidateFrame]);
-
   const prepareNextDuelDetection = useCallback(() => {
-    setPendingResult(null);
-    resetOcrState();
-    resetCandidateFrame();
+    hasResultCandidateRef.current = false;
+    resultCapture.reset();
     resetCoinTossFrame();
-    if (isCapturing) {
-      setCaptureState('capturing');
-    }
     stopCoinTossDetection();
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
@@ -222,10 +159,9 @@ export function useDuelCapture(
   }, [
     clearTurnOrderDetection,
     isCapturing,
-    resetCandidateFrame,
+    resultCapture,
     resetCoinTossFrame,
     resetCoinTossDebug,
-    resetOcrState,
     stopCoinTossDetection,
   ]);
 
@@ -258,10 +194,10 @@ export function useDuelCapture(
   }, [captureCurrentFrame]);
 
   const downloadFirstCandidateFrame = useCallback(() => {
-    const dataUrl = firstCandidateFrameRef.current;
+    const dataUrl = resultCapture.firstCandidateFrameDataUrl;
     if (!dataUrl) return;
     downloadDataUrl(dataUrl, createCaptureFilename('result-candidate'));
-  }, []);
+  }, [resultCapture.firstCandidateFrameDataUrl]);
 
   const downloadCoinTossFrame = useCallback(() => {
     const dataUrl = coinTossFrameRef.current;
@@ -278,6 +214,7 @@ export function useDuelCapture(
 
     let isEffectActive = true;
     isStoppedRef.current = false;
+    hasResultCandidateRef.current = false;
     captureStartTimeRef.current = Date.now();
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
@@ -286,7 +223,7 @@ export function useDuelCapture(
 
     const scheduleNextOcr = () => {
       if (!isEffectActive || isStoppedRef.current) return;
-      ocrTimerRef.current = setTimeout(runOcr, getOcrInterval(hasCandidateRef.current));
+      ocrTimerRef.current = setTimeout(runOcr, getOcrInterval(hasResultCandidateRef.current));
     };
 
     // コイントス検出ループ（日本語OCRワーカー、250ms間隔）
@@ -417,67 +354,15 @@ export function useDuelCapture(
 
     const runOcr = async () => {
       if (!isEffectActive) return;
-      if (captureStateRef.current === 'detected' && !autoConfirmEnabledRef.current) {
-        scheduleNextOcr();
-        return;
-      }
 
       if (!captureCurrentFrame()) {
         scheduleNextOcr();
         return;
       }
       await runInDuelBadgeImageDetection();
-      const result = await detect(canvas, DEFAULT_RESULT_ROI);
       if (!isEffectActive || isStoppedRef.current) return;
-      if (captureStateRef.current === 'waiting-clear') {
-        const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
-        clearFrameCountRef.current = gate.clearFrameCount;
-        if (gate.isReadyForNextDetection) {
-          const pending = pendingResultRef.current;
-          if (autoConfirmEnabledRef.current && pending) {
-            onResultDetected(pending.result);
-            setPendingResult(null);
-          }
-          resetOcrState();
-          resetCandidateFrame();
-          setCaptureState('capturing');
-        }
-        scheduleNextOcr();
-        return;
-      }
-
-      if (!result) {
-        consecutiveRef.current = 0;
-        lastResultRef.current = null;
-        recentResultsRef.current = [];
-        setLastOcrResult(null);
-        setConsecutiveCount(0);
-        scheduleNextOcr();
-        return;
-      }
-      hasCandidateRef.current = true;
-      if (!firstCandidateFrameRef.current) {
-        firstCandidateFrameRef.current = canvasToDataUrl(canvas);
-        setHasFirstCandidateFrame(firstCandidateFrameRef.current !== null);
-      }
-      if (result.result === lastResultRef.current) {
-        consecutiveRef.current += 1;
-        recentResultsRef.current = [...recentResultsRef.current, result].slice(-REQUIRED_CONSECUTIVE);
-      } else {
-        consecutiveRef.current = 1;
-        lastResultRef.current = result.result;
-        recentResultsRef.current = [result];
-      }
-      setLastOcrResult(result.result);
-      setConsecutiveCount(consecutiveRef.current);
-      const requiredConsecutive = getRequiredConsecutive(result.confidence);
-      setRequiredConsecutiveCount(requiredConsecutive);
-      if (consecutiveRef.current >= requiredConsecutive) {
-        const recentResults = recentResultsRef.current;
-        consecutiveRef.current = 0;
-        setPendingResult({ ...result, confidence: averageConfidence(recentResults) });
-        setCaptureState(autoConfirmEnabledRef.current ? 'waiting-clear' : 'detected');
-      }
+      const result = await resultCapture.runOnce();
+      hasResultCandidateRef.current = result.hasCandidate;
       scheduleNextOcr();
     };
 
@@ -491,23 +376,23 @@ export function useDuelCapture(
         ocrTimerRef.current = null;
       }
       stopCoinTossDetection();
-      dispose();
+      resultCapture.dispose();
     };
   }, [isCapturing, coinTossDetectionSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     captureState,
-    pendingResult,
-    lastOcrResult,
-    consecutiveCount,
-    requiredConsecutiveCount,
+    pendingResult: resultCapture.pendingResult,
+    lastOcrResult: resultCapture.lastOcrResult,
+    consecutiveCount: resultCapture.consecutiveCount,
+    requiredConsecutiveCount: resultCapture.requiredConsecutiveCount,
     videoRef,
     canvasRef,
     isCapturing,
     error,
     autoConfirmEnabled,
     setAutoConfirmEnabled,
-    hasFirstCandidateFrame,
+    hasFirstCandidateFrame: resultCapture.hasFirstCandidateFrame,
     hasCoinTossFrame,
     coinTossDebug,
     turnOrderDetection,
@@ -519,7 +404,7 @@ export function useDuelCapture(
     downloadCoinTossFrame,
     start,
     stop,
-    confirm,
-    dismiss,
+    confirm: resultCapture.confirm,
+    dismiss: resultCapture.dismiss,
   };
 }

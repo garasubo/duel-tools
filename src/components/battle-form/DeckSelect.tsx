@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Deck } from "../../types";
+import { findDeckByName, normalizeDeckName } from "../../utils/decks";
 
 export interface DeckSelectProps {
   label: string;
@@ -22,20 +23,27 @@ export default function DeckSelect({
 }: DeckSelectProps) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [error, setError] = useState("");
 
   function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
     if (e.target.value === ADD_NEW) {
       setAdding(true);
+      setError("");
     } else {
       onChange(e.target.value);
     }
   }
 
   function handleAddSubmit() {
-    const trimmed = newName.trim();
+    const trimmed = normalizeDeckName(newName);
     if (!trimmed) return;
+    if (findDeckByName(decks, trimmed)) {
+      setError("同じデッキ名は追加できません");
+      return;
+    }
     onAddDeck(trimmed);
     setNewName("");
+    setError("");
     setAdding(false);
   }
 
@@ -54,15 +62,22 @@ export default function DeckSelect({
       <label className="text-sm font-medium text-gray-700">{label}</label>
       {adding ? (
         <div className="flex gap-2">
-          <input
-            type="text"
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={handleAddKeyDown}
-            placeholder="デッキ名を入力"
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
+          <div className="flex-1">
+            <input
+              type="text"
+              autoFocus
+              value={newName}
+              onChange={(e) => {
+                setNewName(e.target.value);
+                setError("");
+              }}
+              onKeyDown={handleAddKeyDown}
+              placeholder="デッキ名を入力"
+              aria-invalid={error ? true : undefined}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+          </div>
           <button
             type="button"
             onClick={handleAddSubmit}
@@ -76,6 +91,7 @@ export default function DeckSelect({
             onClick={() => {
               setAdding(false);
               setNewName("");
+              setError("");
             }}
             className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200"
           >
