@@ -4,15 +4,17 @@
 
 ## 主な機能
 
-- **結果検出**: `useOcrDetector` が英語 OCR で VICTORY / LOSE を検出し、`useDuelCapture` が連続一致を確認してから確定する。
-- **コイントス検出**: `coinTossDetect.ts` が日本語 OCR（Tesseract.js）で先攻/後攻を判定する。ROI を画面下部（y=0.65〜0.85）に絞ることで複雑な背景に対する誤検知を抑制。
-- **フォールバック**: コイントス検出が 60 秒以内に完了しない場合、デュエル中のバッジ領域（英語 OCR）からターン番号を読み取る。
+- **結果検出**: `useOcrDetector` が英語 OCR で VICTORY / LOSE を検出し、`useResultCaptureLoop` が連続一致を確認してから確定する。
+- **コイントス検出**: `useTurnOrderCaptureLoop` が日本語 OCR worker と 200ms 間隔の検出ループを管理し、`coinTossDetect.ts` が先攻/後攻を判定する。ROI を画面下部（y=0.65〜0.85）に絞ることで複雑な背景に対する誤検知を抑制。
+- **フォールバック**: 相手選択画面を検出してから 30 秒以内に結果が出ない場合、デュエル中のバッジ領域を画像特徴量で判定する。判定できない場合はタイムアウト扱いで後攻とみなす。
 
 ## 主要ファイル
 
 | ファイル | 役割 |
 |---|---|
 | `useDuelCapture.ts` | キャプチャ全体のオーケストレーション |
+| `useResultCaptureLoop.ts` | 結果検出ループと連続一致判定 |
+| `useTurnOrderCaptureLoop.ts` | ターン順検出ループ、worker 破棄、fallback、デバッグ画像管理 |
 | `coinTossDetect.ts` | コイントス画面の OCR 解析 |
 | `coinTossState.ts` | コイントス検出ステートマシン |
 | `ocrDetect.ts` | 結果画面（VICTORY/LOSE）の OCR 解析 |
