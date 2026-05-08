@@ -26,8 +26,14 @@ const COIN_TOSS_INTERVAL_MS = 200;
 const COIN_TOSS_ACTIVE_DURATION_MS = 60_000;
 // 相手選択画面検出後30秒以内に結果が出なければ後攻とみなす
 const OPPONENT_SELECTING_TIMEOUT_MS = 30_000;
-// 右側バッジの画像特徴判定はデュエル開始直後向け。長時間後の結果画面等での誤検知を避ける。
-const IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS = 75_000;
+
+export function getOpponentSelectingFallbackTurnOrder(
+  badgeOrder: 'first' | 'second' | null,
+): { order: TurnOrder; source: TurnOrderDetectionSource } {
+  if (badgeOrder === 'first') return { order: 'third', source: 'in-duel-badge' };
+  if (badgeOrder === 'second') return { order: 'second', source: 'in-duel-badge' };
+  return { order: 'second', source: 'opponent-timeout' };
+}
 
 export function useDuelCapture(
   onResultDetected: (result: 'win' | 'loss') => void,
@@ -300,26 +306,54 @@ export function useDuelCapture(
         // 相手選択画面を初めて検出したらタイムアウトタイマーを設定
         if (newState.opponentSelectingDetected && !prevState.opponentSelectingDetected) {
           opponentSelectingTimeoutRef.current = setTimeout(() => {
-            if (!turnOrderDetectedRef.current && coinTossStateRef.current.opponentSelectingDetected) {
+            void (async () => {
+              if (
+                turnOrderDetectedRef.current ||
+                !coinTossStateRef.current.opponentSelectingDetected ||
+                !isEffectActive ||
+                isStoppedRef.current
+              ) {
+                return;
+              }
+
+              let badgeOrder: 'first' | 'second' | null = null;
+              try {
+                badgeOrder = captureCurrentFrame()
+                  ? await detectInDuelBadgeTurnOrderByImageFeatures(canvas as unknown as Blob)
+                  : null;
+              } catch {
+                badgeOrder = null;
+              }
+              if (
+                turnOrderDetectedRef.current ||
+                !coinTossStateRef.current.opponentSelectingDetected ||
+                !isEffectActive ||
+                isStoppedRef.current
+              ) {
+                return;
+              }
+
+              const fallback = getOpponentSelectingFallbackTurnOrder(badgeOrder);
               turnOrderDetectedRef.current = true;
               setCoinTossDebug((current) =>
                 current
                   ? {
                       ...current,
-                      result: 'second',
+                      result: fallback.order,
                       elapsedMs: getElapsedMs(captureStartTimeRef.current),
                       updatedAt: Date.now(),
                     }
                   : {
                       screen: null,
                       opponentSelectingDetected: true,
-                      result: 'second',
+                      result: fallback.order,
                       elapsedMs: getElapsedMs(captureStartTimeRef.current),
                       updatedAt: Date.now(),
                     },
               );
-              publishTurnOrderDetected('second', 'opponent-timeout');
-            }
+              publishTurnOrderDetected(fallback.order, fallback.source);
+              stopCoinTossDetection();
+            })();
           }, OPPONENT_SELECTING_TIMEOUT_MS);
         }
 
@@ -340,18 +374,6 @@ export function useDuelCapture(
 
     void startCoinTossLoop();
 
-    // デュエル中ターン判定: 開始直後の右側バッジ形状/色を優先して読む。
-    const runInDuelBadgeImageDetection = async () => {
-      if (!isEffectActive || turnOrderDetectedRef.current || !canvas.width || !canvas.height) return;
-      const elapsed = getElapsedMs(captureStartTimeRef.current);
-      if (elapsed > IN_DUEL_BADGE_FEATURE_ACTIVE_DURATION_MS) return;
-      const order = await detectInDuelBadgeTurnOrderByImageFeatures(canvas as unknown as Blob);
-      if (isEffectActive && order && !turnOrderDetectedRef.current) {
-        turnOrderDetectedRef.current = true;
-        publishTurnOrderDetected(order, 'in-duel-badge');
-      }
-    };
-
     const runOcr = async () => {
       if (!isEffectActive) return;
 
@@ -359,8 +381,6 @@ export function useDuelCapture(
         scheduleNextOcr();
         return;
       }
-      await runInDuelBadgeImageDetection();
-      if (!isEffectActive || isStoppedRef.current) return;
       const result = await resultCapture.runOnce();
       hasResultCandidateRef.current = result.hasCandidate;
       scheduleNextOcr();
