@@ -33,6 +33,7 @@ export function useOcrDetector() {
   const workerRef = useRef<Worker | null>(null);
   const workerInitPromiseRef = useRef<Promise<Worker> | null>(null);
   const disposeGenerationRef = useRef(0);
+  const reusableCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const getWorker = useCallback(async () => {
     if (workerRef.current) return workerRef.current;
@@ -59,12 +60,14 @@ export function useOcrDetector() {
       try {
         void _roi;
         const worker = await getWorker();
-        // フルキャンバスを 2 パス OCR に渡す（サイズを一緒に渡して ROI も自動適用）
+        // ROI を切り出した小さい canvas で OCR する。reusableCanvasRef を渡して
+        // 同じ ROI 寸法のあいだはキャンバスを使い回す。
         return await detectWithOcrWorker(
           worker,
           _canvas as unknown as Blob,
           _canvas.width,
           _canvas.height,
+          reusableCanvasRef,
         );
       } catch (error) {
         if (error instanceof Error && error.message === 'OCR worker initialization was disposed') {

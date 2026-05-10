@@ -8,7 +8,8 @@ import {
   detectCoinTossScreen,
   detectInDuelBadgeTurnOrderByImageFeatures,
 } from './coinTossDetect';
-import type { CoinTossScreen } from './coinTossDetect';
+import type { CoinTossScreen, DetectCoinTossOptions } from './coinTossDetect';
+import type { ROI } from './types';
 import { INITIAL_COIN_TOSS_STATE, updateCoinTossState } from './coinTossState';
 import type { CoinTossDetectionState } from './coinTossState';
 import type {
@@ -33,6 +34,7 @@ interface TurnOrderCaptureLoopDependencies {
     input: ImageLike,
     imageWidth?: number,
     imageHeight?: number,
+    options?: DetectCoinTossOptions,
   ) => Promise<CoinTossScreen | null>;
   detectBadge: (input: ImageLike) => Promise<BadgeTurnOrder>;
 }
@@ -100,6 +102,8 @@ export function useTurnOrderCaptureLoop({
   const turnOrderDetectionIdRef = useRef(0);
   const isActiveRef = useRef(false);
   const generationRef = useRef(0);
+  const lastHitRoiRef = useRef<ROI | undefined>(undefined);
+  const reusableOcrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     depsRef.current = { ...defaultDependencies, ...dependencies };
@@ -144,6 +148,7 @@ export function useTurnOrderCaptureLoop({
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
     captureStartTimeRef.current = Date.now();
+    lastHitRoiRef.current = undefined;
     resetDebug();
     resetFrame();
     clearTurnOrderDetection();
@@ -270,6 +275,13 @@ export function useTurnOrderCaptureLoop({
           canvasToImageLike(canvas),
           canvas.width,
           canvas.height,
+          {
+            preferredRoi: lastHitRoiRef.current,
+            onRoiHit: (roi) => {
+              lastHitRoiRef.current = roi;
+            },
+            reusableCanvasRef: reusableOcrCanvasRef,
+          },
         );
         if (generation !== generationRef.current || !isActiveRef.current) return;
 

@@ -13,6 +13,8 @@ type CanvasLike = {
   } | null;
 };
 
+type DrawableSource = CanvasImageSource & { width: number; height: number };
+
 export interface ImagePixels {
   width: number;
   height: number;
@@ -111,6 +113,57 @@ function isCanvasLike(input: ImageLike): input is ImageLike & CanvasLike {
     'getContext' in input &&
     typeof (input as CanvasLike).getContext === 'function'
   );
+}
+
+/**
+ * 結果画面 OCR 用の入力画像を作る。
+ * - 入力がブラウザ canvas の場合は ROI 部分だけを縮小コピーした小さい canvas を返す
+ *   （Tesseract.js が画像全体を毎回前処理するコストを避ける）。
+ * - 入力が文字列（テストの PNG パス）など canvas でない場合は従来通り
+ *   `worker.recognize(input, { rectangle })` で扱えるよう rectangle を返す。
+ */
+export interface OcrInput {
+  input: ImageLike;
+  rectangle?: { left: number; top: number; width: number; height: number };
+}
+
+export function buildOcrInput(
+  input: ImageLike,
+  rect: { left: number; top: number; width: number; height: number },
+  reusableCanvas: HTMLCanvasElement | null,
+  targetWidth: number,
+): { ocrInput: OcrInput; reusableCanvas: HTMLCanvasElement | null } {
+  if (
+    typeof document === 'undefined' ||
+    typeof HTMLCanvasElement === 'undefined' ||
+    !(input instanceof HTMLCanvasElement)
+  ) {
+    return { ocrInput: { input, rectangle: rect }, reusableCanvas };
+  }
+
+  const scale = rect.width > targetWidth ? targetWidth / rect.width : 1;
+  const dstWidth = Math.max(1, Math.floor(rect.width * scale));
+  const dstHeight = Math.max(1, Math.floor(rect.height * scale));
+
+  const canvas = reusableCanvas ?? document.createElement('canvas');
+  canvas.width = dstWidth;
+  canvas.height = dstHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return { ocrInput: { input, rectangle: rect }, reusableCanvas: canvas };
+  }
+  ctx.drawImage(
+    input as DrawableSource,
+    rect.left,
+    rect.top,
+    rect.width,
+    rect.height,
+    0,
+    0,
+    dstWidth,
+    dstHeight,
+  );
+  return { ocrInput: { input: canvas as unknown as ImageLike }, reusableCanvas: canvas };
 }
 
 function getCanvasPixels(input: CanvasLike): ImagePixels | null {
@@ -390,17 +443,24 @@ export async function createOcrWorker(): Promise<Worker> {
   return createWorker('eng');
 }
 
+const RESULT_OCR_TARGET_WIDTH = 800;
+// パス1/2 で「文字は読めているが VICTORY/LOSE と一致しなかった」場合は
+// パス3（全画像 PSM 6）を回しても無駄にコストがかかるだけなので、
+// 文字数が極端に少ないとき（OCR が空振り）に限ってフォールバックする。
+const PASS3_TRIGGER_TEXT_LENGTH = 2;
+
 /**
  * 既存 worker を使って 2 パス OCR でテキストを認識する。
  * パス1: VICTORY ROI（中央帯）を PSM 8 でスキャン。
  * パス2: 同じ ROI を PSM 7 でスキャン → LOSE を検出。
- * パス3: 全体を PSM 6（単一ブロック）でスキャン。
+ * パス3: 全体を PSM 6（単一ブロック）でスキャン。ROI で文字が拾えなかった場合のみ。
  */
 export async function detectWithOcrWorker(
   worker: Worker,
   input: ImageLike,
   imageWidth?: number,
   imageHeight?: number,
+  reusableCanvasRef?: { current: HTMLCanvasElement | null },
 ): Promise<DetectionResult | null> {
   const imageFeatureResult = await classifyResultScreenByImageFeatures(input);
   if (imageFeatureResult.kind === 'result') return imageFeatureResult.result;
@@ -413,17 +473,34 @@ export async function detectWithOcrWorker(
       width: Math.floor(0.75 * imageWidth),
       height: Math.floor(0.32 * imageHeight),
     };
+    const built = buildOcrInput(
+      input,
+      rect,
+      reusableCanvasRef?.current ?? null,
+      RESULT_OCR_TARGET_WIDTH,
+    );
+    if (reusableCanvasRef) reusableCanvasRef.current = built.reusableCanvas;
+    const { input: ocrInput, rectangle } = built.ocrInput;
+    const recognizeOpts = rectangle ? { rectangle } : undefined;
+
     // パス1: PSM 8（単一ワード）+ ROI - VICTORY のような 1 ワード大テキストに最適
     await worker.setParameters({ tessedit_pageseg_mode: PSM_SINGLE_WORD });
-    const { data: d1 } = await worker.recognize(input, { rectangle: rect });
+    const { data: d1 } = await worker.recognize(ocrInput, recognizeOpts);
     const r1 = parseDetectionResult(d1.text, confidenceWithTextMatch(d1.text, d1.confidence));
     if (r1) return r1;
 
     // パス2: PSM 7（単一行）+ ROI - ROI 内の LOSE 検出向け
     await worker.setParameters({ tessedit_pageseg_mode: PSM_SINGLE_LINE });
-    const { data: d2 } = await worker.recognize(input, { rectangle: rect });
+    const { data: d2 } = await worker.recognize(ocrInput, recognizeOpts);
     const r2 = parseDetectionResult(d2.text, confidenceWithTextMatch(d2.text, d2.confidence));
     if (r2) return r2;
+
+    const trimmed1 = d1.text.trim().length;
+    const trimmed2 = d2.text.trim().length;
+    if (trimmed1 > PASS3_TRIGGER_TEXT_LENGTH || trimmed2 > PASS3_TRIGGER_TEXT_LENGTH) {
+      // 文字は読めたが該当キーワードに一致しなかった → 演出フレーム等。フルパスは回さない。
+      return null;
+    }
   }
 
   // パス3: PSM 6（単一ブロック）+ 全画像 - ROI で検出できない LOSE 向けフォールバック
