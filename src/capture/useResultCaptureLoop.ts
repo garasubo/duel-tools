@@ -47,6 +47,7 @@ interface UseResultCaptureLoopOptions {
   disposeDetector: () => void;
   autoConfirmEnabled: boolean;
   onResultDetected: (result: 'win' | 'loss') => void;
+  onResultPreview?: (result: 'win' | 'loss') => void;
 }
 
 export function advanceResultStreak(
@@ -89,6 +90,7 @@ export function useResultCaptureLoop({
   disposeDetector,
   autoConfirmEnabled,
   onResultDetected,
+  onResultPreview,
 }: UseResultCaptureLoopOptions): ResultCaptureLoop {
   const [state, setState] = useState<ResultCaptureLoopState>('scanning');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
@@ -104,6 +106,7 @@ export function useResultCaptureLoop({
   const hasCandidateRef = useRef(false);
   const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
   const onResultDetectedRef = useRef(onResultDetected);
+  const onResultPreviewRef = useRef(onResultPreview);
 
   useEffect(() => {
     stateRef.current = state;
@@ -120,6 +123,10 @@ export function useResultCaptureLoop({
   useEffect(() => {
     onResultDetectedRef.current = onResultDetected;
   }, [onResultDetected]);
+
+  useEffect(() => {
+    onResultPreviewRef.current = onResultPreview;
+  }, [onResultPreview]);
 
   const resetStreak = useCallback(() => {
     streakRef.current = EMPTY_STREAK;
@@ -159,10 +166,6 @@ export function useResultCaptureLoop({
   }, [resetCandidateFrame, resetStreak]);
 
   const runOnce = useCallback(async () => {
-    if (stateRef.current === 'detected' && !autoConfirmEnabledRef.current) {
-      return { hasCandidate: hasCandidateRef.current };
-    }
-
     const canvas = canvasRef.current;
     if (!canvas) return { hasCandidate: hasCandidateRef.current };
 
@@ -175,8 +178,8 @@ export function useResultCaptureLoop({
         const pending = pendingResultRef.current;
         if (autoConfirmEnabledRef.current && pending) {
           onResultDetectedRef.current(pending.result);
-          setPendingResult(null);
         }
+        setPendingResult(null);
         resetStreak();
         resetCandidateFrame();
         setState('scanning');
@@ -202,8 +205,9 @@ export function useResultCaptureLoop({
     setRequiredConsecutiveCount(update.requiredConsecutiveCount);
 
     if (update.pendingResult) {
+      onResultPreviewRef.current?.(update.pendingResult.result);
       setPendingResult(update.pendingResult);
-      setState(autoConfirmEnabledRef.current ? 'waiting-clear' : 'detected');
+      setState('waiting-clear');
     }
     return { hasCandidate: hasCandidateRef.current };
   }, [canvasRef, detect, resetCandidateFrame, resetStreak]);

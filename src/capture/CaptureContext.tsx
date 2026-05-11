@@ -7,17 +7,22 @@ import { useDuelCapture } from './useDuelCapture';
 
 export function CaptureProvider({ children }: { children: ReactNode }) {
   const callbackRef = useRef<((result: 'win' | 'loss') => void) | null>(null);
+  const previewCallbackRef = useRef<((result: 'win' | 'loss') => void) | null>(null);
   const turnOrderCallbackRef = useRef<((order: TurnOrder) => void) | null>(null);
 
   const handleResult = useCallback((result: 'win' | 'loss') => {
     callbackRef.current?.(result);
   }, []);
 
+  const handleResultPreview = useCallback((result: 'win' | 'loss') => {
+    previewCallbackRef.current?.(result);
+  }, []);
+
   const handleTurnOrder = useCallback((order: TurnOrder) => {
     turnOrderCallbackRef.current?.(order);
   }, []);
 
-  const { videoRef, canvasRef, ...capture } = useDuelCapture(handleResult, handleTurnOrder);
+  const { videoRef, canvasRef, ...capture } = useDuelCapture(handleResult, handleTurnOrder, handleResultPreview);
   const isCaptureDebugEnabled = getCaptureDebugEnabled();
 
   const setResultCallback = useCallback((cb: (result: 'win' | 'loss') => void) => {
@@ -26,6 +31,14 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
 
   const clearResultCallback = useCallback(() => {
     callbackRef.current = null;
+  }, []);
+
+  const setResultPreviewCallback = useCallback((cb: (result: 'win' | 'loss') => void) => {
+    previewCallbackRef.current = cb;
+  }, []);
+
+  const clearResultPreviewCallback = useCallback(() => {
+    previewCallbackRef.current = null;
   }, []);
 
   const setTurnOrderCallback = useCallback((cb: (order: TurnOrder) => void) => {
@@ -43,6 +56,8 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         isCaptureDebugEnabled,
         setResultCallback,
         clearResultCallback,
+        setResultPreviewCallback,
+        clearResultPreviewCallback,
         setTurnOrderCallback,
         clearTurnOrderCallback,
       }}

@@ -14,6 +14,7 @@ export { getOpponentSelectingFallbackTurnOrder } from './useTurnOrderCaptureLoop
 export function useDuelCapture(
   onResultDetected: (result: 'win' | 'loss') => void,
   onTurnOrderDetected: (order: TurnOrder) => void,
+  onResultPreview?: (result: 'win' | 'loss') => void,
 ) {
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,6 +28,7 @@ export function useDuelCapture(
     disposeDetector: dispose,
     autoConfirmEnabled,
     onResultDetected,
+    onResultPreview,
   });
   const captureState: DuelCaptureState = isCapturing
     ? resultCapture.state === 'scanning'

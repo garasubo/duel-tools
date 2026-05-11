@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useBattlesContext } from "../../context/BattlesContext";
 import type { TurnOrderDetectionEvent } from "../../capture/types";
 import type { BattleResult } from "../../types";
@@ -15,6 +15,8 @@ import type { BattleFormState } from "./types";
 interface BattleFormProps {
   suggestedResult?: BattleResult | null;
   onSuggestedResultConsumed?: () => void;
+  capturePreviewResult?: BattleResult | null;
+  onCapturePreviewResultConsumed?: () => void;
   suggestedTurnOrder?: TurnOrderDetectionEvent | null;
   onSuggestedTurnOrderConsumed?: () => void;
   onRecordSaved?: () => void;
@@ -24,6 +26,8 @@ interface BattleFormProps {
 export default function BattleForm({
   suggestedResult,
   onSuggestedResultConsumed,
+  capturePreviewResult,
+  onCapturePreviewResultConsumed,
   suggestedTurnOrder,
   onSuggestedTurnOrderConsumed,
   onRecordSaved,
@@ -51,8 +55,9 @@ export default function BattleForm({
   const [saved, setSaved] = useState(false);
   const [captureResultApplied, setCaptureResultApplied] = useState(false);
   const autoSubmitRef = useRef(false);
+  const [autoSubmitTick, setAutoSubmitTick] = useState(0);
 
-  function submitForm(currentForm: BattleFormState) {
+  const submitForm = useCallback((currentForm: BattleFormState) => {
     addRecord({
       ownDeckId: currentForm.ownDeckId,
       opponentDeckId: currentForm.opponentDeckId,
@@ -68,20 +73,29 @@ export default function BattleForm({
     setSaved(true);
     setCaptureResultApplied(false);
     setTimeout(() => setSaved(false), 3000);
-  }
+  }, [addRecord, onRecordSaved]);
 
   useEffect(() => {
     if (suggestedResult) {
       autoSubmitRef.current = true;
       queueMicrotask(() => {
         setCaptureResultApplied(true);
-        setForm((f) => {
-          return applySuggestedResultToBattleForm(f, suggestedResult, records);
-        });
+        setForm((f) => applySuggestedResultToBattleForm(f, suggestedResult, records));
+        setAutoSubmitTick((t) => t + 1);
         onSuggestedResultConsumed?.();
       });
     }
   }, [suggestedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (capturePreviewResult) {
+      queueMicrotask(() => {
+        setCaptureResultApplied(true);
+        setForm((f) => applySuggestedResultToBattleForm(f, capturePreviewResult, records));
+        onCapturePreviewResultConsumed?.();
+      });
+    }
+  }, [capturePreviewResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (suggestedTurnOrder) {
@@ -98,7 +112,7 @@ export default function BattleForm({
     if (isBattleFormValid(form)) {
       queueMicrotask(() => submitForm(form));
     }
-  }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, autoSubmitTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isValid = isBattleFormValid(form);
 

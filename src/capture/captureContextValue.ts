@@ -34,6 +34,8 @@ export interface CaptureContextValue {
   dismiss: () => void;
   setResultCallback: (cb: (result: 'win' | 'loss') => void) => void;
   clearResultCallback: () => void;
+  setResultPreviewCallback: (cb: (result: 'win' | 'loss') => void) => void;
+  clearResultPreviewCallback: () => void;
   setTurnOrderCallback: (cb: (order: TurnOrder) => void) => void;
   clearTurnOrderCallback: () => void;
 }

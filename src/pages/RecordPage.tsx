@@ -8,6 +8,7 @@ import type { BattleResult } from '../types';
 
 export default function RecordPage() {
   const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
+  const [suggestedPreviewResult, setSuggestedPreviewResult] = useState<BattleResult | null>(null);
   const {
     turnOrderDetection,
     clearTurnOrderDetection,
@@ -15,18 +16,22 @@ export default function RecordPage() {
     prepareNextDuelDetection,
     setResultCallback,
     clearResultCallback,
+    setResultPreviewCallback,
+    clearResultPreviewCallback,
     setTurnOrderCallback,
     clearTurnOrderCallback,
   } = useCaptureContext();
 
   useEffect(() => {
     setResultCallback((result) => setSuggestedResult(result));
+    setResultPreviewCallback((result) => setSuggestedPreviewResult(result));
     setTurnOrderCallback(() => {});
     return () => {
       clearResultCallback();
+      clearResultPreviewCallback();
       clearTurnOrderCallback();
     };
-  }, [setResultCallback, clearResultCallback, setTurnOrderCallback, clearTurnOrderCallback]);
+  }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback]);
 
   return (
     <div>
@@ -43,6 +48,8 @@ export default function RecordPage() {
       <BattleForm
         suggestedResult={suggestedResult}
         onSuggestedResultConsumed={() => setSuggestedResult(null)}
+        capturePreviewResult={suggestedPreviewResult}
+        onCapturePreviewResultConsumed={() => setSuggestedPreviewResult(null)}
         suggestedTurnOrder={turnOrderDetection}
         onSuggestedTurnOrderConsumed={() => {
           clearTurnOrderDetection();

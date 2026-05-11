@@ -79,14 +79,10 @@ export default function CaptureSection() {
         </div>
       )}
 
-      {captureState === 'waiting-clear' && (
+      {captureState === 'waiting-clear' && autoConfirmEnabled && (
         <div className="flex items-center gap-2 text-sm mt-1">
           <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
-          <span className="text-gray-400">
-            {pendingResult && autoConfirmEnabled
-              ? '自動確定のため結果画面の終了待ち...'
-              : '結果画面の終了待ち...'}
-          </span>
+          <span className="text-gray-400">自動確定のため結果画面の終了待ち...</span>
         </div>
       )}
 
