@@ -25,7 +25,7 @@ export default function CaptureSection() {
   } = useCaptureContext();
 
   return (
-    <div className="px-4 pb-2">
+    <div className="px-4 py-2">
       {captureState === 'idle' && (
         <button
           onClick={start}

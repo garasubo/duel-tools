@@ -151,7 +151,7 @@ export default function BattleForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-4 max-w-4xl">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-4 pb-4 max-w-4xl">
       <BattleFields
         value={form}
         onChange={handleFieldsChange}
