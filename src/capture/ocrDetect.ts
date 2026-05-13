@@ -37,6 +37,7 @@ const MIN_RESULT_BBOX_DENSITY = 0.35;
 const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
+const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
 const MAX_LOSS_BANNER_HEIGHT_RATIO = 0.20;
 
 const RESULT_BANNER_ROI: ROI = {
@@ -427,6 +428,7 @@ export async function classifyResultScreenByImageFeatures(
   if (
     bannerWidthRatio >= 0.24 &&
     bannerWidthRatio <= 0.50 &&
+    bannerHeightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     bannerHeightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO
   ) {
     return {
