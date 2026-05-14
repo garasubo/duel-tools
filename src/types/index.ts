@@ -8,6 +8,13 @@ export type OverlayStatId =
   | 'coinToss'
   | 'matchCount';
 
+export type PanelDateFilterType = 'none' | 'today' | 'last7days' | 'last30days' | 'since';
+
+export interface PanelDateFilter {
+  type: PanelDateFilterType;
+  sinceDate?: string;
+}
+
 export interface Deck {
   id: string;
   name: string;
@@ -37,4 +44,5 @@ export interface AppStorage {
   opponentDecks: Deck[];
   knownTags: string[];
   overlayStats: OverlayStatSetting[];
+  panelDateFilter: PanelDateFilter;
 }

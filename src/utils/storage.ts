@@ -1,5 +1,17 @@
-import type { AppStorage } from '../types';
+import type { AppStorage, PanelDateFilter, PanelDateFilterType } from '../types';
 import { normalizeOverlayStatSettings } from './overlayStats';
+
+const PANEL_DATE_FILTER_TYPES: PanelDateFilterType[] = ['none', 'today', 'last7days', 'last30days', 'since'];
+
+function normalizePanelDateFilter(value: unknown): PanelDateFilter {
+  if (typeof value !== 'object' || value === null) return { type: 'none' };
+  const v = value as Record<string, unknown>;
+  const type = PANEL_DATE_FILTER_TYPES.includes(v.type as PanelDateFilterType)
+    ? (v.type as PanelDateFilterType)
+    : 'none';
+  const sinceDate = typeof v.sinceDate === 'string' ? v.sinceDate : undefined;
+  return { type, sinceDate };
+}
 
 export function createDefaultStorage(): AppStorage {
   return {
@@ -8,6 +20,7 @@ export function createDefaultStorage(): AppStorage {
     opponentDecks: [],
     knownTags: [],
     overlayStats: normalizeOverlayStatSettings(undefined),
+    panelDateFilter: { type: 'none' },
   };
 }
 
@@ -31,5 +44,6 @@ export function normalizeStorage(value: unknown): AppStorage {
       ? parsed.knownTags
       : defaults.knownTags,
     overlayStats: normalizeOverlayStatSettings(parsed.overlayStats),
+    panelDateFilter: normalizePanelDateFilter(parsed.panelDateFilter),
   };
 }

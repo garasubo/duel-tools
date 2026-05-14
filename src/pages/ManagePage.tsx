@@ -22,6 +22,8 @@ export default function ManagePage() {
     isTagUsed,
     overlayStatSettings,
     setOverlayStatSettings,
+    panelDateFilter,
+    setPanelDateFilter,
   } = useBattlesContext();
 
   return (
@@ -29,6 +31,8 @@ export default function ManagePage() {
       <OverlaySection
         overlayStatSettings={overlayStatSettings}
         onUpdate={setOverlayStatSettings}
+        panelDateFilter={panelDateFilter}
+        onUpdateDateFilter={setPanelDateFilter}
       />
       <DeckSection
         title="自分のデッキ"
