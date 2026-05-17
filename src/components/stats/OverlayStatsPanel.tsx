@@ -7,13 +7,6 @@ import type { WinLoss } from '../../hooks/useStats';
 import type { BattleRecord, OverlayStatId, PanelDateFilter } from '../../types';
 import { OVERLAY_STAT_DEFINITIONS } from '../../utils/overlayStats';
 
-const FILTER_LABELS: Record<string, string> = {
-  today: '今日',
-  last7days: '直近7日',
-  last30days: '直近30日',
-  since: '指定日以降',
-};
-
 function filterRecordsByDate(records: BattleRecord[], filter: PanelDateFilter): BattleRecord[] {
   const { type, sinceDate } = filter;
   if (type === 'none') return records;
