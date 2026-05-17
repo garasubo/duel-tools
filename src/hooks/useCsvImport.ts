@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useBattlesContext } from "../context/BattlesContext";
+import { useRecords } from "../state/hooks/useRecords";
 import { parseCsvImport } from "../utils/csvImportHelpers";
 
 type ImportStatus = "idle" | "success" | "error";
@@ -10,7 +10,7 @@ export interface ImportResult {
 }
 
 export function useCsvImport() {
-  const { importRecords } = useBattlesContext();
+  const { importRows } = useRecords();
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [result, setResult] = useState<ImportResult | null>(null);
 
@@ -31,7 +31,7 @@ export function useCsvImport() {
             setResult({ importedCount: 0, errorCount: errors.length });
             return;
           }
-          const { importedCount } = importRecords(rows);
+          const { importedCount } = importRows(rows);
           setResult({ importedCount, errorCount: errors.length });
           setStatus("success");
         } catch {
@@ -45,7 +45,7 @@ export function useCsvImport() {
       };
       reader.readAsText(file, "utf-8");
     },
-    [importRecords],
+    [importRows],
   );
 
   const reset = useCallback(() => {

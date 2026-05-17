@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useBattlesContext } from "../../context/BattlesContext";
+import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
+import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
 import { getScoreBounds, getScoreLabel } from "../../utils/battleMode";
 import type { BattleMode, BattleResult, TurnOrder } from "../../types";
 import DeckSelect from "./DeckSelect";
@@ -50,13 +51,9 @@ const selectClass =
 
 export default function LastBattleQuickEdit() {
   const [open, setOpen] = useState(false);
-  const { records, opponentDecks, addOpponentDeck, updateRecord } =
-    useBattlesContext();
-
-  const latestRecord =
-    records.length > 0
-      ? records.reduce((a, b) => (a.createdAt > b.createdAt ? a : b))
-      : null;
+  const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
+  const { update: updateRecord } = useRecords();
+  const latestRecord = useLatestRecord();
 
   if (!latestRecord) return null;
 

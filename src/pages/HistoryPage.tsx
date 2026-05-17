@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { useBattlesContext } from '../context/BattlesContext';
+import { useRecords } from '../state/hooks/useRecords';
+import { useOwnDecks } from '../state/hooks/useOwnDecks';
+import { useOpponentDecks } from '../state/hooks/useOpponentDecks';
 import { useFilter } from '../hooks/useFilter';
 import { useCsvExport } from '../hooks/useCsvExport';
 import { useCsvImport } from '../hooks/useCsvImport';
@@ -8,7 +10,9 @@ import FilterBar from '../components/history/FilterBar';
 import RecordList from '../components/history/RecordList';
 
 export default function HistoryPage() {
-  const { records, ownDecks, opponentDecks, deleteRecords } = useBattlesContext();
+  const { items: records, removeMany } = useRecords();
+  const { items: ownDecks } = useOwnDecks();
+  const { items: opponentDecks } = useOpponentDecks();
   const { filter, filtered, updateFilter, resetFilter } = useFilter(records);
   const { exportCsv } = useCsvExport();
   const { importCsv, status: importStatus, result: importResult, reset: resetImport } = useCsvImport();
@@ -24,7 +28,7 @@ export default function HistoryPage() {
       setConfirmingDelete(true);
       return;
     }
-    deleteRecords(filtered.map((r) => r.id));
+    removeMany(filtered.map((r) => r.id));
     setConfirmingDelete(false);
   }
 

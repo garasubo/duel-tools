@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import type { BattleRecord, BattleResult, TurnOrder } from "../../types";
 import { formatDate } from "../../utils/formatDate";
 import { getScoreBounds } from "../../utils/battleMode";
-import { useBattlesContext } from "../../context/BattlesContext";
+import { useOwnDecks } from "../../state/hooks/useOwnDecks";
+import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
+import { useRecords } from "../../state/hooks/useRecords";
 import Badge from "../ui/Badge";
 import TagChip from "../ui/TagChip";
 import EditableSelectCell from "./cells/EditableSelectCell";
@@ -32,7 +34,9 @@ export default function RecordTable({
   records,
   onDetailClick,
 }: RecordTableProps) {
-  const { ownDecks, opponentDecks, updateRecord } = useBattlesContext();
+  const { items: ownDecks } = useOwnDecks();
+  const { items: opponentDecks } = useOpponentDecks();
+  const { update: updateRecord } = useRecords();
   const [editingCell, setEditingCell] = useState<EditingCell>(null);
 
   const ownDeckOptions = useMemo(

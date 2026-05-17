@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import CaptureSection from '../components/capture/CaptureSection';
 import BattleForm from '../components/battle-form/BattleForm';
 import LastBattleQuickEdit from '../components/battle-form/LastBattleQuickEdit';
@@ -34,6 +34,15 @@ export default function RecordPage() {
     };
   }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback]);
 
+  const handleSuggestedResultConsumed = useCallback(() => setSuggestedResult(null), []);
+  const handleCapturePreviewResultConsumed = useCallback(
+    () => setSuggestedPreviewResult(null),
+    [],
+  );
+  const handleSuggestedTurnOrderConsumed = useCallback(() => {
+    clearTurnOrderDetection();
+  }, [clearTurnOrderDetection]);
+
   return (
     <div>
       <div className="px-4 py-4">
@@ -51,13 +60,11 @@ export default function RecordPage() {
       <LastBattleQuickEdit />
       <BattleForm
         suggestedResult={suggestedResult}
-        onSuggestedResultConsumed={() => setSuggestedResult(null)}
+        onSuggestedResultConsumed={handleSuggestedResultConsumed}
         capturePreviewResult={suggestedPreviewResult}
-        onCapturePreviewResultConsumed={() => setSuggestedPreviewResult(null)}
+        onCapturePreviewResultConsumed={handleCapturePreviewResultConsumed}
         suggestedTurnOrder={turnOrderDetection}
-        onSuggestedTurnOrderConsumed={() => {
-          clearTurnOrderDetection();
-        }}
+        onSuggestedTurnOrderConsumed={handleSuggestedTurnOrderConsumed}
         onRecordSaved={prepareNextDuelDetection}
         onTurnOrderCleared={restartTurnOrderDetection}
       />

@@ -1,4 +1,7 @@
-import { useBattlesContext } from '../../context/BattlesContext';
+import { useRecords } from '../../state/hooks/useRecords';
+import { useOwnDecks } from '../../state/hooks/useOwnDecks';
+import { useOpponentDecks } from '../../state/hooks/useOpponentDecks';
+import { useOverlaySettings } from '../../state/hooks/useOverlaySettings';
 import { useStats } from '../../hooks/useStats';
 import type { WinLoss } from '../../hooks/useStats';
 import type { BattleRecord, OverlayStatId, PanelDateFilter } from '../../types';
@@ -78,7 +81,10 @@ function MatchCountBlock({
 }
 
 export function OverlayStatsPanel({ variant }: { variant: 'overlay' | 'panel' }) {
-  const { records, ownDecks, opponentDecks, overlayStatSettings, panelDateFilter } = useBattlesContext();
+  const { items: records } = useRecords();
+  const { items: ownDecks } = useOwnDecks();
+  const { items: opponentDecks } = useOpponentDecks();
+  const { stats: overlayStatSettings, dateFilter: panelDateFilter } = useOverlaySettings();
   const filteredRecords = filterRecordsByDate(records, panelDateFilter);
   const { overall, asFirst, asSecond, coinToss } = useStats(filteredRecords, ownDecks, opponentDecks, true);
   const dark = variant === 'overlay';

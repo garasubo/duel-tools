@@ -1,5 +1,5 @@
 import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
-import { BattlesProvider } from './context/BattlesContext';
+import { BattlesProvider } from './state/BattlesProvider';
 import AppShell from './components/AppShell';
 import ComboAppShell from './components/ComboAppShell';
 import RecordPage from './pages/RecordPage';

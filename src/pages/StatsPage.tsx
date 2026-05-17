@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useBattlesContext } from "../context/BattlesContext";
+import { useRecords } from "../state/hooks/useRecords";
+import { useOwnDecks } from "../state/hooks/useOwnDecks";
+import { useOpponentDecks } from "../state/hooks/useOpponentDecks";
 import { useStats } from "../hooks/useStats";
 import EmptyState from "../components/ui/EmptyState";
 import OverallSummaryCard from "../components/stats/OverallSummaryCard";
@@ -9,7 +11,9 @@ import { openOverlay } from "../utils/openOverlay";
 import DPTransitionChart from "../components/stats/DPTransitionChart";
 
 export default function StatsPage() {
-  const { records, ownDecks, opponentDecks } = useBattlesContext();
+  const { items: records } = useRecords();
+  const { items: ownDecks } = useOwnDecks();
+  const { items: opponentDecks } = useOpponentDecks();
   const [includeGrantedFirst, setIncludeGrantedFirst] = useState(false);
   const { overall, asFirst, asSecond, deckStats, matchupCells } = useStats(
     records,

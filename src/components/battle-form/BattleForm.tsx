@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useBattlesContext } from "../../context/BattlesContext";
+import { useOwnDecks } from "../../state/hooks/useOwnDecks";
+import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
+import { useTags } from "../../state/hooks/useTags";
+import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
+import { useBattlesStore } from "../../state/BattlesProvider";
 import type { TurnOrderDetectionEvent } from "../../capture/types";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
@@ -33,23 +37,14 @@ export default function BattleForm({
   onRecordSaved,
   onTurnOrderCleared,
 }: BattleFormProps) {
-  const {
-    records,
-    ownDecks,
-    opponentDecks,
-    knownTags,
-    addRecord,
-    addOwnDeck,
-    addOpponentDeck,
-    addKnownTag,
-  } = useBattlesContext();
+  const store = useBattlesStore();
+  const { items: ownDecks, add: addOwnDeck } = useOwnDecks();
+  const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
+  const { items: knownTags, add: addKnownTag } = useTags();
+  const { add: addRecord } = useRecords();
+  const latestRecord = useLatestRecord();
 
-  const latestRecord =
-    records.length > 0
-      ? records.reduce((a, b) => (a.createdAt > b.createdAt ? a : b))
-      : null;
-
-  const [form, setForm] = useState<BattleFormState>(
+  const [form, setForm] = useState<BattleFormState>(() =>
     createInitialBattleFormState(latestRecord),
   );
   const [saved, setSaved] = useState(false);
@@ -57,54 +52,64 @@ export default function BattleForm({
   const autoSubmitRef = useRef(false);
   const [autoSubmitTick, setAutoSubmitTick] = useState(0);
 
-  const submitForm = useCallback((currentForm: BattleFormState) => {
-    addRecord({
-      ownDeckId: currentForm.ownDeckId,
-      opponentDeckId: currentForm.opponentDeckId,
-      result: currentForm.result!,
-      turnOrder: currentForm.turnOrder!,
-      reasonTags: currentForm.reasonTags,
-      memo: currentForm.memo,
-      battleMode: currentForm.battleMode ?? undefined,
-      score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
+  const submitForm = useCallback(
+    (currentForm: BattleFormState) => {
+      addRecord({
+        ownDeckId: currentForm.ownDeckId,
+        opponentDeckId: currentForm.opponentDeckId,
+        result: currentForm.result!,
+        turnOrder: currentForm.turnOrder!,
+        reasonTags: currentForm.reasonTags,
+        memo: currentForm.memo,
+        battleMode: currentForm.battleMode ?? undefined,
+        score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
+      });
+      onRecordSaved?.();
+      setForm(createNextBattleFormState(currentForm));
+      setSaved(true);
+      setCaptureResultApplied(false);
+      setTimeout(() => setSaved(false), 3000);
+    },
+    [addRecord, onRecordSaved],
+  );
+
+  useEffect(() => {
+    if (!suggestedResult) return;
+    autoSubmitRef.current = true;
+    queueMicrotask(() => {
+      setCaptureResultApplied(true);
+      setForm((f) =>
+        applySuggestedResultToBattleForm(f, suggestedResult, store.getState().records),
+      );
+      setAutoSubmitTick((t) => t + 1);
+      onSuggestedResultConsumed?.();
     });
-    onRecordSaved?.();
-    setForm(createNextBattleFormState(currentForm));
-    setSaved(true);
-    setCaptureResultApplied(false);
-    setTimeout(() => setSaved(false), 3000);
-  }, [addRecord, onRecordSaved]);
+  }, [suggestedResult, store, onSuggestedResultConsumed]);
 
   useEffect(() => {
-    if (suggestedResult) {
-      autoSubmitRef.current = true;
-      queueMicrotask(() => {
-        setCaptureResultApplied(true);
-        setForm((f) => applySuggestedResultToBattleForm(f, suggestedResult, records));
-        setAutoSubmitTick((t) => t + 1);
-        onSuggestedResultConsumed?.();
-      });
-    }
-  }, [suggestedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!capturePreviewResult) return;
+    queueMicrotask(() => {
+      setCaptureResultApplied(true);
+      setForm((f) =>
+        applySuggestedResultToBattleForm(
+          f,
+          capturePreviewResult,
+          store.getState().records,
+        ),
+      );
+      onCapturePreviewResultConsumed?.();
+    });
+  }, [capturePreviewResult, store, onCapturePreviewResultConsumed]);
 
+  const suggestedTurnOrderId = suggestedTurnOrder?.id;
+  const suggestedTurnOrderValue = suggestedTurnOrder?.order;
   useEffect(() => {
-    if (capturePreviewResult) {
-      queueMicrotask(() => {
-        setCaptureResultApplied(true);
-        setForm((f) => applySuggestedResultToBattleForm(f, capturePreviewResult, records));
-        onCapturePreviewResultConsumed?.();
-      });
-    }
-  }, [capturePreviewResult]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (suggestedTurnOrder) {
-      queueMicrotask(() => {
-        setForm((f) => ({ ...f, turnOrder: suggestedTurnOrder.order }));
-        onSuggestedTurnOrderConsumed?.();
-      });
-    }
-  }, [suggestedTurnOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!suggestedTurnOrderId || !suggestedTurnOrderValue) return;
+    queueMicrotask(() => {
+      setForm((f) => ({ ...f, turnOrder: suggestedTurnOrderValue }));
+      onSuggestedTurnOrderConsumed?.();
+    });
+  }, [suggestedTurnOrderId, suggestedTurnOrderValue, onSuggestedTurnOrderConsumed]);
 
   useEffect(() => {
     if (!autoSubmitRef.current) return;
@@ -112,7 +117,7 @@ export default function BattleForm({
     if (isBattleFormValid(form)) {
       queueMicrotask(() => submitForm(form));
     }
-  }, [form, autoSubmitTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, autoSubmitTick, submitForm]);
 
   const isValid = isBattleFormValid(form);
 
@@ -139,9 +144,9 @@ export default function BattleForm({
 
   function handleResultChange(result: BattleResult) {
     setCaptureResultApplied(false);
-    setForm((f) => {
-      return applySuggestedResultToBattleForm(f, result, records);
-    });
+    setForm((f) =>
+      applySuggestedResultToBattleForm(f, result, store.getState().records),
+    );
   }
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {

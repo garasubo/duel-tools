@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { BattleRecord } from "../../types";
-import { useBattlesContext } from "../../context/BattlesContext";
+import { useOwnDecks } from "../../state/hooks/useOwnDecks";
+import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
+import { useTags } from "../../state/hooks/useTags";
+import { useRecords } from "../../state/hooks/useRecords";
 import { formatDate } from "../../utils/formatDate";
 import { battleModeLabel, getScoreLabel } from "../../utils/battleMode";
 import { turnOrderLabel } from "../../utils/turnOrder";
@@ -21,16 +24,10 @@ export default function RecordDetail({
   isOpen,
   onClose,
 }: RecordDetailProps) {
-  const {
-    ownDecks,
-    opponentDecks,
-    knownTags,
-    updateRecord,
-    deleteRecord,
-    addOwnDeck,
-    addOpponentDeck,
-    addKnownTag,
-  } = useBattlesContext();
+  const { items: ownDecks, add: addOwnDeck } = useOwnDecks();
+  const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
+  const { items: knownTags, add: addKnownTag } = useTags();
+  const { update: updateRecord, remove: deleteRecord } = useRecords();
 
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
