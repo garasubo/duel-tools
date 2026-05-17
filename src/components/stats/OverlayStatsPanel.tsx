@@ -118,12 +118,6 @@ export function OverlayStatsPanel({ variant }: { variant: 'overlay' | 'panel' })
 
   const dividerClass = dark ? 'w-px h-12 bg-gray-600' : 'w-px h-12 bg-gray-200';
 
-  const filterLabel = panelDateFilter.type !== 'none'
-    ? panelDateFilter.type === 'since' && panelDateFilter.sinceDate
-      ? `${panelDateFilter.sinceDate}以降`
-      : FILTER_LABELS[panelDateFilter.type]
-    : null;
-
   return (
     <div className={containerClass}>
       <div className="flex items-center gap-4">

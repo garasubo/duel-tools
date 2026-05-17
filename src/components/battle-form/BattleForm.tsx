@@ -142,11 +142,15 @@ export default function BattleForm({
     patchForm({ opponentDeckId: deck.id });
   }
 
-  function handleResultChange(result: BattleResult) {
+  function handleResultChange(result: BattleResult | null) {
     setCaptureResultApplied(false);
-    setForm((f) =>
-      applySuggestedResultToBattleForm(f, result, store.getState().records),
-    );
+    if (result === null) {
+      patchForm({ result: null });
+    } else {
+      setForm((f) =>
+        applySuggestedResultToBattleForm(f, result, store.getState().records),
+      );
+    }
   }
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {

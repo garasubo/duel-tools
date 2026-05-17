@@ -10,7 +10,7 @@ const OPTIONS: { value: BattleResult; label: string }[] = [
 
 export interface ResultSelectorProps {
   value: BattleResult | null;
-  onChange: (result: BattleResult) => void;
+  onChange: (result: BattleResult | null) => void;
 }
 
 export default function ResultSelector({
@@ -26,7 +26,7 @@ export default function ResultSelector({
             key={opt.value}
             isSelected={value === opt.value}
             className="px-8"
-            onClick={() => onChange(opt.value)}
+            onClick={() => onChange(value === opt.value ? null : opt.value)}
           >
             {opt.label}
           </ToggleButton>

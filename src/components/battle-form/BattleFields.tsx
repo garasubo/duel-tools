@@ -22,7 +22,7 @@ export interface BattleFieldsProps {
   onAddOwnDeck: (name: string) => void;
   onAddOpponentDeck: (name: string) => void;
   onAddKnownTag: (tag: string) => void;
-  onResultChange?: (result: BattleResult) => void;
+  onResultChange?: (result: BattleResult | null) => void;
 }
 
 export default function BattleFields({
@@ -36,7 +36,7 @@ export default function BattleFields({
   onAddKnownTag,
   onResultChange,
 }: BattleFieldsProps) {
-  function handleResult(result: BattleResult) {
+  function handleResult(result: BattleResult | null) {
     if (onResultChange) {
       onResultChange(result);
     } else {
