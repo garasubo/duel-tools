@@ -6,7 +6,9 @@ import {
   classifyResultScreenByImageFeatures,
   createOcrWorker,
   detectWithOcrWorker,
+  hasResultScreenBottomDark,
   parseDetectionResult,
+  readImagePixels,
   roiToRectangle,
 } from './ocrDetect';
 import { DEFAULT_RESULT_ROI } from './types';
@@ -168,22 +170,58 @@ describe('classifyResultScreenByImageFeatures', () => {
     ).resolves.toEqual({ kind: 'possible' });
   });
 
-  it('爆発エフェクトは LOSE として画像特徴量で確定しない', async () => {
+  it('爆発エフェクトは下部領域が明るいため none に分類する', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0050.png')),
-    ).resolves.toEqual({ kind: 'possible' });
+    ).resolves.toEqual({ kind: 'none' });
   });
 
-  it('CHAiN アニメーションは LOSE として画像特徴量で確定しない', async () => {
+  it('CHAiN アニメーションは下部領域が明るいため none に分類する', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0053.png')),
-    ).resolves.toEqual({ kind: 'possible' });
+    ).resolves.toEqual({ kind: 'none' });
   });
 
   it('画像特徴量を読めない入力は従来 OCR にフォールバックできる', async () => {
     await expect(
       classifyResultScreenByImageFeatures('missing-or-non-png-image.png'),
     ).resolves.toEqual({ kind: 'possible' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasResultScreenBottomDark
+// ---------------------------------------------------------------------------
+
+describe('hasResultScreenBottomDark', () => {
+  it('VICTORY 確定画面は下部領域が暗い（オーバーレイあり）', async () => {
+    const pixels = await readImagePixels(path.join(FIXTURES, '0007.png'));
+    expect(pixels).not.toBeNull();
+    expect(hasResultScreenBottomDark(pixels!)).toBe(true);
+  });
+
+  it('LOSE 確定画面は下部領域が暗い（オーバーレイあり）', async () => {
+    const pixels = await readImagePixels(path.join(FIXTURES, '0038.png'));
+    expect(pixels).not.toBeNull();
+    expect(hasResultScreenBottomDark(pixels!)).toBe(true);
+  });
+
+  it('爆発エフェクトフレームは下部領域が明るい', async () => {
+    const pixels = await readImagePixels(path.join(FIXTURES, '0050.png'));
+    expect(pixels).not.toBeNull();
+    expect(hasResultScreenBottomDark(pixels!)).toBe(false);
+  });
+
+  it('CHAIN アニメーションフレームは下部領域が明るい', async () => {
+    const pixels = await readImagePixels(path.join(FIXTURES, '0053.png'));
+    expect(pixels).not.toBeNull();
+    expect(hasResultScreenBottomDark(pixels!)).toBe(false);
+  });
+
+  it('ゲームプレイ中の誤検知フレームは下部領域が明るい', async () => {
+    const pixels = await readImagePixels(path.join(FIXTURES, '0056.png'));
+    expect(pixels).not.toBeNull();
+    expect(hasResultScreenBottomDark(pixels!)).toBe(false);
   });
 });
 

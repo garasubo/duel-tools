@@ -47,6 +47,17 @@ const RESULT_BANNER_ROI: ROI = {
   height: 0.36,
 };
 
+// 結果画面の OK ボタンが表示される画面下部領域
+// 結果画面はこの領域が暗いオーバーレイで覆われており、ゲームプレイ中は明るいゲームコンテンツが表示される
+const RESULT_BOTTOM_ROI: ROI = {
+  x: 0.30,
+  y: 0.85,
+  width: 0.40,
+  height: 0.08,
+};
+const MAX_RESULT_BOTTOM_BRIGHTNESS = 80;
+const MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS = 90;
+
 /** VICTORY / LOSE のいずれかと完全一致（または正規化後一致）する場合に confidence を 85 に引き上げる。 */
 function confidenceWithTextMatch(text: string, confidence: number): number {
   const upper = text.toUpperCase();
@@ -331,6 +342,37 @@ function isResultTextPixel(data: ImagePixels['data'], offset: number): boolean {
   return brightness >= 205 && max >= 225 && max - min <= 95;
 }
 
+/**
+ * OK ボタン領域（画面下部中央）の平均輝度が低いかチェックする。
+ * 結果画面はこの領域がオーバーレイで暗くなるが、ゲームプレイ中の演出フレームは
+ * カードや盤面コンテンツで明るい。
+ */
+export function hasResultScreenBottomDark(pixels: ImagePixels, maxBrightness = MAX_RESULT_BOTTOM_BRIGHTNESS): boolean {
+  const rect = roiToRectangle(RESULT_BOTTOM_ROI, pixels.width, pixels.height);
+  const left = Math.max(0, rect.left);
+  const top = Math.max(0, rect.top);
+  const right = Math.min(pixels.width, rect.left + rect.width);
+  const bottom = Math.min(pixels.height, rect.top + rect.height);
+  if (right <= left || bottom <= top) return true; // ピクセル読み取り不可の場合は安全側に倒す
+
+  let totalBrightness = 0;
+  let count = 0;
+  for (let y = top; y < bottom; y++) {
+    for (let x = left; x < right; x++) {
+      const offset = (y * pixels.width + x) * 4;
+      const r = pixels.data[offset];
+      const g = pixels.data[offset + 1];
+      const b = pixels.data[offset + 2];
+      const a = pixels.data[offset + 3];
+      if (a < 128) continue;
+      totalBrightness += 0.299 * r + 0.587 * g + 0.114 * b;
+      count++;
+    }
+  }
+  if (count === 0) return true;
+  return totalBrightness / count < maxBrightness;
+}
+
 export async function detectResultByImageFeatures(input: ImageLike): Promise<DetectionResult | null> {
   const classification = await classifyResultScreenByImageFeatures(input);
   return classification.kind === 'result' ? classification.result : null;
@@ -414,6 +456,7 @@ export async function classifyResultScreenByImageFeatures(
       centerY <= 0.56 &&
       bboxDensity >= MIN_POSSIBLE_RESULT_BBOX_DENSITY
     ) {
+      if (!hasResultScreenBottomDark(pixels)) return { kind: 'none' };
       return { kind: 'possible' };
     }
     return { kind: 'none' };
@@ -431,12 +474,15 @@ export async function classifyResultScreenByImageFeatures(
     bannerHeightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     bannerHeightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO
   ) {
+    // 下部領域が明るい場合（ゲームプレイ中の演出フレーム）は確定しない
+    if (!hasResultScreenBottomDark(pixels, MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS)) return { kind: 'possible' };
     return {
       kind: 'result',
       result: { result: 'loss', confidence: IMAGE_FEATURE_CONFIDENCE },
     };
   }
 
+  if (!hasResultScreenBottomDark(pixels)) return { kind: 'none' };
   return { kind: 'possible' };
 }
 
