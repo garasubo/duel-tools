@@ -10,6 +10,7 @@ import type { BattleResult } from '../types';
 export default function RecordPage() {
   const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
   const [suggestedPreviewResult, setSuggestedPreviewResult] = useState<BattleResult | null>(null);
+  const [suggestedScore, setSuggestedScore] = useState<number | null>(null);
   const {
     turnOrderDetection,
     clearTurnOrderDetection,
@@ -21,18 +22,22 @@ export default function RecordPage() {
     clearResultPreviewCallback,
     setTurnOrderCallback,
     clearTurnOrderCallback,
+    setRatingCallback,
+    clearRatingCallback,
   } = useCaptureContext();
 
   useEffect(() => {
     setResultCallback((result) => setSuggestedResult(result));
     setResultPreviewCallback((result) => setSuggestedPreviewResult(result));
     setTurnOrderCallback(() => {});
+    setRatingCallback((rating) => setSuggestedScore(rating));
     return () => {
       clearResultCallback();
       clearResultPreviewCallback();
       clearTurnOrderCallback();
+      clearRatingCallback();
     };
-  }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback]);
+  }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback, setRatingCallback, clearRatingCallback]);
 
   const handleSuggestedResultConsumed = useCallback(() => setSuggestedResult(null), []);
   const handleCapturePreviewResultConsumed = useCallback(
@@ -42,6 +47,8 @@ export default function RecordPage() {
   const handleSuggestedTurnOrderConsumed = useCallback(() => {
     clearTurnOrderDetection();
   }, [clearTurnOrderDetection]);
+
+  const handleSuggestedScoreConsumed = useCallback(() => setSuggestedScore(null), []);
 
   return (
     <div>
@@ -65,6 +72,8 @@ export default function RecordPage() {
         onCapturePreviewResultConsumed={handleCapturePreviewResultConsumed}
         suggestedTurnOrder={turnOrderDetection}
         onSuggestedTurnOrderConsumed={handleSuggestedTurnOrderConsumed}
+        suggestedScore={suggestedScore}
+        onSuggestedScoreConsumed={handleSuggestedScoreConsumed}
         onRecordSaved={prepareNextDuelDetection}
         onTurnOrderCleared={restartTurnOrderDetection}
       />

@@ -46,6 +46,16 @@ export function applySuggestedResultToBattleForm(
   return { ...state, result: suggestedResult };
 }
 
+export function applyRatingSuggestionToBattleForm(
+  state: BattleFormState,
+  suggestedScore: number,
+): BattleFormState {
+  if (state.battleMode === 'rated' && state.score === '') {
+    return { ...state, score: String(suggestedScore) };
+  }
+  return state;
+}
+
 export function createInitialBattleFormState(latestRecord: BattleRecord | null): BattleFormState {
   if (!latestRecord) return EMPTY_BATTLE_FORM_STATE;
 

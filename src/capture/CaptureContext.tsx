@@ -9,6 +9,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
   const callbackRef = useRef<((result: 'win' | 'loss') => void) | null>(null);
   const previewCallbackRef = useRef<((result: 'win' | 'loss') => void) | null>(null);
   const turnOrderCallbackRef = useRef<((order: TurnOrder) => void) | null>(null);
+  const ratingCallbackRef = useRef<((rating: number) => void) | null>(null);
 
   const handleResult = useCallback((result: 'win' | 'loss') => {
     callbackRef.current?.(result);
@@ -22,7 +23,11 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
     turnOrderCallbackRef.current?.(order);
   }, []);
 
-  const { videoRef, canvasRef, ...capture } = useDuelCapture(handleResult, handleTurnOrder, handleResultPreview);
+  const handleRating = useCallback((rating: number) => {
+    ratingCallbackRef.current?.(rating);
+  }, []);
+
+  const { videoRef, canvasRef, ...capture } = useDuelCapture(handleResult, handleTurnOrder, handleResultPreview, handleRating);
   const isCaptureDebugEnabled = getCaptureDebugEnabled();
 
   const setResultCallback = useCallback((cb: (result: 'win' | 'loss') => void) => {
@@ -49,6 +54,14 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
     turnOrderCallbackRef.current = null;
   }, []);
 
+  const setRatingCallback = useCallback((cb: (rating: number) => void) => {
+    ratingCallbackRef.current = cb;
+  }, []);
+
+  const clearRatingCallback = useCallback(() => {
+    ratingCallbackRef.current = null;
+  }, []);
+
   return (
     <CaptureContext.Provider
       value={{
@@ -60,6 +73,8 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         clearResultPreviewCallback,
         setTurnOrderCallback,
         clearTurnOrderCallback,
+        setRatingCallback,
+        clearRatingCallback,
       }}
     >
       {children}

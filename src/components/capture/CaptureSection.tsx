@@ -13,11 +13,13 @@ export default function CaptureSection() {
     isCaptureDebugEnabled,
     hasFirstCandidateFrame,
     hasCoinTossFrame,
+    hasRatingFrame,
     coinTossDebug,
     turnOrderDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     downloadCoinTossFrame,
+    downloadRatingFrame,
     start,
     stop,
     confirm,
@@ -148,6 +150,14 @@ export default function CaptureSection() {
               className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               コイントス判定画像を保存
+            </button>
+            <button
+              type="button"
+              onClick={downloadRatingFrame}
+              disabled={!hasRatingFrame}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              レート検出画像を保存
             </button>
           </div>
           <div className="text-xs text-gray-500 font-mono break-all">

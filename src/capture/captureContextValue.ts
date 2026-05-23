@@ -4,6 +4,7 @@ import type {
   CoinTossDebugInfo,
   DetectionResult,
   DuelCaptureState,
+  RatingDetectionEvent,
   TurnOrderDetectionEvent,
 } from './types';
 
@@ -20,14 +21,19 @@ export interface CaptureContextValue {
   isCaptureDebugEnabled: boolean;
   hasFirstCandidateFrame: boolean;
   hasCoinTossFrame: boolean;
+  hasRatingFrame: boolean;
   coinTossDebug: CoinTossDebugInfo | null;
   turnOrderDetection: TurnOrderDetectionEvent | null;
   clearTurnOrderDetection: () => void;
+  ratingDetection: RatingDetectionEvent | null;
+  clearRatingDetection: () => void;
   restartTurnOrderDetection: () => void;
   prepareNextDuelDetection: () => void;
   downloadCurrentFrame: () => void;
   downloadFirstCandidateFrame: () => void;
   downloadCoinTossFrame: () => void;
+  downloadRatingFrame: () => void;
+  captureRatingOnce: () => Promise<number | null>;
   start: () => Promise<void>;
   stop: () => void;
   confirm: () => void;
@@ -38,6 +44,8 @@ export interface CaptureContextValue {
   clearResultPreviewCallback: () => void;
   setTurnOrderCallback: (cb: (order: TurnOrder) => void) => void;
   clearTurnOrderCallback: () => void;
+  setRatingCallback: (cb: (rating: number) => void) => void;
+  clearRatingCallback: () => void;
 }
 
 export const CaptureContext = createContext<CaptureContextValue | null>(null);

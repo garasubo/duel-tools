@@ -48,6 +48,7 @@ interface UseResultCaptureLoopOptions {
   autoConfirmEnabled: boolean;
   onResultDetected: (result: 'win' | 'loss') => void;
   onResultPreview?: (result: 'win' | 'loss') => void;
+  onResultScreenCleared?: () => void;
 }
 
 export function advanceResultStreak(
@@ -91,6 +92,7 @@ export function useResultCaptureLoop({
   autoConfirmEnabled,
   onResultDetected,
   onResultPreview,
+  onResultScreenCleared,
 }: UseResultCaptureLoopOptions): ResultCaptureLoop {
   const [state, setState] = useState<ResultCaptureLoopState>('scanning');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
@@ -107,6 +109,7 @@ export function useResultCaptureLoop({
   const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
   const onResultDetectedRef = useRef(onResultDetected);
   const onResultPreviewRef = useRef(onResultPreview);
+  const onResultScreenClearedRef = useRef(onResultScreenCleared);
 
   useEffect(() => {
     stateRef.current = state;
@@ -127,6 +130,10 @@ export function useResultCaptureLoop({
   useEffect(() => {
     onResultPreviewRef.current = onResultPreview;
   }, [onResultPreview]);
+
+  useEffect(() => {
+    onResultScreenClearedRef.current = onResultScreenCleared;
+  }, [onResultScreenCleared]);
 
   const resetStreak = useCallback(() => {
     streakRef.current = EMPTY_STREAK;
@@ -179,6 +186,7 @@ export function useResultCaptureLoop({
         if (autoConfirmEnabledRef.current && pending) {
           onResultDetectedRef.current(pending.result);
         }
+        onResultScreenClearedRef.current?.();
         setPendingResult(null);
         resetStreak();
         resetCandidateFrame();

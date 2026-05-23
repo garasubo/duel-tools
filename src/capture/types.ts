@@ -32,6 +32,12 @@ export interface CoinTossDebugInfo {
   updatedAt: number;
 }
 
+export interface RatingDetectionEvent {
+  id: number;
+  rating: number;
+  detectedAt: number;
+}
+
 // Master Duel 結果画面のデフォルトROI（VICTORY テキストが出る中央帯）
 export const DEFAULT_RESULT_ROI: ROI = {
   x: 0.125,

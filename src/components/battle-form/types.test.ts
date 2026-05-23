@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BattleFormState } from './types';
 import {
   applySuggestedResultToBattleForm,
+  applyRatingSuggestionToBattleForm,
   createInitialBattleFormState,
   createNextBattleFormState,
   EMPTY_BATTLE_FORM_STATE,
@@ -84,5 +85,36 @@ describe('battle-form state helpers', () => {
       ownDeckId: 'own-1',
       battleMode: 'duelists-cup',
     });
+  });
+});
+
+describe('applyRatingSuggestionToBattleForm', () => {
+  it('rated モード・スコア未入力のとき適用する', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
+    expect(applyRatingSuggestionToBattleForm(state, 1501.43).score).toBe('1501.43');
+  });
+
+  it('duelists-cup モードでは適用しない', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'duelists-cup' };
+    expect(applyRatingSuggestionToBattleForm(state, 1500).score).toBe('');
+  });
+
+  it('battleMode が null のときは適用しない', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE };
+    expect(applyRatingSuggestionToBattleForm(state, 1500).score).toBe('');
+  });
+
+  it('スコアが既に入力済みのときは上書きしない', () => {
+    const state: BattleFormState = {
+      ...EMPTY_BATTLE_FORM_STATE,
+      battleMode: 'rated',
+      score: '1450',
+    };
+    expect(applyRatingSuggestionToBattleForm(state, 1500).score).toBe('1450');
+  });
+
+  it('小数値が文字列として正しく保持される', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
+    expect(applyRatingSuggestionToBattleForm(state, 1508.94).score).toBe('1508.94');
   });
 });

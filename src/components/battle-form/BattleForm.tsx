@@ -4,12 +4,14 @@ import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
 import { useTags } from "../../state/hooks/useTags";
 import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
 import { useBattlesStore } from "../../state/BattlesProvider";
+import { useCaptureContext } from "../../capture/useCaptureContext";
 import type { TurnOrderDetectionEvent } from "../../capture/types";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
 import {
   applySuggestedResultToBattleForm,
+  applyRatingSuggestionToBattleForm,
   createInitialBattleFormState,
   createNextBattleFormState,
   isBattleFormValid,
@@ -23,6 +25,8 @@ interface BattleFormProps {
   onCapturePreviewResultConsumed?: () => void;
   suggestedTurnOrder?: TurnOrderDetectionEvent | null;
   onSuggestedTurnOrderConsumed?: () => void;
+  suggestedScore?: number | null;
+  onSuggestedScoreConsumed?: () => void;
   onRecordSaved?: () => void;
   onTurnOrderCleared?: () => void;
 }
@@ -34,9 +38,14 @@ export default function BattleForm({
   onCapturePreviewResultConsumed,
   suggestedTurnOrder,
   onSuggestedTurnOrderConsumed,
+  suggestedScore,
+  onSuggestedScoreConsumed,
   onRecordSaved,
   onTurnOrderCleared,
 }: BattleFormProps) {
+  const { captureRatingOnce, isCapturing } = useCaptureContext();
+  const [isCapturingRating, setIsCapturingRating] = useState(false);
+  const [captureRatingFailed, setCaptureRatingFailed] = useState(false);
   const store = useBattlesStore();
   const { items: ownDecks, add: addOwnDeck } = useOwnDecks();
   const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
@@ -112,6 +121,14 @@ export default function BattleForm({
   }, [suggestedTurnOrderId, suggestedTurnOrderValue, onSuggestedTurnOrderConsumed]);
 
   useEffect(() => {
+    if (suggestedScore == null) return;
+    queueMicrotask(() => {
+      setForm((f) => applyRatingSuggestionToBattleForm(f, suggestedScore));
+      onSuggestedScoreConsumed?.();
+    });
+  }, [suggestedScore, onSuggestedScoreConsumed]);
+
+  useEffect(() => {
     if (!autoSubmitRef.current) return;
     autoSubmitRef.current = false;
     if (isBattleFormValid(form)) {
@@ -153,6 +170,22 @@ export default function BattleForm({
     }
   }
 
+  const handleCaptureRatingOnce = useCallback(async () => {
+    setIsCapturingRating(true);
+    setCaptureRatingFailed(false);
+    try {
+      const rating = await captureRatingOnce();
+      if (rating !== null) {
+        setForm((f) => ({ ...f, score: String(rating) }));
+      } else {
+        setCaptureRatingFailed(true);
+        setTimeout(() => setCaptureRatingFailed(false), 3000);
+      }
+    } finally {
+      setIsCapturingRating(false);
+    }
+  }, [captureRatingOnce]);
+
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isValid) return;
@@ -171,6 +204,9 @@ export default function BattleForm({
         onAddOpponentDeck={handleAddOpponentDeck}
         onAddKnownTag={addKnownTag}
         onResultChange={handleResultChange}
+        onCaptureRating={isCapturing ? handleCaptureRatingOnce : undefined}
+        isCapturingRating={isCapturingRating}
+        captureRatingFailed={captureRatingFailed}
       />
 
       <div className="flex items-center gap-3">

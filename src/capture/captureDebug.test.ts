@@ -30,6 +30,9 @@ describe('captureDebug', () => {
     expect(createCaptureFilename('coin-toss', date)).toBe(
       'duel-capture-coin-toss-20260405-060708.png',
     );
+    expect(createCaptureFilename('rating-candidate', date)).toBe(
+      'duel-capture-rating-candidate-20260405-060708.png',
+    );
   });
 
   it('空 canvas は data URL にしない', () => {

@@ -23,6 +23,9 @@ export interface BattleFieldsProps {
   onAddOpponentDeck: (name: string) => void;
   onAddKnownTag: (tag: string) => void;
   onResultChange?: (result: BattleResult | null) => void;
+  onCaptureRating?: () => Promise<void>;
+  isCapturingRating?: boolean;
+  captureRatingFailed?: boolean;
 }
 
 export default function BattleFields({
@@ -35,6 +38,9 @@ export default function BattleFields({
   onAddOpponentDeck,
   onAddKnownTag,
   onResultChange,
+  onCaptureRating,
+  isCapturingRating,
+  captureRatingFailed,
 }: BattleFieldsProps) {
   function handleResult(result: BattleResult | null) {
     if (onResultChange) {
@@ -102,15 +108,33 @@ export default function BattleFields({
             <label className="text-sm font-medium text-gray-700">
               {scoreLabel}
             </label>
-            <input
-              type="number"
-              value={value.score}
-              onChange={(e) => onChange({ score: e.target.value })}
-              placeholder={getScorePlaceholder(value.battleMode)}
-              min={scoreBounds.min}
-              max={scoreBounds.max}
-              className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={value.score}
+                onChange={(e) => onChange({ score: e.target.value })}
+                placeholder={getScorePlaceholder(value.battleMode)}
+                min={scoreBounds.min}
+                max={scoreBounds.max}
+                step="any"
+                className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {value.battleMode === 'rated' && onCaptureRating && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onCaptureRating}
+                    disabled={isCapturingRating}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCapturingRating ? '読み取り中…' : '画面から読み取る'}
+                  </button>
+                  {captureRatingFailed && (
+                    <span className="text-sm text-red-500">読み取れませんでした</span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
