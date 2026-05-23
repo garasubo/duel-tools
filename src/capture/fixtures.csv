@@ -1,4 +1,4 @@
-filename,coin_expected,ocr_expected,badge_expected
+filename,coin_expected,ocr_expected,badge_expected,rate_expected
 0001.png,user-selecting,none,none
 0002.png,opponent-selecting,none,none
 0003.png,opponent-selecting,none,none
@@ -57,12 +57,13 @@ filename,coin_expected,ocr_expected,badge_expected
 0056.png,none,none,
 0057.png,none,none,none
 0058.png,none,none,none
-0059.png,none,none,none
+0059.png,none,none,none,1501.43
 0060.png,none,loss,
 0061.png,none,loss,
 0062.png,none,win,
 0063.png,none,win,
 0064.png,none,none,
-0065.png,none,none,none
-0066.png,none,none,none
-0067.png,none,none,none
+0065.png,none,none,none,1501.31
+0066.png,none,none,none,1501.31
+0067.png,none,none,none,1517.77
+0067.png,none,none,none,none

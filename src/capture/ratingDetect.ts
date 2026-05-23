@@ -1,6 +1,8 @@
-import type { Worker } from 'tesseract.js';
+import type { ImageLike, Worker } from 'tesseract.js';
 import { buildOcrInput, roiToRectangle } from './ocrDetect';
 import type { ROI } from './types';
+
+type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
 
 // レーティング表示エリアのROI（デュエルリザルト画面・レート戦ロビー画面の両方をカバー）
 export const RATING_ROI: ROI = {
@@ -25,6 +27,55 @@ export function parseRatingFromText(text: string): number | null {
   return null;
 }
 
+// OCR がロビー画面の数値間にスペースを挿入することがある（例: "1 51 7.77"）。
+// 数字-スペース-数字 のパターンを連結してパース精度を上げる。
+function collapseDigitSpaces(text: string): string {
+  return text.replace(/(\d) +(\d)/g, '$1$2');
+}
+
+export async function createRatingOcrWorker(): Promise<Worker> {
+  const { createWorker } = await import('tesseract.js');
+  return createWorker('eng');
+}
+
+async function runRatingOcr(
+  worker: Worker,
+  ocrInput: ImageLike,
+  recognizeOpts: { rectangle?: { left: number; top: number; width: number; height: number } } | undefined,
+): Promise<number | null> {
+  // パス1: PSM 6（テキストブロック）+ 数字間スペース除去 — デュエルリザルト画面・ロビー画面の多くをカバー
+  await worker.setParameters({ tessedit_pageseg_mode: '6' as PageSegmentationMode });
+  const { data: d1 } = recognizeOpts
+    ? await worker.recognize(ocrInput, recognizeOpts)
+    : await worker.recognize(ocrInput);
+  const r1 = parseRatingFromText(collapseDigitSpaces(d1.text));
+  if (r1 !== null) return r1;
+
+  // パス2: PSM 11（疎なテキスト）— PSM 6 が小数点をスペースに誤読するロビー画面向けフォールバック
+  await worker.setParameters({ tessedit_pageseg_mode: '11' as PageSegmentationMode });
+  const { data: d2 } = recognizeOpts
+    ? await worker.recognize(ocrInput, recognizeOpts)
+    : await worker.recognize(ocrInput);
+  return parseRatingFromText(d2.text);
+}
+
+export async function detectRatingFromImageLike(
+  worker: Worker,
+  input: ImageLike,
+  imageWidth: number,
+  imageHeight: number,
+): Promise<number | null> {
+  const rect = roiToRectangle(RATING_ROI, imageWidth, imageHeight);
+  const built = buildOcrInput(
+    input as unknown as Parameters<typeof buildOcrInput>[0],
+    rect,
+    null,
+    RATING_OCR_TARGET_WIDTH,
+  );
+  const { input: ocrInput, rectangle } = built.ocrInput;
+  return runRatingOcr(worker, ocrInput, rectangle ? { rectangle } : undefined);
+}
+
 export async function detectRatingFromScreen(
   worker: Worker,
   canvas: HTMLCanvasElement,
@@ -41,8 +92,5 @@ export async function detectRatingFromScreen(
     reusableCanvasRef.current = built.reusableCanvas;
   }
   const { input: ocrInput, rectangle } = built.ocrInput;
-  const { data } = rectangle
-    ? await worker.recognize(ocrInput, { rectangle })
-    : await worker.recognize(ocrInput);
-  return parseRatingFromText(data.text);
+  return runRatingOcr(worker, ocrInput, rectangle ? { rectangle } : undefined);
 }

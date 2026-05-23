@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { getOcrInterval } from './captureTiming';
 import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
-import { createJpnOcrWorker } from './coinTossDetect';
-import { detectRatingFromScreen } from './ratingDetect';
+import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
 import type { DuelCaptureState } from './types';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
 import { useCaptureFrame } from './useCaptureFrame';
@@ -113,7 +112,7 @@ export function useDuelCapture(
   const captureRatingOnce = useCallback(async (): Promise<number | null> => {
     if (!isCapturing || !canvasRef.current) return null;
     if (!captureCurrentFrame()) return null;
-    const worker = await createJpnOcrWorker();
+    const worker = await createRatingOcrWorker();
     try {
       return await detectRatingFromScreen(worker, canvasRef.current);
     } finally {
