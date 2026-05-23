@@ -44,8 +44,8 @@ describe('parseRatingFromText', () => {
     expect(parseRatingFromText('1501.43')).toBe(1501.43);
   });
 
-  it('整数レーティングを検出する', () => {
-    expect(parseRatingFromText('1500')).toBe(1500);
+  it('整数のみは null（ゲーム内レートは常に小数点付き）', () => {
+    expect(parseRatingFromText('1500')).toBe(null);
   });
 
   it('テキスト混在でも抽出できる（レート戦ロビー画面）', () => {
@@ -56,8 +56,8 @@ describe('parseRatingFromText', () => {
     expect(parseRatingFromText('1508.94 -7.51 1501.43')).toBe(1501.43);
   });
 
-  it('複数整数候補から最後の値を返す', () => {
-    expect(parseRatingFromText('1500 1480')).toBe(1480);
+  it('複数整数候補はすべて null（小数なし）', () => {
+    expect(parseRatingFromText('1500 1480')).toBe(null);
   });
 
   it('範囲外は null: 999', () => {
@@ -76,12 +76,20 @@ describe('parseRatingFromText', () => {
     expect(parseRatingFromText('1000')).toBe(null);
   });
 
-  it('境界値 1001 を受け入れる', () => {
-    expect(parseRatingFromText('1001')).toBe(1001);
+  it('境界値 1001 は整数なので null', () => {
+    expect(parseRatingFromText('1001')).toBe(null);
   });
 
-  it('境界値 2000 を受け入れる', () => {
-    expect(parseRatingFromText('2000')).toBe(2000);
+  it('境界値 1001.00 を小数で受け入れる', () => {
+    expect(parseRatingFromText('1001.00')).toBe(1001);
+  });
+
+  it('境界値 2000 は整数なので null', () => {
+    expect(parseRatingFromText('2000')).toBe(null);
+  });
+
+  it('境界値 2000.00 を小数で受け入れる', () => {
+    expect(parseRatingFromText('2000.00')).toBe(2000);
   });
 
   it('5桁以上の数字から部分一致しない', () => {

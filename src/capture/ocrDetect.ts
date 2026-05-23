@@ -35,6 +35,7 @@ const CLEAR_RESULT_TEXT_CONFIDENCE = 85;
 const IMAGE_FEATURE_CONFIDENCE = 92;
 const MIN_RESULT_BBOX_DENSITY = 0.35;
 const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
+const MIN_VICTORY_DENSITY = 0.20;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
 const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
@@ -437,6 +438,13 @@ export async function classifyResultScreenByImageFeatures(
   const centerX = (left + minX + left + maxX) / 2 / pixels.width;
   const centerY = (top + minY + top + maxY) / 2 / pixels.height;
   const bboxDensity = brightPixels / ((maxX - minX + 1) * (maxY - minY + 1));
+
+  if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO && density >= MIN_VICTORY_DENSITY) {
+    return {
+      kind: 'result',
+      result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },
+    };
+  }
 
   if (
     bannerHeightRatio < 0.08 ||
