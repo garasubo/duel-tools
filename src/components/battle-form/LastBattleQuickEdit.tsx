@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
 import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
 import { getScoreBounds, getScoreLabel } from "../../utils/battleMode";
 import type { BattleMode, BattleResult, TurnOrder } from "../../types";
 import DeckSelect from "./DeckSelect";
+import { useCaptureContext } from "../../capture/useCaptureContext";
 
 const TURN_ORDER_OPTIONS: { value: TurnOrder; label: string }[] = [
   { value: "first", label: "先攻" },
@@ -20,9 +21,12 @@ interface ScoreInputProps {
   initialValue: string;
   mode: BattleMode;
   onChange: (value: string) => void;
+  onCaptureRating?: () => Promise<void>;
+  isCapturingRating?: boolean;
+  captureRatingFailed?: boolean;
 }
 
-function ScoreInput({ initialValue, mode, onChange }: ScoreInputProps) {
+function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturingRating, captureRatingFailed }: ScoreInputProps) {
   const [value, setValue] = useState(initialValue);
   const bounds = getScoreBounds(mode);
 
@@ -34,14 +38,31 @@ function ScoreInput({ initialValue, mode, onChange }: ScoreInputProps) {
   return (
     <div className="flex flex-col gap-0.5">
       <label className="text-xs text-gray-500">{getScoreLabel(mode)}</label>
-      <input
-        type="number"
-        value={value}
-        onChange={handleChange}
-        min={bounds.min}
-        max={bounds.max}
-        className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          value={value}
+          onChange={handleChange}
+          min={bounds.min}
+          max={bounds.max}
+          className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        {mode === 'rated' && onCaptureRating && (
+          <>
+            <button
+              type="button"
+              onClick={onCaptureRating}
+              disabled={isCapturingRating}
+              className="rounded border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCapturingRating ? '読み取り中…' : '画面から読み取る'}
+            </button>
+            {captureRatingFailed && (
+              <span className="text-xs text-red-500">読み取れませんでした</span>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -51,9 +72,29 @@ const selectClass =
 
 export default function LastBattleQuickEdit() {
   const [open, setOpen] = useState(false);
+  const [isCapturingRating, setIsCapturingRating] = useState(false);
+  const [captureRatingFailed, setCaptureRatingFailed] = useState(false);
   const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
   const { update: updateRecord } = useRecords();
   const latestRecord = useLatestRecord();
+  const { captureRatingOnce, isCapturing } = useCaptureContext();
+
+  const handleCaptureRatingOnce = useCallback(async () => {
+    if (!latestRecord) return;
+    setIsCapturingRating(true);
+    setCaptureRatingFailed(false);
+    try {
+      const rating = await captureRatingOnce();
+      if (rating !== null) {
+        updateRecord(latestRecord.id, { score: rating });
+      } else {
+        setCaptureRatingFailed(true);
+        setTimeout(() => setCaptureRatingFailed(false), 3000);
+      }
+    } finally {
+      setIsCapturingRating(false);
+    }
+  }, [captureRatingOnce, latestRecord, updateRecord]);
 
   if (!latestRecord) return null;
 
@@ -146,6 +187,9 @@ export default function LastBattleQuickEdit() {
                   score: value !== "" ? Number(value) : undefined,
                 })
               }
+              onCaptureRating={isCapturing ? handleCaptureRatingOnce : undefined}
+              isCapturingRating={isCapturingRating}
+              captureRatingFailed={captureRatingFailed}
             />
           )}
         </div>
