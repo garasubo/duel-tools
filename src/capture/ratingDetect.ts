@@ -50,6 +50,47 @@ function restoreDecimalSeparator(text: string): string {
   return result;
 }
 
+// デュエルリザルト画面の判定: ">>" 演算子（旧レート → 新レートの矢印）が存在するか。
+// Tesseract は "►" を "))" として出力する。
+export function isResultScreenText(text: string): boolean {
+  return /\){2,}/.test(text);
+}
+
+// レート戦ロビー画面の判定: "RATE" または関連キーワードが存在するか。
+// Tesseract は "RATE" を "FATE", "rare", "TOP 50%" など様々な形で出力するため、
+// "TOP" も判定基準に含める。
+export function isLobbyScreenText(text: string): boolean {
+  return /\bTOP\b/i.test(text) || /\bRATE\b|\bFATE\b/i.test(text);
+}
+
+// リザルト画面のレート変動表示: "旧レート - 変化量 )) 新レート"
+// Tesseract が ">>" を "))" と出力するため、"))" 以降に現れた値のみを新レートとして返す。
+// "))" の後ろに値がない（旧レートのみ表示）場合は null を返す。
+function parseResultScreenNewRating(text: string): number | null {
+  const arrowMatch = text.match(/\){2,}([\s\S]*)/);
+  if (!arrowMatch) return null;
+  return parseRatingFromText(collapseDigitSpaces(arrowMatch[1]));
+}
+
+function parseForLobbyScreen(text: string): number | null {
+  // ロビー画面は小フォントでノイズが多いため、全前処理を適用
+  const r1 = parseRatingFromText(restoreDecimalSeparator(text));
+  if (r1 !== null) return r1;
+  const r2 = parseRatingFromText(collapseDigitSpaces(text));
+  if (r2 !== null) return r2;
+  // "RATE: 1 B51 6.29" のように非数字文字が混入した場合:
+  // RATE/FATE キーワード以降を抽出し、非数字・非小数点文字をスペースに置換してから再解析する。
+  // 例: "1 B51 6.29" → "1  51 6.29" → collapseDigitSpaces → "1516.29"
+  const kw = text.match(/(?:RATE|FATE)[:\s]+([0-9][^\n]*)/i);
+  if (kw) {
+    const raw = kw[1].split(/\s+TOP\s+/i)[0];
+    const digits = raw.replace(/[^0-9. ]/g, ' ');
+    const r3 = parseRatingFromText(collapseDigitSpaces(digits));
+    if (r3 !== null) return r3;
+  }
+  return null;
+}
+
 export async function createRatingOcrWorker(): Promise<Worker> {
   const { createWorker } = await import('tesseract.js');
   return createWorker('eng');
@@ -60,26 +101,37 @@ async function runRatingOcr(
   ocrInput: ImageLike,
   recognizeOpts: { rectangle?: { left: number; top: number; width: number; height: number } } | undefined,
 ): Promise<number | null> {
-  // パス1: PSM 6（テキストブロック）— デュエルリザルト画面・ロビー画面の多くをカバー
-  await worker.setParameters({ tessedit_pageseg_mode: '6' as PageSegmentationMode });
-  const { data: d1 } = recognizeOpts
-    ? await worker.recognize(ocrInput, recognizeOpts)
-    : await worker.recognize(ocrInput);
-  // 小フォント小数点の修復を先に試みる（"1517 01" → "1517.01"）
-  const r1a = parseRatingFromText(restoreDecimalSeparator(d1.text));
-  if (r1a !== null) return r1a;
-  // 数字間スペース除去（"1 51 7.77" → "1517.77"）
-  const r1b = parseRatingFromText(collapseDigitSpaces(d1.text));
-  if (r1b !== null) return r1b;
+  const recognize = (w: Worker) =>
+    recognizeOpts ? w.recognize(ocrInput, recognizeOpts) : w.recognize(ocrInput);
 
-  // パス2: PSM 11（疎なテキスト）— PSM 6 が小数点をスペースに誤読するロビー画面向けフォールバック
+  // パス1: PSM 6 — 大フォントのリザルト画面向け
+  await worker.setParameters({ tessedit_pageseg_mode: '6' as PageSegmentationMode });
+  const { data: d1 } = await recognize(worker);
+  // リザルト画面: "))" の後ろに現れた値（新レート）のみを返す。
+  // 旧レートのみ表示の遷移フレームでは null になる（誤検知防止）。
+  if (isResultScreenText(d1.text)) {
+    const r = parseResultScreenNewRating(d1.text);
+    if (r !== null) return r;
+  }
+
+  // パス2: PSM 11 — PSM 6 でノイズが多い場合のフォールバック（ロビー画面含む）
   await worker.setParameters({ tessedit_pageseg_mode: '11' as PageSegmentationMode });
-  const { data: d2 } = recognizeOpts
-    ? await worker.recognize(ocrInput, recognizeOpts)
-    : await worker.recognize(ocrInput);
-  const r2a = parseRatingFromText(restoreDecimalSeparator(d2.text));
-  if (r2a !== null) return r2a;
-  return parseRatingFromText(d2.text);
+  const { data: d2 } = await recognize(worker);
+  if (isResultScreenText(d2.text)) {
+    const r = parseResultScreenNewRating(d2.text);
+    if (r !== null) return r;
+  }
+
+  // パス3: ロビー画面専用の前処理（画面マーカーが確認できた場合のみ）
+  // PSM 6/11 の直接解析では小フォント数値の認識精度が低いため、
+  // 全前処理（スペース結合・カンマ変換・RATE キーワード抽出）を適用する。
+  if (isLobbyScreenText(d1.text) || isLobbyScreenText(d2.text)) {
+    const r3 = parseForLobbyScreen(d1.text);
+    if (r3 !== null) return r3;
+    return parseForLobbyScreen(d2.text);
+  }
+
+  return null;
 }
 
 export async function detectRatingFromImageLike(

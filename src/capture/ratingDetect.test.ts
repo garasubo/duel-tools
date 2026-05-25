@@ -2,7 +2,13 @@ import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
 import type { Worker } from 'tesseract.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createRatingOcrWorker, detectRatingFromImageLike, parseRatingFromText } from './ratingDetect';
+import {
+  createRatingOcrWorker,
+  detectRatingFromImageLike,
+  isLobbyScreenText,
+  isResultScreenText,
+  parseRatingFromText,
+} from './ratingDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
@@ -106,6 +112,52 @@ describe('parseRatingFromText', () => {
 
   it('3桁以下の数字は無視する', () => {
     expect(parseRatingFromText('999 500 100')).toBe(null);
+  });
+});
+
+describe('isResultScreenText', () => {
+  it('Tesseractが ">>" を "))" として出力した場合にリザルト画面と判定する', () => {
+    // 実際のOCR出力: "1508.94 - 751 )) 1501.43"
+    expect(isResultScreenText('1508.94 - 751 )) 1501.43')).toBe(true);
+  });
+  it('"))" が2個以上あればリザルト画面と判定する', () => {
+    expect(isResultScreenText('1524.83 + 765 )) 1532.48')).toBe(true);
+  });
+  it('単独の ")" はリザルト画面と判定しない', () => {
+    expect(isResultScreenText('score (1500)')).toBe(false);
+  });
+  it('ロビー画面テキストはリザルト画面と判定しない', () => {
+    expect(isResultScreenText('RATE: 1517.01 TOP 50%')).toBe(false);
+  });
+  it('無関係なテキストは false', () => {
+    expect(isResultScreenText('VICTORY')).toBe(false);
+  });
+});
+
+describe('isLobbyScreenText', () => {
+  it('"RATE" キーワードでロビー画面と判定する', () => {
+    expect(isLobbyScreenText('RATE: 1517.01 TOP 50%')).toBe(true);
+  });
+  it('"TOP" キーワードでロビー画面と判定する', () => {
+    // 実際のOCR出力: "FATE 1517.77\nTOP 50 %"
+    expect(isLobbyScreenText('FATE 1517.77\nTOP 50 %')).toBe(true);
+  });
+  it('OCR誤読 "FATE" もロビー画面と判定する', () => {
+    // 実際のOCR出力例: "FATE 1517.77"
+    expect(isLobbyScreenText('FATE 1517.77')).toBe(true);
+  });
+  it('小文字 "top" もロビー画面と判定する', () => {
+    expect(isLobbyScreenText('top 50%')).toBe(true);
+  });
+  it('リザルト画面テキスト（"))"のみ）はロビー画面と判定しない', () => {
+    expect(isLobbyScreenText('1524.83 + 765 )) 1532.48')).toBe(false);
+  });
+  it('無関係なテキストは false', () => {
+    expect(isLobbyScreenText('VICTORY')).toBe(false);
+  });
+  it('デュエルスコア画面テキストは false（誤検知防止）', () => {
+    // 実際のOCR出力例: "3900 x1 ... 1500 ... 1000 ..."
+    expect(isLobbyScreenText('3900 1500 1000 100 200')).toBe(false);
   });
 });
 
