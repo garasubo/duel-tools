@@ -43,7 +43,7 @@ export default function BattleForm({
   onRecordSaved,
   onTurnOrderCleared,
 }: BattleFormProps) {
-  const { captureRatingOnce, isCapturing } = useCaptureContext();
+  const { captureRatingOnce, isCapturing, setWaitForRatingBeforeAutoConfirm } = useCaptureContext();
   const [isCapturingRating, setIsCapturingRating] = useState(false);
   const [captureRatingFailed, setCaptureRatingFailed] = useState(false);
   const store = useBattlesStore();
@@ -82,14 +82,27 @@ export default function BattleForm({
     [addRecord, onRecordSaved],
   );
 
+  const suggestedScoreRef = useRef<number | null>(null);
+  useEffect(() => {
+    suggestedScoreRef.current = suggestedScore ?? null;
+  }, [suggestedScore]);
+
+  useEffect(() => {
+    setWaitForRatingBeforeAutoConfirm(form.battleMode === 'rated');
+  }, [form.battleMode, setWaitForRatingBeforeAutoConfirm]);
+
   useEffect(() => {
     if (!suggestedResult) return;
     autoSubmitRef.current = true;
     queueMicrotask(() => {
       setCaptureResultApplied(true);
-      setForm((f) =>
-        applySuggestedResultToBattleForm(f, suggestedResult, store.getState().records),
-      );
+      setForm((f) => {
+        let newForm = applySuggestedResultToBattleForm(f, suggestedResult, store.getState().records);
+        if (suggestedScoreRef.current != null) {
+          newForm = applyRatingSuggestionToBattleForm(newForm, suggestedScoreRef.current);
+        }
+        return newForm;
+      });
       setAutoSubmitTick((t) => t + 1);
       onSuggestedResultConsumed?.();
     });

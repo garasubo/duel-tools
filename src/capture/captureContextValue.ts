@@ -34,6 +34,7 @@ export interface CaptureContextValue {
   downloadCoinTossFrame: () => void;
   downloadRatingFrame: () => void;
   captureRatingOnce: () => Promise<number | null>;
+  setWaitForRatingBeforeAutoConfirm: (wait: boolean) => void;
   start: () => Promise<void>;
   stop: () => void;
   confirm: () => void;

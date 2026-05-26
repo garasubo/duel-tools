@@ -1,4 +1,4 @@
-export const RESULT_CLEAR_FRAME_COUNT = 2;
+export const RESULT_CLEAR_FRAME_COUNT = 15;
 
 export interface ResultScreenGateState {
   clearFrameCount: number;

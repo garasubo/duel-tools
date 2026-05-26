@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
 import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
 import { getScoreBounds, getScoreLabel } from "../../utils/battleMode";
@@ -29,6 +29,10 @@ interface ScoreInputProps {
 function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturingRating, captureRatingFailed }: ScoreInputProps) {
   const [value, setValue] = useState(initialValue);
   const bounds = getScoreBounds(mode);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setValue(e.target.value);

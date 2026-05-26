@@ -47,8 +47,10 @@ interface UseResultCaptureLoopOptions {
   disposeDetector: () => void;
   autoConfirmEnabled: boolean;
   onResultDetected: (result: 'win' | 'loss') => void;
+  onAutoConfirm?: (result: 'win' | 'loss') => void;
   onResultPreview?: (result: 'win' | 'loss') => void;
   onResultScreenCleared?: () => void;
+  detectPostDuelScreen?: (canvas: HTMLCanvasElement) => boolean;
 }
 
 export function advanceResultStreak(
@@ -91,8 +93,10 @@ export function useResultCaptureLoop({
   disposeDetector,
   autoConfirmEnabled,
   onResultDetected,
+  onAutoConfirm,
   onResultPreview,
   onResultScreenCleared,
+  detectPostDuelScreen,
 }: UseResultCaptureLoopOptions): ResultCaptureLoop {
   const [state, setState] = useState<ResultCaptureLoopState>('scanning');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
@@ -108,8 +112,10 @@ export function useResultCaptureLoop({
   const hasCandidateRef = useRef(false);
   const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
   const onResultDetectedRef = useRef(onResultDetected);
+  const onAutoConfirmRef = useRef(onAutoConfirm);
   const onResultPreviewRef = useRef(onResultPreview);
   const onResultScreenClearedRef = useRef(onResultScreenCleared);
+  const detectPostDuelScreenRef = useRef(detectPostDuelScreen);
 
   useEffect(() => {
     stateRef.current = state;
@@ -128,12 +134,20 @@ export function useResultCaptureLoop({
   }, [onResultDetected]);
 
   useEffect(() => {
+    onAutoConfirmRef.current = onAutoConfirm;
+  }, [onAutoConfirm]);
+
+  useEffect(() => {
     onResultPreviewRef.current = onResultPreview;
   }, [onResultPreview]);
 
   useEffect(() => {
     onResultScreenClearedRef.current = onResultScreenCleared;
   }, [onResultScreenCleared]);
+
+  useEffect(() => {
+    detectPostDuelScreenRef.current = detectPostDuelScreen;
+  }, [detectPostDuelScreen]);
 
   const resetStreak = useCallback(() => {
     streakRef.current = EMPTY_STREAK;
@@ -179,18 +193,33 @@ export function useResultCaptureLoop({
     const result = await detect(canvas, DEFAULT_RESULT_ROI);
 
     if (stateRef.current === 'waiting-clear') {
-      const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
-      clearFrameCountRef.current = gate.clearFrameCount;
-      if (gate.isReadyForNextDetection) {
+      const triggerScreenCleared = () => {
         const pending = pendingResultRef.current;
         if (autoConfirmEnabledRef.current && pending) {
-          onResultDetectedRef.current(pending.result);
+          if (onAutoConfirmRef.current) {
+            onAutoConfirmRef.current(pending.result);
+          } else {
+            onResultDetectedRef.current(pending.result);
+          }
         }
         onResultScreenClearedRef.current?.();
         setPendingResult(null);
         resetStreak();
         resetCandidateFrame();
         setState('scanning');
+      };
+
+      // 輝度検出: VICTORY テキスト不在 かつ 画面が暗い → デュエル後画面と判定し即確定
+      if (!result && detectPostDuelScreenRef.current?.(canvas)) {
+        triggerScreenCleared();
+        return { hasCandidate: hasCandidateRef.current };
+      }
+
+      // フォールバック: N フレーム連続でテキストなし
+      const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
+      clearFrameCountRef.current = gate.clearFrameCount;
+      if (gate.isReadyForNextDetection) {
+        triggerScreenCleared();
       }
       return { hasCandidate: hasCandidateRef.current };
     }

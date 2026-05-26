@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef } from 'react';
 import { getOcrInterval } from './captureTiming';
 import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
 import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
+import { isPostDuelDark } from './postDuelDetect';
 import type { DuelCaptureState } from './types';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
 import { useCaptureFrame } from './useCaptureFrame';
 import { useOcrDetector } from './useOcrDetector';
-import { useRatingCaptureLoop } from './useRatingCaptureLoop';
+import { useRatingCaptureLoop, RATING_ACTIVE_DURATION_MS } from './useRatingCaptureLoop';
 import { useResultCaptureLoop } from './useResultCaptureLoop';
 import { useScreenCapture } from './useScreenCapture';
 import { useTurnOrderCaptureLoop } from './useTurnOrderCaptureLoop';
@@ -26,13 +27,56 @@ export function useDuelCapture(
 
   const { autoConfirmEnabled, setAutoConfirmEnabled } = useAutoConfirmSetting();
 
+  const onResultDetectedRef = useRef(onResultDetected);
+  useEffect(() => {
+    onResultDetectedRef.current = onResultDetected;
+  }, [onResultDetected]);
+
   const onRatingDetectedRef = useRef(onRatingDetected);
   useEffect(() => {
     onRatingDetectedRef.current = onRatingDetected;
   }, [onRatingDetected]);
 
+  const waitForRatingRef = useRef(false);
+  const deferredAutoConfirmResultRef = useRef<'win' | 'loss' | null>(null);
+  const deferredAutoConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDeferredAutoConfirmTimer = useCallback(() => {
+    if (deferredAutoConfirmTimerRef.current) {
+      clearTimeout(deferredAutoConfirmTimerRef.current);
+      deferredAutoConfirmTimerRef.current = null;
+    }
+  }, []);
+
+  const flushDeferredAutoConfirm = useCallback(() => {
+    const result = deferredAutoConfirmResultRef.current;
+    if (result) {
+      deferredAutoConfirmResultRef.current = null;
+      clearDeferredAutoConfirmTimer();
+      onResultDetectedRef.current(result);
+    }
+  }, [clearDeferredAutoConfirmTimer]);
+
+  const handleAutoConfirm = useCallback((result: 'win' | 'loss') => {
+    if (waitForRatingRef.current) {
+      deferredAutoConfirmResultRef.current = result;
+      clearDeferredAutoConfirmTimer();
+      deferredAutoConfirmTimerRef.current = setTimeout(
+        flushDeferredAutoConfirm,
+        RATING_ACTIVE_DURATION_MS + 2000,
+      );
+    } else {
+      onResultDetectedRef.current(result);
+    }
+  }, [flushDeferredAutoConfirm, clearDeferredAutoConfirmTimer]);
+
   const handleRatingDetected = useCallback((rating: number) => {
+    flushDeferredAutoConfirm();
     onRatingDetectedRef.current?.(rating);
+  }, [flushDeferredAutoConfirm]);
+
+  const setWaitForRatingBeforeAutoConfirm = useCallback((wait: boolean) => {
+    waitForRatingRef.current = wait;
   }, []);
 
   const ratingCapture = useRatingCaptureLoop({
@@ -50,8 +94,10 @@ export function useDuelCapture(
     disposeDetector: dispose,
     autoConfirmEnabled,
     onResultDetected,
+    onAutoConfirm: handleAutoConfirm,
     onResultPreview,
     onResultScreenCleared: handleResultScreenCleared,
+    detectPostDuelScreen: isPostDuelDark,
   });
   const captureState: DuelCaptureState = isCapturing
     ? resultCapture.state === 'scanning'
@@ -94,16 +140,19 @@ export function useDuelCapture(
       ocrTimerRef.current = null;
     }
     hasResultCandidateRef.current = false;
+    flushDeferredAutoConfirm();
     resultCapture.reset();
     resultCapture.dispose();
     turnOrderCapture.reset();
     ratingCapture.reset();
-  }, [stopCapture, resultCapture, turnOrderCapture, ratingCapture]);
+  }, [stopCapture, flushDeferredAutoConfirm, resultCapture, turnOrderCapture, ratingCapture]);
 
   const prepareNextDuelDetection = useCallback(() => {
+    clearDeferredAutoConfirmTimer();
+    deferredAutoConfirmResultRef.current = null;
     resetDetectionState({ resetResult: true, restartTurnOrder: isCapturing });
     ratingCapture.reset();
-  }, [isCapturing, resetDetectionState, ratingCapture]);
+  }, [isCapturing, clearDeferredAutoConfirmTimer, resetDetectionState, ratingCapture]);
 
   const restartTurnOrderDetection = useCallback(() => {
     resetDetectionState({ resetResult: false, restartTurnOrder: isCapturing });
@@ -207,6 +256,7 @@ export function useDuelCapture(
     captureRatingOnce,
     restartTurnOrderDetection,
     prepareNextDuelDetection,
+    setWaitForRatingBeforeAutoConfirm,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     downloadCoinTossFrame: turnOrderCapture.downloadFrame,

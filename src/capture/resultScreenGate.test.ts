@@ -14,13 +14,16 @@ describe('updateResultScreenGate', () => {
   });
 
   it('結果なしフレームが一定回数続いた後は再検出を許可する', () => {
-    const firstClearFrame = updateResultScreenGate(false, 0);
-    expect(firstClearFrame).toEqual({
-      clearFrameCount: 1,
-      isReadyForNextDetection: false,
-    });
+    // RESULT_CLEAR_FRAME_COUNT - 1 フレームではまだ許可しない
+    let state = updateResultScreenGate(false, 0);
+    for (let i = 1; i < RESULT_CLEAR_FRAME_COUNT - 1; i++) {
+      state = updateResultScreenGate(false, state.clearFrameCount);
+    }
+    expect(state.isReadyForNextDetection).toBe(false);
 
-    expect(updateResultScreenGate(false, firstClearFrame.clearFrameCount)).toEqual({
+    // RESULT_CLEAR_FRAME_COUNT フレーム目で許可
+    const finalState = updateResultScreenGate(false, state.clearFrameCount);
+    expect(finalState).toEqual({
       clearFrameCount: RESULT_CLEAR_FRAME_COUNT,
       isReadyForNextDetection: true,
     });
