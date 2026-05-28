@@ -16,15 +16,17 @@ export default function CaptureSection() {
     hasRatingFrame,
     coinTossDebug,
     turnOrderDetection,
+    ratingDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     downloadCoinTossFrame,
     downloadRatingFrame,
     start,
     stop,
-    confirm,
-    dismiss,
   } = useCaptureContext();
+
+  const statusResult = pendingResult?.result ?? lastOcrResult;
+  const statusLabel = statusResult === 'win' ? 'VICTORY' : 'LOSE';
 
   return (
     <div className="px-4 py-2">
@@ -58,9 +60,33 @@ export default function CaptureSection() {
         </div>
       )}
 
-      {captureState === 'capturing' && (
+      {(captureState === 'capturing' ||
+        captureState === 'detected' ||
+        captureState === 'waiting-rating') && (
         <div className="flex items-center gap-2 text-sm mt-1">
-          {lastOcrResult === null ? (
+          {captureState === 'waiting-rating' ? (
+            ratingDetection ? (
+              <>
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-green-600">検出レート: {ratingDetection.rating}</span>
+              </>
+            ) : (
+              <>
+                <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+                <span className="text-gray-400">レートをスキャン中...</span>
+              </>
+            )
+          ) : captureState === 'detected' && pendingResult ? (
+            <>
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${pendingResult.result === 'win' ? 'bg-blue-500' : 'bg-red-500'}`}
+              />
+              <span className={pendingResult.result === 'win' ? 'text-blue-600' : 'text-red-600'}>
+                {statusLabel} 検出済み
+              </span>
+              <span className="text-gray-400">フォームに反映済み</span>
+            </>
+          ) : lastOcrResult === null ? (
             <>
               <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
               <span className="text-gray-400">スキャン中...</span>
@@ -85,39 +111,6 @@ export default function CaptureSection() {
         <div className="flex items-center gap-2 text-sm mt-1">
           <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
           <span className="text-gray-400">自動確定のため結果画面の終了待ち...</span>
-        </div>
-      )}
-
-      {captureState === 'detected' && pendingResult && (
-        <div
-          className={`mt-2 p-3 rounded-lg flex items-center gap-4 ${
-            pendingResult.result === 'win'
-              ? 'bg-blue-50 border border-blue-200'
-              : 'bg-red-50 border border-red-200'
-          }`}
-        >
-          <span
-            className={`font-bold text-lg ${
-              pendingResult.result === 'win' ? 'text-blue-700' : 'text-red-700'
-            }`}
-          >
-            {pendingResult.result === 'win' ? 'VICTORY 検出' : 'LOSE 検出'}
-          </span>
-          <span className="text-xs text-gray-400">
-            信頼度: {Math.round(pendingResult.confidence)}%
-          </span>
-          <button
-            onClick={confirm}
-            className="ml-auto text-sm px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
-          >
-            確定
-          </button>
-          <button
-            onClick={dismiss}
-            className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            却下
-          </button>
         </div>
       )}
 

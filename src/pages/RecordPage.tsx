@@ -11,6 +11,7 @@ export default function RecordPage() {
   const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
   const [suggestedPreviewResult, setSuggestedPreviewResult] = useState<BattleResult | null>(null);
   const [suggestedScore, setSuggestedScore] = useState<number | null>(null);
+  const [ratingConfirmToken, setRatingConfirmToken] = useState(0);
   const {
     turnOrderDetection,
     clearTurnOrderDetection,
@@ -24,6 +25,8 @@ export default function RecordPage() {
     clearTurnOrderCallback,
     setRatingCallback,
     clearRatingCallback,
+    setRatingConfirmCallback,
+    clearRatingConfirmCallback,
   } = useCaptureContext();
 
   useEffect(() => {
@@ -31,13 +34,15 @@ export default function RecordPage() {
     setResultPreviewCallback((result) => setSuggestedPreviewResult(result));
     setTurnOrderCallback(() => {});
     setRatingCallback((rating) => setSuggestedScore(rating));
+    setRatingConfirmCallback(() => setRatingConfirmToken((token) => token + 1));
     return () => {
       clearResultCallback();
       clearResultPreviewCallback();
       clearTurnOrderCallback();
       clearRatingCallback();
+      clearRatingConfirmCallback();
     };
-  }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback, setRatingCallback, clearRatingCallback]);
+  }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback, setRatingCallback, clearRatingCallback, setRatingConfirmCallback, clearRatingConfirmCallback]);
 
   const handleSuggestedResultConsumed = useCallback(() => setSuggestedResult(null), []);
   const handleCapturePreviewResultConsumed = useCallback(
@@ -74,6 +79,7 @@ export default function RecordPage() {
         onSuggestedTurnOrderConsumed={handleSuggestedTurnOrderConsumed}
         suggestedScore={suggestedScore}
         onSuggestedScoreConsumed={handleSuggestedScoreConsumed}
+        ratingConfirmToken={ratingConfirmToken}
         onRecordSaved={prepareNextDuelDetection}
         onTurnOrderCleared={restartTurnOrderDetection}
       />

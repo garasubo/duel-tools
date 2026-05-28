@@ -56,6 +56,10 @@ export function applyRatingSuggestionToBattleForm(
   return state;
 }
 
+export function shouldAutoSubmitSuggestedResult(state: BattleFormState): boolean {
+  return state.battleMode !== 'rated';
+}
+
 export function createInitialBattleFormState(latestRecord: BattleRecord | null): BattleFormState {
   if (!latestRecord) return EMPTY_BATTLE_FORM_STATE;
 

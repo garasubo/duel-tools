@@ -7,6 +7,7 @@ import {
   createNextBattleFormState,
   EMPTY_BATTLE_FORM_STATE,
   isBattleFormValid,
+  shouldAutoSubmitSuggestedResult,
 } from './types';
 import type { BattleRecord } from '../../types';
 
@@ -116,5 +117,26 @@ describe('applyRatingSuggestionToBattleForm', () => {
   it('小数値が文字列として正しく保持される', () => {
     const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
     expect(applyRatingSuggestionToBattleForm(state, 1508.94).score).toBe('1508.94');
+  });
+});
+
+describe('shouldAutoSubmitSuggestedResult', () => {
+  it('レート戦では勝敗確定だけでは自動送信しない', () => {
+    expect(
+      shouldAutoSubmitSuggestedResult({
+        ...EMPTY_BATTLE_FORM_STATE,
+        battleMode: 'rated',
+      }),
+    ).toBe(false);
+  });
+
+  it('レート戦以外では勝敗確定後に自動送信できる', () => {
+    expect(
+      shouldAutoSubmitSuggestedResult({
+        ...EMPTY_BATTLE_FORM_STATE,
+        battleMode: 'duelists-cup',
+      }),
+    ).toBe(true);
+    expect(shouldAutoSubmitSuggestedResult(EMPTY_BATTLE_FORM_STATE)).toBe(true);
   });
 });

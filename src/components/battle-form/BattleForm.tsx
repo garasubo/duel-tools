@@ -15,6 +15,7 @@ import {
   createInitialBattleFormState,
   createNextBattleFormState,
   isBattleFormValid,
+  shouldAutoSubmitSuggestedResult,
 } from "./types";
 import type { BattleFormState } from "./types";
 
@@ -27,6 +28,7 @@ interface BattleFormProps {
   onSuggestedTurnOrderConsumed?: () => void;
   suggestedScore?: number | null;
   onSuggestedScoreConsumed?: () => void;
+  ratingConfirmToken?: number;
   onRecordSaved?: () => void;
   onTurnOrderCleared?: () => void;
 }
@@ -40,6 +42,7 @@ export default function BattleForm({
   onSuggestedTurnOrderConsumed,
   suggestedScore,
   onSuggestedScoreConsumed,
+  ratingConfirmToken = 0,
   onRecordSaved,
   onTurnOrderCleared,
 }: BattleFormProps) {
@@ -60,6 +63,11 @@ export default function BattleForm({
   const [captureResultApplied, setCaptureResultApplied] = useState(false);
   const autoSubmitRef = useRef(false);
   const [autoSubmitTick, setAutoSubmitTick] = useState(0);
+  const latestFormRef = useRef(form);
+
+  useEffect(() => {
+    latestFormRef.current = form;
+  }, [form]);
 
   const submitForm = useCallback(
     (currentForm: BattleFormState) => {
@@ -93,7 +101,7 @@ export default function BattleForm({
 
   useEffect(() => {
     if (!suggestedResult) return;
-    autoSubmitRef.current = true;
+    autoSubmitRef.current = shouldAutoSubmitSuggestedResult(latestFormRef.current);
     queueMicrotask(() => {
       setCaptureResultApplied(true);
       setForm((f) => {
@@ -148,6 +156,22 @@ export default function BattleForm({
       queueMicrotask(() => submitForm(form));
     }
   }, [form, autoSubmitTick, submitForm]);
+
+  const ratingConfirmTokenRef = useRef(ratingConfirmToken);
+  useEffect(() => {
+    if (ratingConfirmTokenRef.current === ratingConfirmToken) return;
+    ratingConfirmTokenRef.current = ratingConfirmToken;
+    queueMicrotask(() => {
+      let nextForm = latestFormRef.current;
+      if (suggestedScoreRef.current != null) {
+        nextForm = applyRatingSuggestionToBattleForm(nextForm, suggestedScoreRef.current);
+      }
+      setForm(nextForm);
+      if (isBattleFormValid(nextForm)) {
+        submitForm(nextForm);
+      }
+    });
+  }, [ratingConfirmToken, submitForm]);
 
   const isValid = isBattleFormValid(form);
 

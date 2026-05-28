@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { Worker } from 'tesseract.js';
-import { getElapsedMs } from './captureTiming';
 import { canvasToDataUrl } from './captureDebug';
 import { createJpnOcrWorker } from './coinTossDetect';
 import { detectRatingFromScreen } from './ratingDetect';
 
-// VICTORY/LOSE 画面消去後 60 秒間レーティング検出を行う
-export const RATING_ACTIVE_DURATION_MS = 60_000;
 // 500ms 間隔でスキャン
 export const RATING_INTERVAL_MS = 500;
 // 同じ値を 3 回連続検出したら確定
@@ -44,6 +41,49 @@ interface UseRatingCaptureLoopOptions {
   dependencies?: Partial<RatingCaptureLoopDependencies>;
 }
 
+export interface RatingStreakState {
+  lastRating: number | null;
+  consecutiveCount: number;
+  confirmedRating: number | null;
+}
+
+export interface RatingStreakUpdate {
+  nextStreak: RatingStreakState;
+  confirmedRating: number | null;
+}
+
+export const EMPTY_RATING_STREAK: RatingStreakState = {
+  lastRating: null,
+  consecutiveCount: 0,
+  confirmedRating: null,
+};
+
+export function advanceRatingStreak(
+  streak: RatingStreakState,
+  rating: number | null,
+): RatingStreakUpdate {
+  if (rating === null) {
+    return {
+      nextStreak: EMPTY_RATING_STREAK,
+      confirmedRating: null,
+    };
+  }
+
+  const isSameRating = rating === streak.lastRating;
+  const consecutiveCount = isSameRating ? streak.consecutiveCount + 1 : 1;
+  const confirmedRating =
+    consecutiveCount >= REQUIRED_CONSECUTIVE && rating !== streak.confirmedRating ? rating : null;
+
+  return {
+    nextStreak: {
+      lastRating: rating,
+      consecutiveCount,
+      confirmedRating: confirmedRating ?? streak.confirmedRating,
+    },
+    confirmedRating,
+  };
+}
+
 const defaultDependencies: RatingCaptureLoopDependencies = {
   createWorker: createJpnOcrWorker,
   detectRating: detectRatingFromScreen,
@@ -65,11 +105,9 @@ export function useRatingCaptureLoop({
   const runningRef = useRef(false);
   const isActiveRef = useRef(false);
   const generationRef = useRef(0);
-  const startTimeRef = useRef(0);
   const detectionIdRef = useRef(0);
   const reusableOcrCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const lastDetectedRatingRef = useRef<number | null>(null);
-  const consecutiveCountRef = useRef(0);
+  const streakRef = useRef<RatingStreakState>(EMPTY_RATING_STREAK);
 
   useEffect(() => {
     depsRef.current = { ...defaultDependencies, ...dependencies };
@@ -98,16 +136,15 @@ export function useRatingCaptureLoop({
 
   const reset = useCallback(() => {
     stop();
-    lastDetectedRatingRef.current = null;
-    consecutiveCountRef.current = 0;
+    streakRef.current = EMPTY_RATING_STREAK;
     reusableOcrCanvasRef.current = null;
+    setRatingDetection(null);
     setRatingFrameDataUrl(null);
   }, [stop]);
 
   const start = useCallback(() => {
     reset();
     isActiveRef.current = true;
-    startTimeRef.current = Date.now();
     const generation = generationRef.current;
 
     const scheduleNext = () => {
@@ -121,11 +158,6 @@ export function useRatingCaptureLoop({
         !isActiveRef.current ||
         runningRef.current
       ) {
-        return;
-      }
-
-      if (getElapsedMs(startTimeRef.current) > RATING_ACTIVE_DURATION_MS) {
-        stop();
         return;
       }
 
@@ -148,29 +180,21 @@ export function useRatingCaptureLoop({
 
       if (generation !== generationRef.current || !isActiveRef.current) return;
 
-      if (rating !== null) {
-        if (rating === lastDetectedRatingRef.current) {
-          consecutiveCountRef.current += 1;
-        } else {
-          lastDetectedRatingRef.current = rating;
-          consecutiveCountRef.current = 1;
-          setRatingFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
-        }
+      if (rating !== null && rating !== streakRef.current.lastRating) {
+        setRatingFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
+      }
 
-        if (consecutiveCountRef.current >= REQUIRED_CONSECUTIVE) {
-          const event: RatingDetectionEvent = {
-            id: ++detectionIdRef.current,
-            rating,
-            detectedAt: Date.now(),
-          };
-          setRatingDetection(event);
-          onRatingDetectedRef.current(rating);
-          stop();
-          return;
-        }
-      } else {
-        lastDetectedRatingRef.current = null;
-        consecutiveCountRef.current = 0;
+      const update = advanceRatingStreak(streakRef.current, rating);
+      streakRef.current = update.nextStreak;
+
+      if (update.confirmedRating !== null) {
+        const event: RatingDetectionEvent = {
+          id: ++detectionIdRef.current,
+          rating: update.confirmedRating,
+          detectedAt: Date.now(),
+        };
+        setRatingDetection(event);
+        onRatingDetectedRef.current(update.confirmedRating);
       }
 
       scheduleNext();
@@ -190,7 +214,7 @@ export function useRatingCaptureLoop({
       workerRef.current = worker;
       scheduleNext();
     })();
-  }, [canvasRef, reset, stop]);
+  }, [canvasRef, reset]);
 
   useEffect(() => stop, [stop]);
 

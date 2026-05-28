@@ -244,7 +244,7 @@ export function useResultCaptureLoop({
     if (update.pendingResult) {
       onResultPreviewRef.current?.(update.pendingResult.result);
       setPendingResult(update.pendingResult);
-      setState('waiting-clear');
+      setState(autoConfirmEnabledRef.current ? 'waiting-clear' : 'detected');
     }
     return { hasCandidate: hasCandidateRef.current };
   }, [canvasRef, detect, resetCandidateFrame, resetStreak]);

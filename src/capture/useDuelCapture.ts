@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getOcrInterval } from './captureTiming';
 import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
 import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
@@ -7,7 +7,7 @@ import type { DuelCaptureState } from './types';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
 import { useCaptureFrame } from './useCaptureFrame';
 import { useOcrDetector } from './useOcrDetector';
-import { useRatingCaptureLoop, RATING_ACTIVE_DURATION_MS } from './useRatingCaptureLoop';
+import { useRatingCaptureLoop } from './useRatingCaptureLoop';
 import { useResultCaptureLoop } from './useResultCaptureLoop';
 import { useScreenCapture } from './useScreenCapture';
 import { useTurnOrderCaptureLoop } from './useTurnOrderCaptureLoop';
@@ -19,6 +19,7 @@ export function useDuelCapture(
   onTurnOrderDetected: (order: TurnOrder) => void,
   onResultPreview?: (result: 'win' | 'loss') => void,
   onRatingDetected?: (rating: number) => void,
+  onRatingConfirmed?: (rating: number) => void,
 ) {
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -37,46 +38,28 @@ export function useDuelCapture(
     onRatingDetectedRef.current = onRatingDetected;
   }, [onRatingDetected]);
 
+  const onRatingConfirmedRef = useRef(onRatingConfirmed);
+  useEffect(() => {
+    onRatingConfirmedRef.current = onRatingConfirmed;
+  }, [onRatingConfirmed]);
+
   const waitForRatingRef = useRef(false);
-  const deferredAutoConfirmResultRef = useRef<'win' | 'loss' | null>(null);
-  const deferredAutoConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearDeferredAutoConfirmTimer = useCallback(() => {
-    if (deferredAutoConfirmTimerRef.current) {
-      clearTimeout(deferredAutoConfirmTimerRef.current);
-      deferredAutoConfirmTimerRef.current = null;
-    }
-  }, []);
-
-  const flushDeferredAutoConfirm = useCallback(() => {
-    const result = deferredAutoConfirmResultRef.current;
-    if (result) {
-      deferredAutoConfirmResultRef.current = null;
-      clearDeferredAutoConfirmTimer();
-      onResultDetectedRef.current(result);
-    }
-  }, [clearDeferredAutoConfirmTimer]);
-
-  const handleAutoConfirm = useCallback((result: 'win' | 'loss') => {
-    if (waitForRatingRef.current) {
-      deferredAutoConfirmResultRef.current = result;
-      clearDeferredAutoConfirmTimer();
-      deferredAutoConfirmTimerRef.current = setTimeout(
-        flushDeferredAutoConfirm,
-        RATING_ACTIVE_DURATION_MS + 2000,
-      );
-    } else {
-      onResultDetectedRef.current(result);
-    }
-  }, [flushDeferredAutoConfirm, clearDeferredAutoConfirmTimer]);
-
-  const handleRatingDetected = useCallback((rating: number) => {
-    flushDeferredAutoConfirm();
-    onRatingDetectedRef.current?.(rating);
-  }, [flushDeferredAutoConfirm]);
+  const [isWaitingForRating, setIsWaitingForRating] = useState(false);
 
   const setWaitForRatingBeforeAutoConfirm = useCallback((wait: boolean) => {
     waitForRatingRef.current = wait;
+  }, []);
+
+  const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
+  useEffect(() => {
+    autoConfirmEnabledRef.current = autoConfirmEnabled;
+  }, [autoConfirmEnabled]);
+
+  const handleRatingDetected = useCallback((rating: number) => {
+    onRatingDetectedRef.current?.(rating);
+    if (autoConfirmEnabledRef.current) {
+      onRatingConfirmedRef.current?.(rating);
+    }
   }, []);
 
   const ratingCapture = useRatingCaptureLoop({
@@ -84,23 +67,31 @@ export function useDuelCapture(
     onRatingDetected: handleRatingDetected,
   });
 
-  const handleResultScreenCleared = useCallback(() => {
-    ratingCapture.start();
-  }, [ratingCapture]);
+  const handleResultConfirmed = useCallback(
+    (result: 'win' | 'loss') => {
+      onResultDetectedRef.current(result);
+      if (waitForRatingRef.current) {
+        setIsWaitingForRating(true);
+        ratingCapture.start();
+      }
+    },
+    [ratingCapture],
+  );
 
   const resultCapture = useResultCaptureLoop({
     canvasRef,
     detect,
     disposeDetector: dispose,
     autoConfirmEnabled,
-    onResultDetected,
-    onAutoConfirm: handleAutoConfirm,
+    onResultDetected: handleResultConfirmed,
+    onAutoConfirm: handleResultConfirmed,
     onResultPreview,
-    onResultScreenCleared: handleResultScreenCleared,
     detectPostDuelScreen: isPostDuelDark,
   });
   const captureState: DuelCaptureState = isCapturing
-    ? resultCapture.state === 'scanning'
+    ? isWaitingForRating
+      ? 'waiting-rating'
+      : resultCapture.state === 'scanning'
       ? 'capturing'
       : resultCapture.state
     : 'idle';
@@ -140,19 +131,18 @@ export function useDuelCapture(
       ocrTimerRef.current = null;
     }
     hasResultCandidateRef.current = false;
-    flushDeferredAutoConfirm();
+    setIsWaitingForRating(false);
     resultCapture.reset();
     resultCapture.dispose();
     turnOrderCapture.reset();
     ratingCapture.reset();
-  }, [stopCapture, flushDeferredAutoConfirm, resultCapture, turnOrderCapture, ratingCapture]);
+  }, [stopCapture, resultCapture, turnOrderCapture, ratingCapture]);
 
   const prepareNextDuelDetection = useCallback(() => {
-    clearDeferredAutoConfirmTimer();
-    deferredAutoConfirmResultRef.current = null;
+    setIsWaitingForRating(false);
     resetDetectionState({ resetResult: true, restartTurnOrder: isCapturing });
     ratingCapture.reset();
-  }, [isCapturing, clearDeferredAutoConfirmTimer, resetDetectionState, ratingCapture]);
+  }, [isCapturing, resetDetectionState, ratingCapture]);
 
   const restartTurnOrderDetection = useCallback(() => {
     resetDetectionState({ resetResult: false, restartTurnOrder: isCapturing });

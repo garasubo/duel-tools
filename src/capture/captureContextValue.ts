@@ -47,6 +47,8 @@ export interface CaptureContextValue {
   clearTurnOrderCallback: () => void;
   setRatingCallback: (cb: (rating: number) => void) => void;
   clearRatingCallback: () => void;
+  setRatingConfirmCallback: (cb: (rating: number) => void) => void;
+  clearRatingConfirmCallback: () => void;
 }
 
 export const CaptureContext = createContext<CaptureContextValue | null>(null);
