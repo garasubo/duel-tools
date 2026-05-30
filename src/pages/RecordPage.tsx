@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import CaptureSection from '../components/capture/CaptureSection';
+import CaptureMemo from '../components/capture/CaptureMemo';
+import { createMemoShot, removeMemoShot } from '../components/capture/captureMemo';
+import type { CaptureMemoShot } from '../components/capture/captureMemo';
 import BattleForm from '../components/battle-form/BattleForm';
 import LastBattleQuickEdit from '../components/battle-form/LastBattleQuickEdit';
 import { OverlayStatsPanel } from '../components/stats/OverlayStatsPanel';
@@ -12,6 +15,7 @@ export default function RecordPage() {
   const [suggestedPreviewResult, setSuggestedPreviewResult] = useState<BattleResult | null>(null);
   const [suggestedScore, setSuggestedScore] = useState<number | null>(null);
   const [ratingConfirmToken, setRatingConfirmToken] = useState(0);
+  const [memoShots, setMemoShots] = useState<CaptureMemoShot[]>([]);
   const {
     turnOrderDetection,
     clearTurnOrderDetection,
@@ -55,6 +59,21 @@ export default function RecordPage() {
 
   const handleSuggestedScoreConsumed = useCallback(() => setSuggestedScore(null), []);
 
+  const handleAddMemo = useCallback(
+    (dataUrl: string) => setMemoShots((prev) => [...prev, createMemoShot(dataUrl, Date.now())]),
+    [],
+  );
+  const handleRemoveMemo = useCallback(
+    (id: string) => setMemoShots((prev) => removeMemoShot(prev, id)),
+    [],
+  );
+  const handleClearMemos = useCallback(() => setMemoShots([]), []);
+
+  const handleRecordSaved = useCallback(() => {
+    prepareNextDuelDetection();
+    setMemoShots([]);
+  }, [prepareNextDuelDetection]);
+
   return (
     <div>
       <div className="px-4 py-4">
@@ -69,6 +88,12 @@ export default function RecordPage() {
         </div>
       </div>
       <CaptureSection />
+      <CaptureMemo
+        shots={memoShots}
+        onAdd={handleAddMemo}
+        onRemove={handleRemoveMemo}
+        onClearAll={handleClearMemos}
+      />
       <LastBattleQuickEdit />
       <BattleForm
         suggestedResult={suggestedResult}
@@ -80,7 +105,7 @@ export default function RecordPage() {
         suggestedScore={suggestedScore}
         onSuggestedScoreConsumed={handleSuggestedScoreConsumed}
         ratingConfirmToken={ratingConfirmToken}
-        onRecordSaved={prepareNextDuelDetection}
+        onRecordSaved={handleRecordSaved}
         onTurnOrderCleared={restartTurnOrderDetection}
       />
     </div>

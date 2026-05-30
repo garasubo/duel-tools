@@ -159,14 +159,18 @@ export function useDuelCapture(
     }
   }, [isCapturing, captureCurrentFrame]);
 
-  const downloadCurrentFrame = useCallback(() => {
-    if (!captureCurrentFrame()) return;
+  const captureCurrentFrameDataUrl = useCallback((): string | null => {
+    if (!captureCurrentFrame()) return null;
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dataUrl = canvasToDataUrl(canvas);
+    if (!canvas) return null;
+    return canvasToDataUrl(canvas);
+  }, [captureCurrentFrame]);
+
+  const downloadCurrentFrame = useCallback(() => {
+    const dataUrl = captureCurrentFrameDataUrl();
     if (!dataUrl) return;
     downloadDataUrl(dataUrl, createCaptureFilename('current'));
-  }, [captureCurrentFrame]);
+  }, [captureCurrentFrameDataUrl]);
 
   const downloadFirstCandidateFrame = useCallback(() => {
     const dataUrl = resultCapture.firstCandidateFrameDataUrl;
@@ -244,6 +248,7 @@ export function useDuelCapture(
     ratingDetection: ratingCapture.ratingDetection,
     clearRatingDetection: ratingCapture.clearRatingDetection,
     captureRatingOnce,
+    captureCurrentFrameDataUrl,
     restartTurnOrderDetection,
     prepareNextDuelDetection,
     setWaitForRatingBeforeAutoConfirm,
