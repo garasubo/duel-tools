@@ -9,8 +9,10 @@ import DeckStatsTable from "../components/stats/DeckStatsTable";
 import MatchupTable from "../components/stats/MatchupTable";
 import { openOverlay } from "../utils/openOverlay";
 import DPTransitionChart from "../components/stats/DPTransitionChart";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function StatsPage() {
+  useDocumentTitle("統計 | 戦績記録 - duel-tools");
   const { items: records } = useRecords();
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();

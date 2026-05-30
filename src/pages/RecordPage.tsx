@@ -8,9 +8,11 @@ import LastBattleQuickEdit from '../components/battle-form/LastBattleQuickEdit';
 import { OverlayStatsPanel } from '../components/stats/OverlayStatsPanel';
 import { useCaptureContext } from '../capture/useCaptureContext';
 import { openOverlay } from '../utils/openOverlay';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { BattleResult } from '../types';
 
 export default function RecordPage() {
+  useDocumentTitle('戦績記録 | 遊戯王の対戦履歴・勝率管理ツール - duel-tools');
   const [suggestedResult, setSuggestedResult] = useState<BattleResult | null>(null);
   const [suggestedPreviewResult, setSuggestedPreviewResult] = useState<BattleResult | null>(null);
   const [suggestedScore, setSuggestedScore] = useState<number | null>(null);

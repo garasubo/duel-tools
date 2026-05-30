@@ -9,8 +9,10 @@ import { useOverlaySettings } from "../state/hooks/useOverlaySettings";
 import DeckSection from "../components/manage/DeckSection";
 import TagSection from "../components/manage/TagSection";
 import OverlaySection from "../components/manage/OverlaySection";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function ManagePage() {
+  useDocumentTitle("管理 | 戦績記録 - duel-tools");
   const ownDecks = useOwnDecks();
   const opponentDecks = useOpponentDecks();
   const tags = useTags();

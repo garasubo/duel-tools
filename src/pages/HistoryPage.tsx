@@ -8,8 +8,10 @@ import { useCsvImport } from '../hooks/useCsvImport';
 import Button from '../components/ui/Button';
 import FilterBar from '../components/history/FilterBar';
 import RecordList from '../components/history/RecordList';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export default function HistoryPage() {
+  useDocumentTitle('対戦履歴 | 戦績記録 - duel-tools');
   const { items: records, removeMany } = useRecords();
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();

@@ -10,8 +10,10 @@ import { calculateStarterRate } from "../utils/starterRate";
 import DeckEditor from "../components/combo/DeckEditor";
 import PatternEditor from "../components/combo/PatternEditor";
 import Button from "../components/ui/Button";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function ComboPage() {
+  useDocumentTitle("初動率計算 | 遊戯王デッキの初動率を厳密計算 - duel-tools");
   const [deckCounts, setDeckCounts] = useState<DeckCounts>({});
   const [deckSize, setDeckSize] = useState(40);
   const [patterns, setPatterns] = useState<Patterns>([]);
