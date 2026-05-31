@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { Worker } from 'tesseract.js';
 import { canvasToDataUrl } from './captureDebug';
-import { createJpnOcrWorker } from './coinTossDetect';
-import { detectRatingFromScreen } from './ratingDetect';
+import { createRatingOcrWorker, detectRatingFromScreen } from './ratingDetect';
 
 // 500ms 間隔でスキャン
 export const RATING_INTERVAL_MS = 500;
@@ -85,7 +84,7 @@ export function advanceRatingStreak(
 }
 
 const defaultDependencies: RatingCaptureLoopDependencies = {
-  createWorker: createJpnOcrWorker,
+  createWorker: createRatingOcrWorker,
   detectRating: detectRatingFromScreen,
 };
 
