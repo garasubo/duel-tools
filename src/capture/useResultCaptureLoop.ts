@@ -10,7 +10,11 @@ import { updateResultScreenGate } from './resultScreenGate';
 import { DEFAULT_RESULT_ROI } from './types';
 import type { DetectionResult, ROI } from './types';
 
-export type ResultCaptureLoopState = 'scanning' | 'detected' | 'waiting-clear';
+// runOnce の動作モード。状態の所有はワークフロー状態機械（captureWorkflow）側にあり、
+// 呼び出し側が現在の phase に応じてモードを渡す。
+//  - 'detect': VICTORY/LOSE を OCR し連続一致で候補を確定する
+//  - 'gate'  : 結果画面が消えたか（次の検出に進めるか）を判定する
+export type ResultScanMode = 'detect' | 'gate';
 
 export interface ResultStreakState {
   lastResult: 'win' | 'loss' | null;
@@ -27,16 +31,13 @@ export interface ResultStreakUpdate {
 }
 
 export interface ResultCaptureLoop {
-  state: ResultCaptureLoopState;
   pendingResult: DetectionResult | null;
   lastOcrResult: 'win' | 'loss' | null;
   consecutiveCount: number;
   requiredConsecutiveCount: number;
   hasFirstCandidateFrame: boolean;
   firstCandidateFrameDataUrl: string | null;
-  runOnce: () => Promise<{ hasCandidate: boolean }>;
-  confirm: () => void;
-  dismiss: () => void;
+  runOnce: (mode: ResultScanMode) => Promise<{ hasCandidate: boolean }>;
   reset: () => void;
   dispose: () => void;
 }
@@ -45,10 +46,9 @@ interface UseResultCaptureLoopOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   detect: (canvas: HTMLCanvasElement, roi: ROI) => Promise<DetectionResult | null>;
   disposeDetector: () => void;
-  autoConfirmEnabled: boolean;
-  onResultDetected: (result: 'win' | 'loss') => void;
-  onAutoConfirm?: (result: 'win' | 'loss') => void;
+  // 連続一致で候補が確定したタイミング（pending 到達）。
   onResultPreview?: (result: 'win' | 'loss') => void;
+  // 'gate' モードで結果画面が消えたことを検出したタイミング。
   onResultScreenCleared?: () => void;
   detectPostDuelScreen?: (canvas: HTMLCanvasElement) => boolean;
 }
@@ -91,51 +91,22 @@ export function useResultCaptureLoop({
   canvasRef,
   detect,
   disposeDetector,
-  autoConfirmEnabled,
-  onResultDetected,
-  onAutoConfirm,
   onResultPreview,
   onResultScreenCleared,
   detectPostDuelScreen,
 }: UseResultCaptureLoopOptions): ResultCaptureLoop {
-  const [state, setState] = useState<ResultCaptureLoopState>('scanning');
   const [pendingResult, setPendingResult] = useState<DetectionResult | null>(null);
   const [lastOcrResult, setLastOcrResult] = useState<'win' | 'loss' | null>(null);
   const [consecutiveCount, setConsecutiveCount] = useState(0);
   const [requiredConsecutiveCount, setRequiredConsecutiveCount] = useState(REQUIRED_CONSECUTIVE);
   const [firstCandidateFrameDataUrl, setFirstCandidateFrameDataUrl] = useState<string | null>(null);
 
-  const stateRef = useRef<ResultCaptureLoopState>('scanning');
-  const pendingResultRef = useRef<DetectionResult | null>(null);
   const streakRef = useRef<ResultStreakState>(EMPTY_STREAK);
   const clearFrameCountRef = useRef(0);
   const hasCandidateRef = useRef(false);
-  const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
-  const onResultDetectedRef = useRef(onResultDetected);
-  const onAutoConfirmRef = useRef(onAutoConfirm);
   const onResultPreviewRef = useRef(onResultPreview);
   const onResultScreenClearedRef = useRef(onResultScreenCleared);
   const detectPostDuelScreenRef = useRef(detectPostDuelScreen);
-
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-
-  useEffect(() => {
-    pendingResultRef.current = pendingResult;
-  }, [pendingResult]);
-
-  useEffect(() => {
-    autoConfirmEnabledRef.current = autoConfirmEnabled;
-  }, [autoConfirmEnabled]);
-
-  useEffect(() => {
-    onResultDetectedRef.current = onResultDetected;
-  }, [onResultDetected]);
-
-  useEffect(() => {
-    onAutoConfirmRef.current = onAutoConfirm;
-  }, [onAutoConfirm]);
 
   useEffect(() => {
     onResultPreviewRef.current = onResultPreview;
@@ -166,91 +137,67 @@ export function useResultCaptureLoop({
     setPendingResult(null);
     resetStreak();
     resetCandidateFrame();
-    setState('scanning');
   }, [resetCandidateFrame, resetStreak]);
 
-  const confirm = useCallback(() => {
-    const result = pendingResultRef.current;
-    if (result) {
-      onResultDetectedRef.current(result.result);
-    }
-    setPendingResult(null);
-    resetStreak();
-    setState('waiting-clear');
-  }, [resetStreak]);
+  const runOnce = useCallback(
+    async (mode: ResultScanMode) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return { hasCandidate: hasCandidateRef.current };
 
-  const dismiss = useCallback(() => {
-    setPendingResult(null);
-    resetStreak();
-    resetCandidateFrame();
-    setState('scanning');
-  }, [resetCandidateFrame, resetStreak]);
+      const result = await detect(canvas, DEFAULT_RESULT_ROI);
 
-  const runOnce = useCallback(async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { hasCandidate: hasCandidateRef.current };
+      if (mode === 'gate') {
+        // 結果画面が消えたことだけを通知し、確定（フォーム反映・レート待ち分岐）は
+        // ワークフロー状態機械（captureWorkflow）に委ねる。
+        const triggerScreenCleared = () => {
+          onResultScreenClearedRef.current?.();
+          setPendingResult(null);
+          resetStreak();
+          resetCandidateFrame();
+        };
 
-    const result = await detect(canvas, DEFAULT_RESULT_ROI);
-
-    if (stateRef.current === 'waiting-clear') {
-      const triggerScreenCleared = () => {
-        const pending = pendingResultRef.current;
-        if (autoConfirmEnabledRef.current && pending) {
-          if (onAutoConfirmRef.current) {
-            onAutoConfirmRef.current(pending.result);
-          } else {
-            onResultDetectedRef.current(pending.result);
-          }
+        // 輝度検出: VICTORY テキスト不在 かつ 画面が暗い → デュエル後画面と判定し即確定
+        if (!result && detectPostDuelScreenRef.current?.(canvas)) {
+          triggerScreenCleared();
+          return { hasCandidate: hasCandidateRef.current };
         }
-        onResultScreenClearedRef.current?.();
-        setPendingResult(null);
-        resetStreak();
-        resetCandidateFrame();
-        setState('scanning');
-      };
 
-      // 輝度検出: VICTORY テキスト不在 かつ 画面が暗い → デュエル後画面と判定し即確定
-      if (!result && detectPostDuelScreenRef.current?.(canvas)) {
-        triggerScreenCleared();
+        // フォールバック: N フレーム連続でテキストなし
+        const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
+        clearFrameCountRef.current = gate.clearFrameCount;
+        if (gate.isReadyForNextDetection) {
+          triggerScreenCleared();
+        }
         return { hasCandidate: hasCandidateRef.current };
       }
 
-      // フォールバック: N フレーム連続でテキストなし
-      const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
-      clearFrameCountRef.current = gate.clearFrameCount;
-      if (gate.isReadyForNextDetection) {
-        triggerScreenCleared();
+      if (!result) {
+        streakRef.current = EMPTY_STREAK;
+        hasCandidateRef.current = false;
+        setLastOcrResult(null);
+        setConsecutiveCount(0);
+        return { hasCandidate: hasCandidateRef.current };
+      }
+
+      hasCandidateRef.current = true;
+      setFirstCandidateFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
+
+      const update = advanceResultStreak(streakRef.current, result);
+      streakRef.current = update.nextStreak;
+      setLastOcrResult(update.lastOcrResult);
+      setConsecutiveCount(update.consecutiveCount);
+      setRequiredConsecutiveCount(update.requiredConsecutiveCount);
+
+      if (update.pendingResult) {
+        onResultPreviewRef.current?.(update.pendingResult.result);
+        setPendingResult(update.pendingResult);
       }
       return { hasCandidate: hasCandidateRef.current };
-    }
-
-    if (!result) {
-      streakRef.current = EMPTY_STREAK;
-      hasCandidateRef.current = false;
-      setLastOcrResult(null);
-      setConsecutiveCount(0);
-      return { hasCandidate: hasCandidateRef.current };
-    }
-
-    hasCandidateRef.current = true;
-    setFirstCandidateFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
-
-    const update = advanceResultStreak(streakRef.current, result);
-    streakRef.current = update.nextStreak;
-    setLastOcrResult(update.lastOcrResult);
-    setConsecutiveCount(update.consecutiveCount);
-    setRequiredConsecutiveCount(update.requiredConsecutiveCount);
-
-    if (update.pendingResult) {
-      onResultPreviewRef.current?.(update.pendingResult.result);
-      setPendingResult(update.pendingResult);
-      setState(autoConfirmEnabledRef.current ? 'waiting-clear' : 'detected');
-    }
-    return { hasCandidate: hasCandidateRef.current };
-  }, [canvasRef, detect, resetCandidateFrame, resetStreak]);
+    },
+    [canvasRef, detect, resetCandidateFrame, resetStreak],
+  );
 
   return {
-    state,
     pendingResult,
     lastOcrResult,
     consecutiveCount,
@@ -258,8 +205,6 @@ export function useResultCaptureLoop({
     hasFirstCandidateFrame: firstCandidateFrameDataUrl !== null,
     firstCandidateFrameDataUrl,
     runOnce,
-    confirm,
-    dismiss,
     reset,
     dispose: disposeDetector,
   };

@@ -1,0 +1,104 @@
+import type { BattleResult } from '../types';
+
+// 自動記録ワークフローの状態機械。
+// captureState の派生（旧 useDuelCapture のネスト三項）と isWaitingForRating の二重管理を
+// 単一の source of truth に置き換える。
+export type CaptureWorkflowState =
+  | { phase: 'idle' }
+  | { phase: 'scanning' }
+  | { phase: 'result-detected'; result: BattleResult } // 手動確定待ち（autoConfirm OFF）
+  | { phase: 'waiting-clear'; result: BattleResult } // autoConfirm ON: 結果画面の終了待ち
+  | { phase: 'waiting-rating'; result: BattleResult }; // rated: 結果確定後のレートスキャン中
+
+export type CaptureWorkflowEvent =
+  | { type: 'start' } // キャプチャ開始
+  | { type: 'stop' } // キャプチャ停止
+  | { type: 'record-saved' } // 記録保存（次のデュエルへ）
+  | { type: 'result-confirmed'; result: BattleResult; autoConfirm: boolean } // 連続一致で確定
+  | { type: 'manual-confirm' } // result-detected でユーザーが確定
+  | { type: 'screen-cleared' }; // waiting-clear で結果画面が消えた
+
+// 副作用は呼び出し側（useDuelCapture）で実行する intent。
+export type CaptureWorkflowEffect =
+  | { type: 'commit-result'; result: BattleResult } // フォームへ反映（外向き 'result' イベント発火）
+  | { type: 'start-rating-loop' }; // レート検出ループ開始
+
+export interface CaptureWorkflowContext {
+  // 結果確定後にレート検出を待つか（= rated モード）。呼び出し側から注入する。
+  rated: boolean;
+}
+
+export interface CaptureWorkflowResult {
+  state: CaptureWorkflowState;
+  effects: CaptureWorkflowEffect[];
+}
+
+export const INITIAL_CAPTURE_WORKFLOW_STATE: CaptureWorkflowState = { phase: 'idle' };
+
+// 結果確定後の遷移（手動確定・自動確定の screen-cleared 共通）。
+function commitResult(result: BattleResult, ctx: CaptureWorkflowContext): CaptureWorkflowResult {
+  if (ctx.rated) {
+    return {
+      state: { phase: 'waiting-rating', result },
+      effects: [{ type: 'commit-result', result }, { type: 'start-rating-loop' }],
+    };
+  }
+  return {
+    state: { phase: 'scanning' },
+    effects: [{ type: 'commit-result', result }],
+  };
+}
+
+export function captureWorkflowReducer(
+  state: CaptureWorkflowState,
+  event: CaptureWorkflowEvent,
+  ctx: CaptureWorkflowContext,
+): CaptureWorkflowResult {
+  // ライフサイクルイベントはどの状態からでも受け付ける。
+  switch (event.type) {
+    case 'stop':
+      return { state: { phase: 'idle' }, effects: [] };
+    case 'start':
+    case 'record-saved':
+      return { state: { phase: 'scanning' }, effects: [] };
+  }
+
+  switch (state.phase) {
+    case 'scanning':
+      if (event.type === 'result-confirmed') {
+        return {
+          state: event.autoConfirm
+            ? { phase: 'waiting-clear', result: event.result }
+            : { phase: 'result-detected', result: event.result },
+          effects: [],
+        };
+      }
+      return { state, effects: [] };
+
+    case 'result-detected':
+      // 結果検出ループは scanning を続けるため result-confirmed が再発火しうる（結果を更新）。
+      if (event.type === 'result-confirmed') {
+        return {
+          state: event.autoConfirm
+            ? { phase: 'waiting-clear', result: event.result }
+            : { phase: 'result-detected', result: event.result },
+          effects: [],
+        };
+      }
+      if (event.type === 'manual-confirm') {
+        return commitResult(state.result, ctx);
+      }
+      return { state, effects: [] };
+
+    case 'waiting-clear':
+      if (event.type === 'screen-cleared') {
+        return commitResult(state.result, ctx);
+      }
+      return { state, effects: [] };
+
+    case 'idle':
+    case 'waiting-rating':
+      // 検出イベントは無視（waiting-rating は record-saved / stop でのみ抜ける）。
+      return { state, effects: [] };
+  }
+}

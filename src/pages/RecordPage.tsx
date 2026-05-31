@@ -21,32 +21,29 @@ export default function RecordPage() {
     clearTurnOrderDetection,
     restartTurnOrderDetection,
     prepareNextDuelDetection,
-    setResultCallback,
-    clearResultCallback,
-    setResultPreviewCallback,
-    clearResultPreviewCallback,
-    setTurnOrderCallback,
-    clearTurnOrderCallback,
-    setRatingCallback,
-    clearRatingCallback,
-    setRatingConfirmCallback,
-    clearRatingConfirmCallback,
+    subscribeCaptureEvents,
   } = useCaptureContext();
 
-  useEffect(() => {
-    setResultCallback((result) => setSuggestedResult(result));
-    setResultPreviewCallback((result) => setSuggestedPreviewResult(result));
-    setTurnOrderCallback(() => {});
-    setRatingCallback((rating) => setSuggestedScore(rating));
-    setRatingConfirmCallback(() => setRatingConfirmToken((token) => token + 1));
-    return () => {
-      clearResultCallback();
-      clearResultPreviewCallback();
-      clearTurnOrderCallback();
-      clearRatingCallback();
-      clearRatingConfirmCallback();
-    };
-  }, [setResultCallback, clearResultCallback, setResultPreviewCallback, clearResultPreviewCallback, setTurnOrderCallback, clearTurnOrderCallback, setRatingCallback, clearRatingCallback, setRatingConfirmCallback, clearRatingConfirmCallback]);
+  useEffect(
+    () =>
+      subscribeCaptureEvents((event) => {
+        switch (event.type) {
+          case 'result':
+            setSuggestedResult(event.result);
+            break;
+          case 'result-preview':
+            setSuggestedPreviewResult(event.result);
+            break;
+          case 'rating':
+            setSuggestedScore(event.rating);
+            break;
+          case 'rating-confirmed':
+            setRatingConfirmToken((token) => token + 1);
+            break;
+        }
+      }),
+    [subscribeCaptureEvents],
+  );
 
   const handleSuggestedResultConsumed = useCallback(() => setSuggestedResult(null), []);
   const handleCapturePreviewResultConsumed = useCallback(

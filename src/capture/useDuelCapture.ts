@@ -4,6 +4,12 @@ import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captu
 import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
 import { isPostDuelDark } from './postDuelDetect';
 import type { DuelCaptureState } from './types';
+import type { CaptureEvent } from './captureEvents';
+import {
+  INITIAL_CAPTURE_WORKFLOW_STATE,
+  captureWorkflowReducer,
+} from './captureWorkflow';
+import type { CaptureWorkflowEvent, CaptureWorkflowState } from './captureWorkflow';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
 import { useCaptureFrame } from './useCaptureFrame';
 import { useOcrDetector } from './useOcrDetector';
@@ -11,16 +17,26 @@ import { useRatingCaptureLoop } from './useRatingCaptureLoop';
 import { useResultCaptureLoop } from './useResultCaptureLoop';
 import { useScreenCapture } from './useScreenCapture';
 import { useTurnOrderCaptureLoop } from './useTurnOrderCaptureLoop';
-import type { TurnOrder } from '../types';
 export { getOpponentSelectingFallbackTurnOrder } from './useTurnOrderCaptureLoop';
 
-export function useDuelCapture(
-  onResultDetected: (result: 'win' | 'loss') => void,
-  onTurnOrderDetected: (order: TurnOrder) => void,
-  onResultPreview?: (result: 'win' | 'loss') => void,
-  onRatingDetected?: (rating: number) => void,
-  onRatingConfirmed?: (rating: number) => void,
-) {
+function mapWorkflowPhaseToCaptureState(
+  phase: CaptureWorkflowState['phase'],
+): DuelCaptureState {
+  switch (phase) {
+    case 'idle':
+      return 'idle';
+    case 'scanning':
+      return 'capturing';
+    case 'result-detected':
+      return 'detected';
+    case 'waiting-clear':
+      return 'waiting-clear';
+    case 'waiting-rating':
+      return 'waiting-rating';
+  }
+}
+
+export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   const { videoRef, isCapturing, error, startCapture, stopCapture } = useScreenCapture();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { captureCurrentFrame } = useCaptureFrame(videoRef, canvasRef);
@@ -28,23 +44,12 @@ export function useDuelCapture(
 
   const { autoConfirmEnabled, setAutoConfirmEnabled } = useAutoConfirmSetting();
 
-  const onResultDetectedRef = useRef(onResultDetected);
+  const emitRef = useRef(emit);
   useEffect(() => {
-    onResultDetectedRef.current = onResultDetected;
-  }, [onResultDetected]);
-
-  const onRatingDetectedRef = useRef(onRatingDetected);
-  useEffect(() => {
-    onRatingDetectedRef.current = onRatingDetected;
-  }, [onRatingDetected]);
-
-  const onRatingConfirmedRef = useRef(onRatingConfirmed);
-  useEffect(() => {
-    onRatingConfirmedRef.current = onRatingConfirmed;
-  }, [onRatingConfirmed]);
+    emitRef.current = emit;
+  }, [emit]);
 
   const waitForRatingRef = useRef(false);
-  const [isWaitingForRating, setIsWaitingForRating] = useState(false);
 
   const setWaitForRatingBeforeAutoConfirm = useCallback((wait: boolean) => {
     waitForRatingRef.current = wait;
@@ -56,9 +61,9 @@ export function useDuelCapture(
   }, [autoConfirmEnabled]);
 
   const handleRatingDetected = useCallback((rating: number) => {
-    onRatingDetectedRef.current?.(rating);
+    emitRef.current({ type: 'rating', rating });
     if (autoConfirmEnabledRef.current) {
-      onRatingConfirmedRef.current?.(rating);
+      emitRef.current({ type: 'rating-confirmed', rating });
     }
   }, []);
 
@@ -67,34 +72,61 @@ export function useDuelCapture(
     onRatingDetected: handleRatingDetected,
   });
 
-  const handleResultConfirmed = useCallback(
-    (result: 'win' | 'loss') => {
-      onResultDetectedRef.current(result);
-      if (waitForRatingRef.current) {
-        setIsWaitingForRating(true);
-        ratingCapture.start();
+  // --- ワークフロー状態機械（captureWorkflow）---
+  // captureState の単一の source of truth。検出ループはイベントを dispatch するだけで、
+  // 確定（フォーム反映）・レートループ開始といった副作用は reducer の effect として中央化する。
+  const [workflowState, setWorkflowState] = useState<CaptureWorkflowState>(
+    INITIAL_CAPTURE_WORKFLOW_STATE,
+  );
+  const workflowStateRef = useRef(workflowState);
+  useEffect(() => {
+    workflowStateRef.current = workflowState;
+  }, [workflowState]);
+
+  const dispatchWorkflow = useCallback(
+    (event: CaptureWorkflowEvent) => {
+      const { state, effects } = captureWorkflowReducer(workflowStateRef.current, event, {
+        rated: waitForRatingRef.current,
+      });
+      workflowStateRef.current = state;
+      setWorkflowState(state);
+      for (const effect of effects) {
+        if (effect.type === 'commit-result') {
+          emitRef.current({ type: 'result', result: effect.result });
+        } else if (effect.type === 'start-rating-loop') {
+          ratingCapture.start();
+        }
       }
     },
     [ratingCapture],
   );
 
+  const handleResultPreview = useCallback(
+    (result: 'win' | 'loss') => {
+      emitRef.current({ type: 'result-preview', result });
+      dispatchWorkflow({
+        type: 'result-confirmed',
+        result,
+        autoConfirm: autoConfirmEnabledRef.current,
+      });
+    },
+    [dispatchWorkflow],
+  );
+
+  const handleResultScreenCleared = useCallback(() => {
+    dispatchWorkflow({ type: 'screen-cleared' });
+  }, [dispatchWorkflow]);
+
   const resultCapture = useResultCaptureLoop({
     canvasRef,
     detect,
     disposeDetector: dispose,
-    autoConfirmEnabled,
-    onResultDetected: handleResultConfirmed,
-    onAutoConfirm: handleResultConfirmed,
-    onResultPreview,
+    onResultPreview: handleResultPreview,
+    onResultScreenCleared: handleResultScreenCleared,
     detectPostDuelScreen: isPostDuelDark,
   });
-  const captureState: DuelCaptureState = isCapturing
-    ? isWaitingForRating
-      ? 'waiting-rating'
-      : resultCapture.state === 'scanning'
-      ? 'capturing'
-      : resultCapture.state
-    : 'idle';
+
+  const captureState: DuelCaptureState = mapWorkflowPhaseToCaptureState(workflowState.phase);
 
   const isStoppedRef = useRef(false);
   const hasResultCandidateRef = useRef(false);
@@ -103,7 +135,6 @@ export function useDuelCapture(
   const turnOrderCapture = useTurnOrderCaptureLoop({
     canvasRef,
     captureCurrentFrame,
-    onTurnOrderDetected,
   });
 
   const start = useCallback(async () => {
@@ -131,18 +162,18 @@ export function useDuelCapture(
       ocrTimerRef.current = null;
     }
     hasResultCandidateRef.current = false;
-    setIsWaitingForRating(false);
+    dispatchWorkflow({ type: 'stop' });
     resultCapture.reset();
     resultCapture.dispose();
     turnOrderCapture.reset();
     ratingCapture.reset();
-  }, [stopCapture, resultCapture, turnOrderCapture, ratingCapture]);
+  }, [stopCapture, dispatchWorkflow, resultCapture, turnOrderCapture, ratingCapture]);
 
   const prepareNextDuelDetection = useCallback(() => {
-    setIsWaitingForRating(false);
+    dispatchWorkflow({ type: 'record-saved' });
     resetDetectionState({ resetResult: true, restartTurnOrder: isCapturing });
     ratingCapture.reset();
-  }, [isCapturing, resetDetectionState, ratingCapture]);
+  }, [dispatchWorkflow, isCapturing, resetDetectionState, ratingCapture]);
 
   const restartTurnOrderDetection = useCallback(() => {
     resetDetectionState({ resetResult: false, restartTurnOrder: isCapturing });
@@ -185,7 +216,10 @@ export function useDuelCapture(
   }, [ratingCapture.ratingFrameDataUrl]);
 
   useEffect(() => {
-    if (!isCapturing) return;
+    if (!isCapturing) {
+      dispatchWorkflow({ type: 'stop' });
+      return;
+    }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -194,6 +228,7 @@ export function useDuelCapture(
     let isEffectActive = true;
     isStoppedRef.current = false;
     hasResultCandidateRef.current = false;
+    dispatchWorkflow({ type: 'start' });
     turnOrderCapture.start();
 
     const scheduleNextOcr = () => {
@@ -208,7 +243,8 @@ export function useDuelCapture(
         scheduleNextOcr();
         return;
       }
-      const result = await resultCapture.runOnce();
+      const mode = workflowStateRef.current.phase === 'waiting-clear' ? 'gate' : 'detect';
+      const result = await resultCapture.runOnce(mode);
       hasResultCandidateRef.current = result.hasCandidate;
       scheduleNextOcr();
     };
@@ -258,7 +294,5 @@ export function useDuelCapture(
     downloadRatingFrame,
     start,
     stop,
-    confirm: resultCapture.confirm,
-    dismiss: resultCapture.dismiss,
   };
 }

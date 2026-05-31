@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { TurnOrder } from '../types';
+import type { CaptureEventListener } from './captureEvents';
 import type {
   CoinTossDebugInfo,
   DetectionResult,
@@ -38,18 +38,7 @@ export interface CaptureContextValue {
   setWaitForRatingBeforeAutoConfirm: (wait: boolean) => void;
   start: () => Promise<void>;
   stop: () => void;
-  confirm: () => void;
-  dismiss: () => void;
-  setResultCallback: (cb: (result: 'win' | 'loss') => void) => void;
-  clearResultCallback: () => void;
-  setResultPreviewCallback: (cb: (result: 'win' | 'loss') => void) => void;
-  clearResultPreviewCallback: () => void;
-  setTurnOrderCallback: (cb: (order: TurnOrder) => void) => void;
-  clearTurnOrderCallback: () => void;
-  setRatingCallback: (cb: (rating: number) => void) => void;
-  clearRatingCallback: () => void;
-  setRatingConfirmCallback: (cb: (rating: number) => void) => void;
-  clearRatingConfirmCallback: () => void;
+  subscribeCaptureEvents: (listener: CaptureEventListener) => () => void;
 }
 
 export const CaptureContext = createContext<CaptureContextValue | null>(null);

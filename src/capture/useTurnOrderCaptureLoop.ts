@@ -42,7 +42,6 @@ interface TurnOrderCaptureLoopDependencies {
 interface UseTurnOrderCaptureLoopOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   captureCurrentFrame: () => boolean;
-  onTurnOrderDetected: (order: TurnOrder) => void;
   dependencies?: Partial<TurnOrderCaptureLoopDependencies>;
 }
 
@@ -79,11 +78,9 @@ const defaultDependencies = {
 export function useTurnOrderCaptureLoop({
   canvasRef,
   captureCurrentFrame,
-  onTurnOrderDetected,
   dependencies,
 }: UseTurnOrderCaptureLoopOptions): TurnOrderCaptureLoop {
   const depsRef = useRef({ ...defaultDependencies, ...dependencies });
-  const onTurnOrderDetectedRef = useRef(onTurnOrderDetected);
 
   const [hasCoinTossFrame, setHasCoinTossFrame] = useState(false);
   const [coinTossDebug, setCoinTossDebug] = useState<CoinTossDebugInfo | null>(null);
@@ -108,10 +105,6 @@ export function useTurnOrderCaptureLoop({
   useEffect(() => {
     depsRef.current = { ...defaultDependencies, ...dependencies };
   }, [dependencies]);
-
-  useEffect(() => {
-    onTurnOrderDetectedRef.current = onTurnOrderDetected;
-  }, [onTurnOrderDetected]);
 
   const clearTurnOrderDetection = useCallback(() => {
     setTurnOrderDetection(null);
@@ -163,7 +156,6 @@ export function useTurnOrderCaptureLoop({
         detectedAt: Date.now(),
       };
       setTurnOrderDetection(event);
-      onTurnOrderDetectedRef.current(order);
     },
     [],
   );
