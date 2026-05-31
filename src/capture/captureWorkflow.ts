@@ -59,7 +59,10 @@ export function captureWorkflowReducer(
     case 'stop':
       return { state: { phase: 'idle' }, effects: [] };
     case 'start':
+      return { state: { phase: 'scanning' }, effects: [] };
     case 'record-saved':
+      // キャプチャ未開始（idle）なら記録保存してもスキャンを開始しない。
+      if (state.phase === 'idle') return { state, effects: [] };
       return { state: { phase: 'scanning' }, effects: [] };
   }
 

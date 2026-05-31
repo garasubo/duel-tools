@@ -44,9 +44,16 @@ describe('captureWorkflowReducer', () => {
     }
   });
 
-  it('record-saved はどの状態からでも scanning に戻す（副作用なし）', () => {
+  it('record-saved はキャプチャ中の状態から scanning に戻す（副作用なし）', () => {
     expect(reduce({ phase: 'waiting-rating', result: 'win' }, { type: 'record-saved' })).toEqual({
       state: { phase: 'scanning' },
+      effects: [],
+    });
+  });
+
+  it('record-saved は idle のときは idle のまま（スキャンを開始しない）', () => {
+    expect(reduce({ phase: 'idle' }, { type: 'record-saved' })).toEqual({
+      state: { phase: 'idle' },
       effects: [],
     });
   });
