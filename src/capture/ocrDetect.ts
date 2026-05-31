@@ -440,6 +440,16 @@ export async function classifyResultScreenByImageFeatures(
   const bboxDensity = brightPixels / ((maxX - minX + 1) * (maxY - minY + 1));
 
   if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO && density >= MIN_VICTORY_DENSITY) {
+    // VICTORY text appears in the lower portion of the ROI; if the top third of the
+    // bounding box has as many bright pixels as the middle third, the signal is from
+    // background content (e.g. ceiling/sky pattern), not text.
+    const bboxH = maxY - minY + 1;
+    const third = Math.max(1, Math.floor(bboxH / 3));
+    let topThirdPixels = 0;
+    let midThirdPixels = 0;
+    for (let ry = minY; ry < minY + third; ry++) topThirdPixels += rows[ry];
+    for (let ry = minY + third; ry < minY + 2 * third; ry++) midThirdPixels += rows[ry];
+    if (topThirdPixels >= midThirdPixels) return { kind: 'none' };
     return {
       kind: 'result',
       result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },
