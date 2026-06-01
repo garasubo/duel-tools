@@ -7,7 +7,11 @@ import {
   detectRatingFromImageLike,
   isLobbyScreenText,
   isResultScreenText,
+  parseForLobbyScreen,
   parseRatingFromText,
+  parseResultScreenRating,
+  reconstructDelta,
+  reconstructRate,
 } from './ratingDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
@@ -112,6 +116,77 @@ describe('parseRatingFromText', () => {
 
   it('3桁以下の数字は無視する', () => {
     expect(parseRatingFromText('999 500 100')).toBe(null);
+  });
+});
+
+describe('reconstructRate', () => {
+  it('小数点付きはそのまま', () => {
+    expect(reconstructRate('1508.94')).toBe(1508.94);
+  });
+  it('小数点欠落の6桁を復元する（"153965" → 1539.65）', () => {
+    expect(reconstructRate('153965')).toBe(1539.65);
+  });
+  it('小数点欠落の6桁を復元する（"151701" → 1517.01）', () => {
+    expect(reconstructRate('151701')).toBe(1517.01);
+  });
+  it('非数字混入を除去して復元する', () => {
+    expect(reconstructRate('U1508.94')).toBe(1508.94);
+  });
+  it('4桁（小数部不明）は復元できず null', () => {
+    expect(reconstructRate('1508')).toBe(null);
+  });
+});
+
+describe('reconstructDelta', () => {
+  it('小数点付きはそのまま', () => {
+    expect(reconstructDelta('8.04')).toBe(8.04);
+  });
+  it('小数点欠落の3桁を復元する（"751" → 7.51）', () => {
+    expect(reconstructDelta('751')).toBe(7.51);
+  });
+  it('小数点欠落の3桁を復元する（"835" → 8.35）', () => {
+    expect(reconstructDelta('835')).toBe(8.35);
+  });
+});
+
+describe('parseResultScreenRating（旧 ± 変化量 による検証）', () => {
+  it('旧 ± 変化量 と一致する new を採用する', () => {
+    expect(parseResultScreenRating('1508.94 - 751 )) 1501.43')).toBe(1501.43);
+  });
+  it('加算ケースも検証して採用する', () => {
+    expect(parseResultScreenRating('1493.75 + 756 )) 1501.31')).toBe(1501.31);
+  });
+  it('旧レートの小数点欠落を復元して検証する（"153965"）', () => {
+    expect(parseResultScreenRating('153965 + 8.04 ))) 1547.69')).toBe(1547.69);
+  });
+  it('new が 旧 ± 変化量 と矛盾する場合は null（誤読フレームを確定しない）', () => {
+    // 新レートの 1 桁が誤読（1501.43 → 1601.43）。旧 - 変化量 = 1501.43 と矛盾。
+    expect(parseResultScreenRating('1508.94 - 751 )) 1601.43')).toBe(null);
+  });
+  it('"))" の後ろに new が無い遷移フレームは null（旧レートのみ表示）', () => {
+    expect(parseResultScreenRating('1524.41 - 8.12 )) Lv. 42')).toBe(null);
+  });
+  it('旧レート/変化量が読めない場合は ")) 以降" の値にフォールバックする', () => {
+    expect(parseResultScreenRating('noise )) 1501.43')).toBe(1501.43);
+  });
+  it('マイナス記号が em ダッシュに誤読されても検証できる', () => {
+    expect(parseResultScreenRating('1508.94 — 751 )) 1501.43')).toBe(1501.43);
+  });
+});
+
+describe('parseForLobbyScreen（数字分断 + 小数点スペース化の復元）', () => {
+  it('"RATE: 1 601 .76"（分断 + 小数点スペース化）を復元する', () => {
+    // collapse → "1601 .76"、restore → "1601.76"（複合正規化が必要）
+    expect(parseForLobbyScreen('RATE: 1 601 .76\nTOP 50 %')).toBe(1601.76);
+  });
+  it('クリーンな小数表記をそのまま拾う', () => {
+    expect(parseForLobbyScreen('RATE: 1501.43 TOP 50%')).toBe(1501.43);
+  });
+  it('"RATE: 1 B51 6.29"（英字混入）をキーワード抽出で復元する', () => {
+    expect(parseForLobbyScreen('RATE: 1 B51 6.29 TOP 50.')).toBe(1516.29);
+  });
+  it('数字が無ければ null', () => {
+    expect(parseForLobbyScreen('RATE: TOP 50%')).toBe(null);
   });
 });
 
