@@ -36,6 +36,10 @@ const IMAGE_FEATURE_CONFIDENCE = 92;
 const MIN_RESULT_BBOX_DENSITY = 0.35;
 const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
 const MIN_VICTORY_DENSITY = 0.268;
+// 第1 VICTORY 分岐の背景パターン除外用。
+// 本物の VICTORY 文字は bbox 下部 2/3 に集中するため、上部 1/3 の明ピクセルは
+// 中央 1/3 に比べ非常に少ない。一定割合以上あれば背景由来とみなす。
+const MAX_VICTORY_TOP_THIRD_RATIO = 0.5;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
 const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
@@ -449,7 +453,9 @@ export async function classifyResultScreenByImageFeatures(
     let midThirdPixels = 0;
     for (let ry = minY; ry < minY + third; ry++) topThirdPixels += rows[ry];
     for (let ry = minY + third; ry < minY + 2 * third; ry++) midThirdPixels += rows[ry];
-    if (topThirdPixels >= midThirdPixels) return { kind: 'none' };
+    if (topThirdPixels >= midThirdPixels * MAX_VICTORY_TOP_THIRD_RATIO) {
+      return { kind: 'none' };
+    }
     return {
       kind: 'result',
       result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },
