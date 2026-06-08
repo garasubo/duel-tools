@@ -4,6 +4,7 @@ import {
   HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE,
   NORMAL_OCR_INTERVAL_MS,
   REQUIRED_CONSECUTIVE,
+  SINGLE_FRAME_CONFIDENCE_THRESHOLD,
   averageConfidence,
   getElapsedMs,
   getOcrInterval,
@@ -19,6 +20,12 @@ describe('captureTiming', () => {
   it('高信頼度の候補は少ない連続確認回数で確定できる', () => {
     expect(getRequiredConsecutive(84)).toBe(REQUIRED_CONSECUTIVE);
     expect(getRequiredConsecutive(85)).toBe(HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE);
+    expect(getRequiredConsecutive(91)).toBe(HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE);
+  });
+
+  it('画像特徴の確定的一致（信頼度92以上）は1フレームで確定できる', () => {
+    expect(getRequiredConsecutive(SINGLE_FRAME_CONFIDENCE_THRESHOLD)).toBe(1);
+    expect(getRequiredConsecutive(99)).toBe(1);
   });
 
   it('検出結果の平均信頼度を計算する', () => {

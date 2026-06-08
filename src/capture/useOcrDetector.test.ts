@@ -164,6 +164,21 @@ describe('classifyResultScreenByImageFeatures', () => {
     ).resolves.toEqual({ kind: 'none' });
   });
 
+  it('明るい背景で膨張した LOSE（救済パス）は信頼度を一段下げて loss にする', async () => {
+    // 救済パスで確定する loss は信頼度 88（getRequiredConsecutive=2）で、1 フレーム即確定にしない。
+    await expect(
+      classifyResultScreenByImageFeatures(path.join(FIXTURES, '0085.png')),
+    ).resolves.toEqual({
+      kind: 'result',
+      result: { result: 'loss', confidence: 88 },
+    });
+  });
+
+  it('LOSE グリフ核が太く拡散したフレーム（0086）は loss として確定しない', async () => {
+    const result = await classifyResultScreenByImageFeatures(path.join(FIXTURES, '0086.png'));
+    expect(result.kind).not.toBe('result');
+  });
+
   it('RESOLVE 演出は VICTORY として画像特徴量で確定しない', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0049.png')),

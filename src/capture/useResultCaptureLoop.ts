@@ -20,7 +20,13 @@ export interface ResultStreakState {
   lastResult: 'win' | 'loss' | null;
   consecutiveCount: number;
   recentResults: DetectionResult[];
+  // 連続一致の途中で検出が空振り（null）したフレーム数。
+  // 演出/アニメの 1 フレームで streak が崩れないよう MISS_TOLERANCE まで許容する。
+  missCount: number;
 }
+
+// 連続一致の途中で許容する空振りフレーム数。これを超えると streak をリセットする。
+export const MISS_TOLERANCE = 1;
 
 export interface ResultStreakUpdate {
   nextStreak: ResultStreakState;
@@ -73,6 +79,8 @@ export function advanceResultStreak(
       lastResult: result.result,
       consecutiveCount: pendingResult ? 0 : consecutiveCount,
       recentResults,
+      // 本物の同一結果フレームが来たら空振りカウントはリセットする。
+      missCount: 0,
     },
     lastOcrResult: result.result,
     consecutiveCount,
@@ -85,7 +93,16 @@ const EMPTY_STREAK: ResultStreakState = {
   lastResult: null,
   consecutiveCount: 0,
   recentResults: [],
+  missCount: 0,
 };
+
+// 検出が空振り（null）したときの streak 遷移。
+// 進行中の streak は MISS_TOLERANCE 回まで維持し、それを超えたら EMPTY_STREAK に戻す。
+export function applyMissToStreak(streak: ResultStreakState): ResultStreakState {
+  if (streak.lastResult === null || streak.consecutiveCount === 0) return EMPTY_STREAK;
+  const missCount = streak.missCount + 1;
+  return missCount > MISS_TOLERANCE ? EMPTY_STREAK : { ...streak, missCount };
+}
 
 export function useResultCaptureLoop({
   canvasRef,
@@ -172,10 +189,16 @@ export function useResultCaptureLoop({
       }
 
       if (!result) {
-        streakRef.current = EMPTY_STREAK;
-        hasCandidateRef.current = false;
-        setLastOcrResult(null);
-        setConsecutiveCount(0);
+        const next = applyMissToStreak(streakRef.current);
+        streakRef.current = next;
+        // 完全に崩壊したときだけ候補状態と表示をクリアする。
+        // 許容中（streak 維持）は hasCandidate を true のままにして FAST 間隔を保ち、
+        // lose フレームを素早く再取得できるようにする。
+        if (next.consecutiveCount === 0) {
+          hasCandidateRef.current = false;
+          setLastOcrResult(null);
+          setConsecutiveCount(0);
+        }
         return { hasCandidate: hasCandidateRef.current };
       }
 

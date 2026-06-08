@@ -42,8 +42,22 @@ const MIN_VICTORY_DENSITY = 0.268;
 const MAX_VICTORY_TOP_THIRD_RATIO = 0.5;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
-const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
+const MIN_LOSS_BANNER_WIDTH_RATIO = 0.24;
 const MAX_LOSS_BANNER_HEIGHT_RATIO = 0.20;
+const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
+const MAX_LOSS_BANNER_WIDTH_RATIO = 0.50;
+// 明るい背景で LOSE バナーの bbox が膨張したとき、列/行のピークに対するこの割合を
+// 閾値にしてタイトな bbox を取り直し、LOSE のコア文字を切り出す（0085.png のような
+// 明るい盤面背景での取りこぼし対策）。
+const LOSS_CORE_THRESHOLD_RATIO = 0.35;
+// 救済パス（明るい背景でバナーが膨張）専用の、本物 LOSE グリフ核に合わせた厳しい閾値。
+// 本物の核は幅 ~0.30・密度 ~0.55。0086.png のような非結果フレームは幅 ~0.49・密度 ~0.42 と
+// 太く拡散しており、ここで弾く（通常 LOSE 帯 0.24-0.50・密度 0.35 では取りこぼせない）。
+const MAX_LOSS_CORE_WIDTH_RATIO = 0.40; // 0085=0.302 通過 / 0086=0.493 棄却
+const MIN_LOSS_CORE_DENSITY = 0.48; // 0085=0.555 通過 / 0086=0.420 棄却
+// 救済パスで確定した loss の信頼度。鮮明な LOSE（IMAGE_FEATURE_CONFIDENCE=92）より一段低くし、
+// ストリーク層の getRequiredConsecutive で 2 フレーム連続一致を要求させる（1 フレーム即確定にしない）。
+const LOSS_FALLBACK_CONFIDENCE = 88; // 85 <= 88 < 92 → getRequiredConsecutive = 2
 
 const RESULT_BANNER_ROI: ROI = {
   x: 0.02,
@@ -383,6 +397,82 @@ export async function detectResultByImageFeatures(input: ImageLike): Promise<Det
   return classification.kind === 'result' ? classification.result : null;
 }
 
+function countBrightPixelsInRect(
+  pixels: ImagePixels,
+  left: number,
+  top: number,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+): number {
+  let count = 0;
+  for (let y = top + y0; y <= top + y1; y++) {
+    for (let x = left + x0; x <= left + x1; x++) {
+      if (isResultTextPixel(pixels.data, (y * pixels.width + x) * 4)) count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * 明るい背景で LOSE バナーの bbox が膨張し、通常の閾値では LOSE 帯（幅 0.24-0.50）に
+ * 収まらないフレーム向けのフォールバック判定。列/行のピーク比でタイトな bbox を取り直し、
+ * 中央に高密度の LOSE コア文字があり、かつ画面下部が暗転（結果画面オーバーレイ）して
+ * いれば LOSE とみなす。VICTORY 判定や通常の LOSE 判定は変更しない（純粋に取りこぼしを追加検出）。
+ */
+function detectLossCoreByTightBbox(
+  pixels: ImagePixels,
+  cols: Uint16Array,
+  rows: Uint16Array,
+  left: number,
+  top: number,
+  colThreshold: number,
+  rowThreshold: number,
+): boolean {
+  const width = cols.length;
+  const height = rows.length;
+  let minX = width;
+  let maxX = -1;
+  let minY = height;
+  let maxY = -1;
+  for (let x = 0; x < width; x++) {
+    if (cols[x] >= colThreshold) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    if (rows[y] >= rowThreshold) {
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) return false;
+
+  const bboxW = maxX - minX + 1;
+  const bboxH = maxY - minY + 1;
+  const widthRatio = bboxW / pixels.width;
+  const heightRatio = bboxH / pixels.height;
+  const centerX = (left + minX + left + maxX) / 2 / pixels.width;
+  const centerY = (top + minY + top + maxY) / 2 / pixels.height;
+  const brightPixels = countBrightPixelsInRect(pixels, left, top, minX, maxX, minY, maxY);
+  const bboxDensity = brightPixels / (bboxW * bboxH);
+
+  return (
+    widthRatio >= MIN_LOSS_BANNER_WIDTH_RATIO &&
+    widthRatio <= MAX_LOSS_CORE_WIDTH_RATIO &&
+    heightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
+    heightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO &&
+    centerX >= 0.35 &&
+    centerX <= 0.65 &&
+    centerY >= 0.35 &&
+    centerY <= 0.55 &&
+    bboxDensity >= MIN_LOSS_CORE_DENSITY &&
+    hasResultScreenBottomDark(pixels, MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS)
+  );
+}
+
 export async function classifyResultScreenByImageFeatures(
   input: ImageLike,
 ): Promise<ResultScreenFeatureClassification> {
@@ -462,6 +552,27 @@ export async function classifyResultScreenByImageFeatures(
     };
   }
 
+  // フォールバック: loose な bbox が LOSE 帯より広い（0.50 超）が VICTORY には満たない
+  // （明るい背景でノイズ膨張した）場合だけ、列/行ピーク比でタイト bbox を取り直して
+  // LOSE コアを判定する。通常の LOSE（幅 ≤0.50）や VICTORY はこの分岐に入らない。
+  if (
+    bannerWidthRatio > MAX_LOSS_BANNER_WIDTH_RATIO &&
+    bannerWidthRatio < MIN_VICTORY_BANNER_WIDTH_RATIO
+  ) {
+    let peakCol = 0;
+    for (let x = 0; x < width; x++) if (cols[x] > peakCol) peakCol = cols[x];
+    let peakRow = 0;
+    for (let y = 0; y < height; y++) if (rows[y] > peakRow) peakRow = rows[y];
+    const tightColThreshold = Math.max(colThreshold, Math.floor(peakCol * LOSS_CORE_THRESHOLD_RATIO));
+    const tightRowThreshold = Math.max(rowThreshold, Math.floor(peakRow * LOSS_CORE_THRESHOLD_RATIO));
+    if (detectLossCoreByTightBbox(pixels, cols, rows, left, top, tightColThreshold, tightRowThreshold)) {
+      return {
+        kind: 'result',
+        result: { result: 'loss', confidence: LOSS_FALLBACK_CONFIDENCE },
+      };
+    }
+  }
+
   if (
     bannerHeightRatio < 0.08 ||
     bannerHeightRatio > 0.34 ||
@@ -493,8 +604,8 @@ export async function classifyResultScreenByImageFeatures(
     };
   }
   if (
-    bannerWidthRatio >= 0.24 &&
-    bannerWidthRatio <= 0.50 &&
+    bannerWidthRatio >= MIN_LOSS_BANNER_WIDTH_RATIO &&
+    bannerWidthRatio <= MAX_LOSS_BANNER_WIDTH_RATIO &&
     bannerHeightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     bannerHeightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO
   ) {
