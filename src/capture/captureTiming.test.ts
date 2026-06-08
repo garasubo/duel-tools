@@ -9,6 +9,7 @@ import {
   getElapsedMs,
   getOcrInterval,
   getRequiredConsecutive,
+  isCoinTossWindowExpired,
 } from './captureTiming';
 
 describe('captureTiming', () => {
@@ -38,5 +39,20 @@ describe('captureTiming', () => {
 
   it('開始時刻からの経過時間を計算する', () => {
     expect(getElapsedMs(1000, 1750)).toBe(750);
+  });
+
+  describe('isCoinTossWindowExpired', () => {
+    it('まだコイントス未検出（null）なら経過時間に関係なく期限切れにしない', () => {
+      // ロビー画面に長く留まっても最初のコイントスを取りこぼさない
+      expect(isCoinTossWindowExpired(null, 60_000, 1_000_000)).toBe(false);
+    });
+
+    it('検出時刻から有効期限以内は期限切れにしない', () => {
+      expect(isCoinTossWindowExpired(1000, 60_000, 1000 + 60_000)).toBe(false);
+    });
+
+    it('検出時刻から有効期限を超えたら期限切れにする', () => {
+      expect(isCoinTossWindowExpired(1000, 60_000, 1000 + 60_001)).toBe(true);
+    });
   });
 });

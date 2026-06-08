@@ -28,3 +28,16 @@ export function averageConfidence(results: DetectionResult[]): number {
 export function getElapsedMs(startedAt: number, now = Date.now()): number {
   return now - startedAt;
 }
+
+// コイントス検出の有効期限判定。
+// 60秒のカウントは「最初のコイントス画面を検出した時刻」から始まる。
+// firstSeenAt が null（まだ一度も検出していない）の間は期限切れにしない＝
+// ロビー画面に長く留まってから試合を始めても最初のコイントスを取りこぼさない。
+export function isCoinTossWindowExpired(
+  firstSeenAt: number | null,
+  durationMs: number,
+  now = Date.now(),
+): boolean {
+  if (firstSeenAt === null) return false;
+  return now - firstSeenAt > durationMs;
+}

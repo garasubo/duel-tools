@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { ImageLike, Worker } from 'tesseract.js';
-import { getElapsedMs } from './captureTiming';
+import { getElapsedMs, isCoinTossWindowExpired } from './captureTiming';
 import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
 import {
   createJpnOcrWorker,
@@ -19,7 +19,8 @@ import type {
 } from './types';
 import type { TurnOrder } from '../types';
 
-// コイントス検出は200ms間隔、キャプチャ開始から60秒間有効
+// コイントス検出は200ms間隔。有効期限は最初のコイントス画面を検出してから60秒間
+//（ロビー画面に長く留まってから試合を始めても最初のコイントスを取りこぼさないため）
 export const COIN_TOSS_INTERVAL_MS = 200;
 export const COIN_TOSS_ACTIVE_DURATION_MS = 60_000;
 // 相手選択画面検出後30秒以内に結果が出なければフォールバックする
@@ -95,6 +96,7 @@ export function useTurnOrderCaptureLoop({
   const coinTossWorkerRef = useRef<Worker | null>(null);
   const coinTossRunningRef = useRef(false);
   const captureStartTimeRef = useRef(0);
+  const firstCoinTossSeenAtRef = useRef<number | null>(null);
   const opponentSelectingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnOrderDetectionIdRef = useRef(0);
   const isActiveRef = useRef(false);
@@ -141,6 +143,7 @@ export function useTurnOrderCaptureLoop({
     coinTossStateRef.current = INITIAL_COIN_TOSS_STATE;
     turnOrderDetectedRef.current = false;
     captureStartTimeRef.current = Date.now();
+    firstCoinTossSeenAtRef.current = null;
     lastHitRoiRef.current = undefined;
     resetDebug();
     resetFrame();
@@ -241,7 +244,9 @@ export function useTurnOrderCaptureLoop({
       }
 
       const elapsed = getElapsedMs(captureStartTimeRef.current);
-      if (elapsed > COIN_TOSS_ACTIVE_DURATION_MS) {
+      // 有効期限は最初のコイントス画面検出からカウントする。未検出（ロビー滞在中）の間は
+      // 期限切れにせずポーリングを継続する。
+      if (isCoinTossWindowExpired(firstCoinTossSeenAtRef.current, COIN_TOSS_ACTIVE_DURATION_MS)) {
         stop();
         return;
       }
@@ -276,6 +281,10 @@ export function useTurnOrderCaptureLoop({
           },
         );
         if (generation !== generationRef.current || !isActiveRef.current) return;
+
+        if (screen !== null && firstCoinTossSeenAtRef.current === null) {
+          firstCoinTossSeenAtRef.current = Date.now();
+        }
 
         const prevState = coinTossStateRef.current;
         const newState = updateCoinTossState(prevState, screen);
