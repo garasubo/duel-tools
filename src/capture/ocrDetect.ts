@@ -55,6 +55,9 @@ const LOSS_CORE_THRESHOLD_RATIO = 0.35;
 // 太く拡散しており、ここで弾く（通常 LOSE 帯 0.24-0.50・密度 0.35 では取りこぼせない）。
 const MAX_LOSS_CORE_WIDTH_RATIO = 0.40; // 0085=0.302 通過 / 0086=0.493 棄却
 const MIN_LOSS_CORE_DENSITY = 0.48; // 0085=0.555 通過 / 0086=0.420 棄却
+// LOSE は 4 文字で横長（核アスペクト比 幅/高さ ≈ 2.2）。正方形に近い明るいブロブ
+// （爆発エフェクト等）を弾く形状ガード。本物 LOSE は全例 1.70〜2.24。
+const MIN_LOSS_CORE_ASPECT_RATIO = 1.6;
 // 救済パスで確定した loss の信頼度。鮮明な LOSE（IMAGE_FEATURE_CONFIDENCE=92）より一段低くし、
 // ストリーク層の getRequiredConsecutive で 2 フレーム連続一致を要求させる（1 フレーム即確定にしない）。
 const LOSS_FALLBACK_CONFIDENCE = 88; // 85 <= 88 < 92 → getRequiredConsecutive = 2
@@ -416,10 +419,13 @@ function countBrightPixelsInRect(
 }
 
 /**
- * 明るい背景で LOSE バナーの bbox が膨張し、通常の閾値では LOSE 帯（幅 0.24-0.50）に
- * 収まらないフレーム向けのフォールバック判定。列/行のピーク比でタイトな bbox を取り直し、
- * 中央に高密度の LOSE コア文字があり、かつ画面下部が暗転（結果画面オーバーレイ）して
- * いれば LOSE とみなす。VICTORY 判定や通常の LOSE 判定は変更しない（純粋に取りこぼしを追加検出）。
+ * 列/行のピーク比でタイトな bbox を取り直し、中央に「LOSE」グリフ核（幅 0.24-0.40・
+ * 高さ 0.12-0.20・横長アスペクト・高密度）があるかを判定する。
+ *
+ * 画面下部の暗転（OK ボタン領域の輝度）には依存しない。明るい結果画面では OK ボタンの
+ * プログレスバーが下部 ROI 中央を照らし暗転判定を defeat するため（0088=107 / 0091=135）、
+ * 取りこぼしの原因になっていた。核シグネチャ自体が十分に特異で、全 fixture の true loss と
+ * negative/win を分離できることを確認済み。暗転の有無は呼び出し側で信頼度（92/88）に反映する。
  */
 function detectLossCoreByTightBbox(
   pixels: ImagePixels,
@@ -464,12 +470,12 @@ function detectLossCoreByTightBbox(
     widthRatio <= MAX_LOSS_CORE_WIDTH_RATIO &&
     heightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     heightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO &&
+    widthRatio / heightRatio >= MIN_LOSS_CORE_ASPECT_RATIO &&
     centerX >= 0.35 &&
     centerX <= 0.65 &&
     centerY >= 0.35 &&
     centerY <= 0.55 &&
-    bboxDensity >= MIN_LOSS_CORE_DENSITY &&
-    hasResultScreenBottomDark(pixels, MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS)
+    bboxDensity >= MIN_LOSS_CORE_DENSITY
   );
 }
 
@@ -533,6 +539,15 @@ export async function classifyResultScreenByImageFeatures(
   const centerY = (top + minY + top + maxY) / 2 / pixels.height;
   const bboxDensity = brightPixels / ((maxX - minX + 1) * (maxY - minY + 1));
 
+  // 列/行のピーク比でタイトな bbox を取り直すための閾値。LOSE コア判定（明るい背景の
+  // 救済を含む）で normal/rescue 双方の分岐から使う。
+  let peakCol = 0;
+  for (let x = 0; x < width; x++) if (cols[x] > peakCol) peakCol = cols[x];
+  let peakRow = 0;
+  for (let y = 0; y < height; y++) if (rows[y] > peakRow) peakRow = rows[y];
+  const tightColThreshold = Math.max(colThreshold, Math.floor(peakCol * LOSS_CORE_THRESHOLD_RATIO));
+  const tightRowThreshold = Math.max(rowThreshold, Math.floor(peakRow * LOSS_CORE_THRESHOLD_RATIO));
+
   if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO && density >= MIN_VICTORY_DENSITY) {
     // VICTORY text appears in the lower portion of the ROI; if the top third of the
     // bounding box has as many bright pixels as the middle third, the signal is from
@@ -553,24 +568,17 @@ export async function classifyResultScreenByImageFeatures(
   }
 
   // フォールバック: loose な bbox が LOSE 帯より広い（0.50 超）が VICTORY には満たない
-  // （明るい背景でノイズ膨張した）場合だけ、列/行ピーク比でタイト bbox を取り直して
-  // LOSE コアを判定する。通常の LOSE（幅 ≤0.50）や VICTORY はこの分岐に入らない。
+  // （明るい背景でノイズ膨張した）場合、タイト bbox を取り直して LOSE コアを判定する。
+  // 通常の LOSE（幅 ≤0.50）や VICTORY はこの分岐に入らない。
   if (
     bannerWidthRatio > MAX_LOSS_BANNER_WIDTH_RATIO &&
-    bannerWidthRatio < MIN_VICTORY_BANNER_WIDTH_RATIO
+    bannerWidthRatio < MIN_VICTORY_BANNER_WIDTH_RATIO &&
+    detectLossCoreByTightBbox(pixels, cols, rows, left, top, tightColThreshold, tightRowThreshold)
   ) {
-    let peakCol = 0;
-    for (let x = 0; x < width; x++) if (cols[x] > peakCol) peakCol = cols[x];
-    let peakRow = 0;
-    for (let y = 0; y < height; y++) if (rows[y] > peakRow) peakRow = rows[y];
-    const tightColThreshold = Math.max(colThreshold, Math.floor(peakCol * LOSS_CORE_THRESHOLD_RATIO));
-    const tightRowThreshold = Math.max(rowThreshold, Math.floor(peakRow * LOSS_CORE_THRESHOLD_RATIO));
-    if (detectLossCoreByTightBbox(pixels, cols, rows, left, top, tightColThreshold, tightRowThreshold)) {
-      return {
-        kind: 'result',
-        result: { result: 'loss', confidence: LOSS_FALLBACK_CONFIDENCE },
-      };
-    }
+    return {
+      kind: 'result',
+      result: { result: 'loss', confidence: LOSS_FALLBACK_CONFIDENCE },
+    };
   }
 
   if (
@@ -609,8 +617,17 @@ export async function classifyResultScreenByImageFeatures(
     bannerHeightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     bannerHeightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO
   ) {
-    // 下部領域が明るい場合（ゲームプレイ中の演出フレーム）は確定しない
-    if (!hasResultScreenBottomDark(pixels, MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS)) return { kind: 'possible' };
+    // 下部領域が明るい場合（OK ボタンのプログレスバー等で暗転確定できない）でも、
+    // 中央に強い LOSE 核があれば一段低い信頼度（2 フレーム連続要求）で確定する。
+    if (!hasResultScreenBottomDark(pixels, MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS)) {
+      if (detectLossCoreByTightBbox(pixels, cols, rows, left, top, tightColThreshold, tightRowThreshold)) {
+        return {
+          kind: 'result',
+          result: { result: 'loss', confidence: LOSS_FALLBACK_CONFIDENCE },
+        };
+      }
+      return { kind: 'possible' };
+    }
     return {
       kind: 'result',
       result: { result: 'loss', confidence: IMAGE_FEATURE_CONFIDENCE },
