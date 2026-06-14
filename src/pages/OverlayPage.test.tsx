@@ -62,6 +62,8 @@ function makeStore(state: AppStorage): BattlesStore {
     deleteTag: noop,
     setOverlayStats: noop,
     setPanelDateFilter: noop,
+    getDraftTurnOrder: () => null,
+    setDraftTurnOrder: noop,
   };
 }
 

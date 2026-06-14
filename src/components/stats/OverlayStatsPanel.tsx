@@ -2,7 +2,8 @@ import { useRecords } from '../../state/hooks/useRecords';
 import { useOwnDecks } from '../../state/hooks/useOwnDecks';
 import { useOpponentDecks } from '../../state/hooks/useOpponentDecks';
 import { useOverlaySettings } from '../../state/hooks/useOverlaySettings';
-import { useStats } from '../../hooks/useStats';
+import { useDraftTurnOrder } from '../../state/hooks/useDraftTurnOrder';
+import { applyDraftToOverlayStats, useStats } from '../../hooks/useStats';
 import type { WinLoss } from '../../hooks/useStats';
 import type { BattleRecord, OverlayStatId, PanelDateFilter } from '../../types';
 import { OVERLAY_STAT_DEFINITIONS } from '../../utils/overlayStats';
@@ -78,15 +79,23 @@ export function OverlayStatsPanel({ variant }: { variant: 'overlay' | 'panel' })
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
   const { stats: overlayStatSettings, dateFilter: panelDateFilter } = useOverlaySettings();
+  const draftTurnOrder = useDraftTurnOrder();
   const filteredRecords = filterRecordsByDate(records, panelDateFilter);
   const { overall, asFirst, asSecond, coinToss } = useStats(filteredRecords, ownDecks, opponentDecks, true);
   const dark = variant === 'overlay';
+
+  // 入力途中（未保存）のコイントス結果を試合数・コイン勝率にのみ反映する。
+  const { matchCount, coinToss: coinTossWithDraft } = applyDraftToOverlayStats(
+    filteredRecords.length,
+    coinToss,
+    draftTurnOrder,
+  );
 
   const winLossStatMap: Record<Exclude<OverlayStatId, 'matchCount'>, WinLoss> = {
     overall,
     asFirst,
     asSecond,
-    coinToss,
+    coinToss: coinTossWithDraft,
   };
 
   const visibleStats = overlayStatSettings
@@ -99,7 +108,7 @@ export function OverlayStatsPanel({ variant }: { variant: 'overlay' | 'panel' })
         label: definition.label,
         value:
           definition.id === 'matchCount'
-            ? { kind: 'count' as const, count: filteredRecords.length }
+            ? { kind: 'count' as const, count: matchCount }
             : { kind: 'wld' as const, wld: winLossStatMap[definition.id] },
       };
     })

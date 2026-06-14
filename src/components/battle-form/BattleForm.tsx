@@ -69,6 +69,15 @@ export default function BattleForm({
     latestFormRef.current = form;
   }, [form]);
 
+  // 入力途中のコイントス結果を共有ストアへ公開し、簡易戦績パネルと
+  // 別ウィンドウのオーバーレイの両方に試合数・コイン勝率を反映する。
+  useEffect(() => {
+    store.setDraftTurnOrder(form.turnOrder);
+  }, [form.turnOrder, store]);
+
+  // 記録タブを離れたら入力途中表示を残さない。
+  useEffect(() => () => store.setDraftTurnOrder(null), [store]);
+
   const submitForm = useCallback(
     (currentForm: BattleFormState) => {
       addRecord({
@@ -81,13 +90,16 @@ export default function BattleForm({
         battleMode: currentForm.battleMode ?? undefined,
         score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
       });
+      // 保存済みレコードへ反映するのと同じバッチで入力途中分をクリアし、
+      // 簡易戦績の一瞬の二重計上を防ぐ。
+      store.setDraftTurnOrder(null);
       onRecordSaved?.();
       setForm(createNextBattleFormState(currentForm));
       setSaved(true);
       setCaptureResultApplied(false);
       setTimeout(() => setSaved(false), 3000);
     },
-    [addRecord, onRecordSaved],
+    [addRecord, onRecordSaved, store],
   );
 
   const suggestedScoreRef = useRef<number | null>(null);

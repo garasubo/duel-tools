@@ -3,8 +3,9 @@ import type {
   Deck,
   OverlayStatSetting,
   PanelDateFilter,
+  TurnOrder,
 } from "../types";
-import { STORAGE_KEY } from "../utils/constants";
+import { DRAFT_TURN_ORDER_KEY, STORAGE_KEY } from "../utils/constants";
 import {
   createDefaultStorage,
   normalizeStorage,
@@ -42,6 +43,11 @@ function saveStorage(state: AppStorage): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function loadDraftTurnOrder(): TurnOrder | null {
+  const raw = localStorage.getItem(DRAFT_TURN_ORDER_KEY);
+  return raw === "first" || raw === "second" || raw === "third" ? raw : null;
+}
+
 export interface BattlesStore {
   getState(): AppStorage;
   subscribe(listener: () => void): () => void;
@@ -65,10 +71,14 @@ export interface BattlesStore {
 
   setOverlayStats(stats: OverlayStatSetting[]): void;
   setPanelDateFilter(filter: PanelDateFilter): void;
+
+  getDraftTurnOrder(): TurnOrder | null;
+  setDraftTurnOrder(value: TurnOrder | null): void;
 }
 
 export function createBattlesStore(): BattlesStore {
   let state: AppStorage = loadStorage();
+  let draftTurnOrder: TurnOrder | null = loadDraftTurnOrder();
   const listeners = new Set<() => void>();
 
   function notify() {
@@ -84,9 +94,13 @@ export function createBattlesStore(): BattlesStore {
 
   if (typeof window !== "undefined") {
     window.addEventListener("storage", (e) => {
-      if (e.key !== STORAGE_KEY) return;
-      state = loadStorage();
-      notify();
+      if (e.key === STORAGE_KEY) {
+        state = loadStorage();
+        notify();
+      } else if (e.key === DRAFT_TURN_ORDER_KEY) {
+        draftTurnOrder = loadDraftTurnOrder();
+        notify();
+      }
     });
   }
 
@@ -155,6 +169,18 @@ export function createBattlesStore(): BattlesStore {
     },
     setPanelDateFilter(filter) {
       commit(reduceSetPanelDateFilter(state, filter));
+    },
+
+    getDraftTurnOrder: () => draftTurnOrder,
+    setDraftTurnOrder(value) {
+      if (value === draftTurnOrder) return;
+      draftTurnOrder = value;
+      if (value === null) {
+        localStorage.removeItem(DRAFT_TURN_ORDER_KEY);
+      } else {
+        localStorage.setItem(DRAFT_TURN_ORDER_KEY, value);
+      }
+      notify();
     },
   };
 }

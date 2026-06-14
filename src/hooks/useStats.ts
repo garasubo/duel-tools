@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { BattleRecord, Deck } from '../types';
+import type { BattleRecord, Deck, TurnOrder } from '../types';
 
 export interface WinLoss {
   win: number;
@@ -30,6 +30,29 @@ export function calcWLD(records: BattleRecord[]): WinLoss {
   return { win, loss, total, winRate };
 }
 
+// コイントスは「先攻を取れたか」で勝敗を分類する（先攻=win、後攻/ゆずられ先攻=loss）。
+export function isCoinTossWin(turnOrder: TurnOrder): boolean {
+  return turnOrder === 'first';
+}
+
+// 確定済みの集計値に、入力途中（未保存）の一戦のコイントス結果だけを加える。
+// 勝敗が絡む割合（全体/先攻/後攻）には影響させず、試合数とコイン勝率のみを更新する。
+export function applyDraftToOverlayStats(
+  confirmedCount: number,
+  coinToss: WinLoss,
+  draftTurnOrder: TurnOrder | null,
+): { matchCount: number; coinToss: WinLoss } {
+  if (!draftTurnOrder) return { matchCount: confirmedCount, coinToss };
+  const draftWin = isCoinTossWin(draftTurnOrder);
+  const win = coinToss.win + (draftWin ? 1 : 0);
+  const loss = coinToss.loss + (draftWin ? 0 : 1);
+  const total = win + loss;
+  return {
+    matchCount: confirmedCount + 1,
+    coinToss: { win, loss, total, winRate: total > 0 ? win / total : 0 },
+  };
+}
+
 export function useStats(
   records: BattleRecord[],
   ownDecks: Deck[],
@@ -54,9 +77,9 @@ export function useStats(
   );
 
   const coinToss = useMemo((): WinLoss => {
-    const win = records.filter((r) => r.turnOrder === 'first').length;
-    const loss = records.filter((r) => r.turnOrder === 'second' || r.turnOrder === 'third').length;
-    const total = win + loss;
+    const win = records.filter((r) => isCoinTossWin(r.turnOrder)).length;
+    const loss = records.length - win;
+    const total = records.length;
     return { win, loss, total, winRate: total > 0 ? win / total : 0 };
   }, [records]);
 
