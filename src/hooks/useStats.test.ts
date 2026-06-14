@@ -57,38 +57,96 @@ describe('calcWLD', () => {
 });
 
 describe('applyDraftToOverlayStats', () => {
-  // 確定済み: 4戦・コイン2勝2敗
+  // 確定済み: 全体2勝2敗 / 先攻1勝1敗 / 後攻1勝1敗 / コイン2勝2敗
   const confirmedCount = 4;
-  const baseCoinToss: WinLoss = { win: 2, loss: 2, total: 4, winRate: 0.5 };
+  const baseStats = {
+    overall: { win: 2, loss: 2, total: 4, winRate: 0.5 } as WinLoss,
+    asFirst: { win: 1, loss: 1, total: 2, winRate: 0.5 } as WinLoss,
+    asSecond: { win: 1, loss: 1, total: 2, winRate: 0.5 } as WinLoss,
+    coinToss: { win: 2, loss: 2, total: 4, winRate: 0.5 } as WinLoss,
+  };
 
-  it('入力途中がない(null)とき確定値をそのまま返す', () => {
-    const result = applyDraftToOverlayStats(confirmedCount, baseCoinToss, null);
+  it('入力途中が空(null,null)のとき確定値をそのまま返す', () => {
+    const result = applyDraftToOverlayStats(confirmedCount, baseStats, {
+      turnOrder: null,
+      result: null,
+    });
     expect(result.matchCount).toBe(4);
-    expect(result.coinToss).toEqual(baseCoinToss);
+    expect(result.overall).toEqual(baseStats.overall);
+    expect(result.asFirst).toEqual(baseStats.asFirst);
+    expect(result.asSecond).toEqual(baseStats.asSecond);
+    expect(result.coinToss).toEqual(baseStats.coinToss);
   });
 
-  it("'first'のとき試合数+1・コイン勝ち+1", () => {
-    const result = applyDraftToOverlayStats(confirmedCount, baseCoinToss, 'first');
+  it('コイントスのみ(先攻・勝敗未入力)は試合数とコインのみ反映', () => {
+    const result = applyDraftToOverlayStats(confirmedCount, baseStats, {
+      turnOrder: 'first',
+      result: null,
+    });
     expect(result.matchCount).toBe(5);
     expect(result.coinToss.win).toBe(3);
     expect(result.coinToss.loss).toBe(2);
-    expect(result.coinToss.total).toBe(5);
     expect(result.coinToss.winRate).toBeCloseTo(3 / 5);
+    // 勝敗未確定なので全体/先攻/後攻は不変
+    expect(result.overall).toEqual(baseStats.overall);
+    expect(result.asFirst).toEqual(baseStats.asFirst);
+    expect(result.asSecond).toEqual(baseStats.asSecond);
   });
 
-  it("'second'のとき試合数+1・コイン負け+1", () => {
-    const result = applyDraftToOverlayStats(confirmedCount, baseCoinToss, 'second');
+  it('先攻・勝ちのとき全体と先攻にも反映される', () => {
+    const result = applyDraftToOverlayStats(confirmedCount, baseStats, {
+      turnOrder: 'first',
+      result: 'win',
+    });
     expect(result.matchCount).toBe(5);
-    expect(result.coinToss.win).toBe(2);
-    expect(result.coinToss.loss).toBe(3);
-    expect(result.coinToss.total).toBe(5);
-    expect(result.coinToss.winRate).toBeCloseTo(2 / 5);
+    expect(result.coinToss.win).toBe(3);
+    expect(result.overall.win).toBe(3);
+    expect(result.overall.total).toBe(5);
+    expect(result.overall.winRate).toBeCloseTo(3 / 5);
+    expect(result.asFirst.win).toBe(2);
+    expect(result.asFirst.total).toBe(3);
+    // 後攻は不変
+    expect(result.asSecond).toEqual(baseStats.asSecond);
   });
 
-  it("'third'(ゆずられ先攻)もコイン負け扱いで集計される", () => {
-    const result = applyDraftToOverlayStats(confirmedCount, baseCoinToss, 'third');
+  it('後攻・負けのとき全体と後攻にも反映される', () => {
+    const result = applyDraftToOverlayStats(confirmedCount, baseStats, {
+      turnOrder: 'second',
+      result: 'loss',
+    });
     expect(result.matchCount).toBe(5);
-    expect(result.coinToss.win).toBe(2);
     expect(result.coinToss.loss).toBe(3);
+    expect(result.overall.loss).toBe(3);
+    expect(result.overall.total).toBe(5);
+    expect(result.asSecond.loss).toBe(2);
+    expect(result.asSecond.total).toBe(3);
+    expect(result.asFirst).toEqual(baseStats.asFirst);
+  });
+
+  it('勝敗のみ(turnOrder未入力)は試合数と全体のみ反映', () => {
+    const result = applyDraftToOverlayStats(confirmedCount, baseStats, {
+      turnOrder: null,
+      result: 'win',
+    });
+    expect(result.matchCount).toBe(5);
+    expect(result.overall.win).toBe(3);
+    expect(result.overall.total).toBe(5);
+    // turnOrder 未確定なのでコイン/先攻/後攻は不変
+    expect(result.coinToss).toEqual(baseStats.coinToss);
+    expect(result.asFirst).toEqual(baseStats.asFirst);
+    expect(result.asSecond).toEqual(baseStats.asSecond);
+  });
+
+  it('ゆずられ先攻はincludeGrantedFirst=trueで先攻に・コインは負け扱い', () => {
+    const result = applyDraftToOverlayStats(
+      confirmedCount,
+      baseStats,
+      { turnOrder: 'third', result: 'win' },
+      true,
+    );
+    expect(result.asFirst.win).toBe(2);
+    expect(result.asFirst.total).toBe(3);
+    expect(result.coinToss.loss).toBe(3);
+    expect(result.asSecond).toEqual(baseStats.asSecond);
   });
 });

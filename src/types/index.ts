@@ -20,6 +20,11 @@ export interface Deck {
   name: string;
 }
 
+export interface DraftBattle {
+  turnOrder: TurnOrder | null;
+  result: BattleResult | null;
+}
+
 export interface OverlayStatSetting {
   id: OverlayStatId;
   visible: boolean;

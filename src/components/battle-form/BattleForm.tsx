@@ -69,14 +69,17 @@ export default function BattleForm({
     latestFormRef.current = form;
   }, [form]);
 
-  // 入力途中のコイントス結果を共有ストアへ公開し、簡易戦績パネルと
-  // 別ウィンドウのオーバーレイの両方に試合数・コイン勝率を反映する。
+  // 入力途中のコイントス結果・勝敗を共有ストアへ公開し、簡易戦績パネルと
+  // 別ウィンドウのオーバーレイの両方に試合数・コイン勝率・全体/先攻/後攻を反映する。
   useEffect(() => {
-    store.setDraftTurnOrder(form.turnOrder);
-  }, [form.turnOrder, store]);
+    store.setDraftBattle({ turnOrder: form.turnOrder, result: form.result });
+  }, [form.turnOrder, form.result, store]);
 
   // 記録タブを離れたら入力途中表示を残さない。
-  useEffect(() => () => store.setDraftTurnOrder(null), [store]);
+  useEffect(
+    () => () => store.setDraftBattle({ turnOrder: null, result: null }),
+    [store],
+  );
 
   const submitForm = useCallback(
     (currentForm: BattleFormState) => {
@@ -92,7 +95,7 @@ export default function BattleForm({
       });
       // 保存済みレコードへ反映するのと同じバッチで入力途中分をクリアし、
       // 簡易戦績の一瞬の二重計上を防ぐ。
-      store.setDraftTurnOrder(null);
+      store.setDraftBattle({ turnOrder: null, result: null });
       onRecordSaved?.();
       setForm(createNextBattleFormState(currentForm));
       setSaved(true);

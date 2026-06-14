@@ -2,7 +2,7 @@ import { useRecords } from '../../state/hooks/useRecords';
 import { useOwnDecks } from '../../state/hooks/useOwnDecks';
 import { useOpponentDecks } from '../../state/hooks/useOpponentDecks';
 import { useOverlaySettings } from '../../state/hooks/useOverlaySettings';
-import { useDraftTurnOrder } from '../../state/hooks/useDraftTurnOrder';
+import { useDraftBattle } from '../../state/hooks/useDraftBattle';
 import { applyDraftToOverlayStats, useStats } from '../../hooks/useStats';
 import type { WinLoss } from '../../hooks/useStats';
 import type { BattleRecord, OverlayStatId, PanelDateFilter } from '../../types';
@@ -79,22 +79,30 @@ export function OverlayStatsPanel({ variant }: { variant: 'overlay' | 'panel' })
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
   const { stats: overlayStatSettings, dateFilter: panelDateFilter } = useOverlaySettings();
-  const draftTurnOrder = useDraftTurnOrder();
+  const draftBattle = useDraftBattle();
   const filteredRecords = filterRecordsByDate(records, panelDateFilter);
   const { overall, asFirst, asSecond, coinToss } = useStats(filteredRecords, ownDecks, opponentDecks, true);
   const dark = variant === 'overlay';
 
-  // 入力途中（未保存）のコイントス結果を試合数・コイン勝率にのみ反映する。
-  const { matchCount, coinToss: coinTossWithDraft } = applyDraftToOverlayStats(
+  // 入力途中（未保存）の一戦を反映する。コイントスは試合数・コイン勝率へ、
+  // 勝敗は全体・先攻・後攻へ（決まっている項目だけを使う）。
+  const {
+    matchCount,
+    overall: overallWithDraft,
+    asFirst: asFirstWithDraft,
+    asSecond: asSecondWithDraft,
+    coinToss: coinTossWithDraft,
+  } = applyDraftToOverlayStats(
     filteredRecords.length,
-    coinToss,
-    draftTurnOrder,
+    { overall, asFirst, asSecond, coinToss },
+    draftBattle,
+    true,
   );
 
   const winLossStatMap: Record<Exclude<OverlayStatId, 'matchCount'>, WinLoss> = {
-    overall,
-    asFirst,
-    asSecond,
+    overall: overallWithDraft,
+    asFirst: asFirstWithDraft,
+    asSecond: asSecondWithDraft,
     coinToss: coinTossWithDraft,
   };
 

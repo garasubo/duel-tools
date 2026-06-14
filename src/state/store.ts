@@ -1,11 +1,11 @@
 import type {
   AppStorage,
   Deck,
+  DraftBattle,
   OverlayStatSetting,
   PanelDateFilter,
-  TurnOrder,
 } from "../types";
-import { DRAFT_TURN_ORDER_KEY, STORAGE_KEY } from "../utils/constants";
+import { DRAFT_BATTLE_KEY, STORAGE_KEY } from "../utils/constants";
 import {
   createDefaultStorage,
   normalizeStorage,
@@ -43,9 +43,25 @@ function saveStorage(state: AppStorage): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function loadDraftTurnOrder(): TurnOrder | null {
-  const raw = localStorage.getItem(DRAFT_TURN_ORDER_KEY);
-  return raw === "first" || raw === "second" || raw === "third" ? raw : null;
+const EMPTY_DRAFT_BATTLE: DraftBattle = { turnOrder: null, result: null };
+
+function loadDraftBattle(): DraftBattle {
+  try {
+    const raw = localStorage.getItem(DRAFT_BATTLE_KEY);
+    if (!raw) return EMPTY_DRAFT_BATTLE;
+    const parsed = JSON.parse(raw) as Partial<DraftBattle>;
+    const turnOrder = parsed?.turnOrder;
+    const result = parsed?.result;
+    return {
+      turnOrder:
+        turnOrder === "first" || turnOrder === "second" || turnOrder === "third"
+          ? turnOrder
+          : null,
+      result: result === "win" || result === "loss" ? result : null,
+    };
+  } catch {
+    return EMPTY_DRAFT_BATTLE;
+  }
 }
 
 export interface BattlesStore {
@@ -72,13 +88,13 @@ export interface BattlesStore {
   setOverlayStats(stats: OverlayStatSetting[]): void;
   setPanelDateFilter(filter: PanelDateFilter): void;
 
-  getDraftTurnOrder(): TurnOrder | null;
-  setDraftTurnOrder(value: TurnOrder | null): void;
+  getDraftBattle(): DraftBattle;
+  setDraftBattle(value: DraftBattle): void;
 }
 
 export function createBattlesStore(): BattlesStore {
   let state: AppStorage = loadStorage();
-  let draftTurnOrder: TurnOrder | null = loadDraftTurnOrder();
+  let draftBattle: DraftBattle = loadDraftBattle();
   const listeners = new Set<() => void>();
 
   function notify() {
@@ -97,8 +113,8 @@ export function createBattlesStore(): BattlesStore {
       if (e.key === STORAGE_KEY) {
         state = loadStorage();
         notify();
-      } else if (e.key === DRAFT_TURN_ORDER_KEY) {
-        draftTurnOrder = loadDraftTurnOrder();
+      } else if (e.key === DRAFT_BATTLE_KEY) {
+        draftBattle = loadDraftBattle();
         notify();
       }
     });
@@ -171,14 +187,19 @@ export function createBattlesStore(): BattlesStore {
       commit(reduceSetPanelDateFilter(state, filter));
     },
 
-    getDraftTurnOrder: () => draftTurnOrder,
-    setDraftTurnOrder(value) {
-      if (value === draftTurnOrder) return;
-      draftTurnOrder = value;
-      if (value === null) {
-        localStorage.removeItem(DRAFT_TURN_ORDER_KEY);
+    getDraftBattle: () => draftBattle,
+    setDraftBattle(value) {
+      if (
+        value.turnOrder === draftBattle.turnOrder &&
+        value.result === draftBattle.result
+      ) {
+        return;
+      }
+      draftBattle = value;
+      if (value.turnOrder === null && value.result === null) {
+        localStorage.removeItem(DRAFT_BATTLE_KEY);
       } else {
-        localStorage.setItem(DRAFT_TURN_ORDER_KEY, value);
+        localStorage.setItem(DRAFT_BATTLE_KEY, JSON.stringify(value));
       }
       notify();
     },

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { BattleRecord, Deck, TurnOrder } from '../types';
+import type { BattleRecord, Deck, DraftBattle, TurnOrder } from '../types';
 
 export interface WinLoss {
   win: number;
@@ -35,21 +35,56 @@ export function isCoinTossWin(turnOrder: TurnOrder): boolean {
   return turnOrder === 'first';
 }
 
-// 確定済みの集計値に、入力途中（未保存）の一戦のコイントス結果だけを加える。
-// 勝敗が絡む割合（全体/先攻/後攻）には影響させず、試合数とコイン勝率のみを更新する。
+// 集計値に1件（win または loss）を加えて再計算する。
+function addToWinLoss(base: WinLoss, isWin: boolean): WinLoss {
+  const win = base.win + (isWin ? 1 : 0);
+  const loss = base.loss + (isWin ? 0 : 1);
+  const total = win + loss;
+  return { win, loss, total, winRate: total > 0 ? win / total : 0 };
+}
+
+export interface OverlayStatsValues {
+  matchCount: number;
+  overall: WinLoss;
+  asFirst: WinLoss;
+  asSecond: WinLoss;
+  coinToss: WinLoss;
+}
+
+// 確定済み（保存済み）の集計値に、入力途中（未保存）の一戦を「決まっている項目だけ」加える。
+// - turnOrder が決まればコイン勝率に、result が決まれば全体/先攻/後攻に反映する。
+// - 試合数は対戦が進行中（turnOrder か result のどちらかが入力済み）なら +1。
 export function applyDraftToOverlayStats(
   confirmedCount: number,
-  coinToss: WinLoss,
-  draftTurnOrder: TurnOrder | null,
-): { matchCount: number; coinToss: WinLoss } {
-  if (!draftTurnOrder) return { matchCount: confirmedCount, coinToss };
-  const draftWin = isCoinTossWin(draftTurnOrder);
-  const win = coinToss.win + (draftWin ? 1 : 0);
-  const loss = coinToss.loss + (draftWin ? 0 : 1);
-  const total = win + loss;
+  stats: Omit<OverlayStatsValues, 'matchCount'>,
+  draft: DraftBattle,
+  includeGrantedFirst = false,
+): OverlayStatsValues {
+  let { overall, asFirst, asSecond, coinToss } = stats;
+  const active = draft.turnOrder !== null || draft.result !== null;
+
+  if (draft.turnOrder) {
+    coinToss = addToWinLoss(coinToss, isCoinTossWin(draft.turnOrder));
+  }
+  if (draft.result) {
+    const isWin = draft.result === 'win';
+    overall = addToWinLoss(overall, isWin);
+    if (
+      draft.turnOrder === 'first' ||
+      (includeGrantedFirst && draft.turnOrder === 'third')
+    ) {
+      asFirst = addToWinLoss(asFirst, isWin);
+    } else if (draft.turnOrder === 'second') {
+      asSecond = addToWinLoss(asSecond, isWin);
+    }
+  }
+
   return {
-    matchCount: confirmedCount + 1,
-    coinToss: { win, loss, total, winRate: total > 0 ? win / total : 0 },
+    matchCount: confirmedCount + (active ? 1 : 0),
+    overall,
+    asFirst,
+    asSecond,
+    coinToss,
   };
 }
 
