@@ -38,8 +38,10 @@ const MIN_POSSIBLE_RESULT_DENSITY = 0.035;
 const MIN_VICTORY_DENSITY = 0.268;
 // 第1 VICTORY 分岐の背景パターン除外用。
 // 本物の VICTORY 文字は bbox 下部 2/3 に集中するため、上部 1/3 の明ピクセルは
-// 中央 1/3 に比べ非常に少ない。一定割合以上あれば背景由来とみなす。
-const MAX_VICTORY_TOP_THIRD_RATIO = 0.5;
+// 中央 1/3 に比べ非常に少ない（true win は ≤0.103）。一定割合以上あれば背景/演出由来
+// とみなす。0092.png のような非結果フレーム（top/mid=0.275）を弾くため 0.5→0.2 に
+// 引き締めた。閾値 0.2 は true win(≤0.103) と false positive(0.275) の間に余裕を持つ。
+const MAX_VICTORY_TOP_THIRD_RATIO = 0.2;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
 const MIN_LOSS_BANNER_WIDTH_RATIO = 0.24;
