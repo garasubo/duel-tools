@@ -46,6 +46,7 @@ function makeStore(state: AppStorage): BattlesStore {
   return {
     getState: () => state,
     subscribe: () => () => undefined,
+    syncExternalStorageChange: noop,
     addRecord: noop,
     updateRecord: noop,
     deleteRecord: noop,

@@ -29,9 +29,21 @@ import {
   type RecordPatch,
 } from "./reducer";
 
-function loadStorage(): AppStorage {
+export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+interface CreateBattlesStoreOptions {
+  storage?: StorageLike;
+}
+
+function getDefaultStorage(): StorageLike | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.localStorage;
+}
+
+function loadStorage(storage: StorageLike | undefined): AppStorage {
+  if (!storage) return createDefaultStorage();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return createDefaultStorage();
     return normalizeStorage(JSON.parse(raw));
   } catch {
@@ -39,15 +51,16 @@ function loadStorage(): AppStorage {
   }
 }
 
-function saveStorage(state: AppStorage): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function saveStorage(state: AppStorage, storage: StorageLike | undefined): void {
+  storage?.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 const EMPTY_DRAFT_BATTLE: DraftBattle = { turnOrder: null, result: null };
 
-function loadDraftBattle(): DraftBattle {
+function loadDraftBattle(storage: StorageLike | undefined): DraftBattle {
+  if (!storage) return EMPTY_DRAFT_BATTLE;
   try {
-    const raw = localStorage.getItem(DRAFT_BATTLE_KEY);
+    const raw = storage.getItem(DRAFT_BATTLE_KEY);
     if (!raw) return EMPTY_DRAFT_BATTLE;
     const parsed = JSON.parse(raw) as Partial<DraftBattle>;
     const turnOrder = parsed?.turnOrder;
@@ -67,6 +80,7 @@ function loadDraftBattle(): DraftBattle {
 export interface BattlesStore {
   getState(): AppStorage;
   subscribe(listener: () => void): () => void;
+  syncExternalStorageChange(key: string | null): void;
 
   addRecord(payload: NewRecord): void;
   updateRecord(id: string, patch: RecordPatch): void;
@@ -92,9 +106,12 @@ export interface BattlesStore {
   setDraftBattle(value: DraftBattle): void;
 }
 
-export function createBattlesStore(): BattlesStore {
-  let state: AppStorage = loadStorage();
-  let draftBattle: DraftBattle = loadDraftBattle();
+export function createBattlesStore(
+  options: CreateBattlesStoreOptions = {},
+): BattlesStore {
+  const storage = options.storage ?? getDefaultStorage();
+  let state: AppStorage = loadStorage(storage);
+  let draftBattle: DraftBattle = loadDraftBattle(storage);
   const listeners = new Set<() => void>();
 
   function notify() {
@@ -103,21 +120,17 @@ export function createBattlesStore(): BattlesStore {
 
   function commit(next: AppStorage) {
     if (next === state) return;
+    saveStorage(next, storage);
     state = next;
-    saveStorage(state);
     notify();
   }
 
-  if (typeof window !== "undefined") {
-    window.addEventListener("storage", (e) => {
-      if (e.key === STORAGE_KEY) {
-        state = loadStorage();
-        notify();
-      } else if (e.key === DRAFT_BATTLE_KEY) {
-        draftBattle = loadDraftBattle();
-        notify();
-      }
-    });
+  function persistDraftBattle(value: DraftBattle) {
+    if (value.turnOrder === null && value.result === null) {
+      storage?.removeItem(DRAFT_BATTLE_KEY);
+    } else {
+      storage?.setItem(DRAFT_BATTLE_KEY, JSON.stringify(value));
+    }
   }
 
   return {
@@ -127,6 +140,19 @@ export function createBattlesStore(): BattlesStore {
       return () => {
         listeners.delete(listener);
       };
+    },
+    syncExternalStorageChange(key) {
+      if (!storage) return;
+      let changed = false;
+      if (key === STORAGE_KEY || key === null) {
+        state = loadStorage(storage);
+        changed = true;
+      }
+      if (key === DRAFT_BATTLE_KEY || key === null) {
+        draftBattle = loadDraftBattle(storage);
+        changed = true;
+      }
+      if (changed) notify();
     },
 
     addRecord(payload) {
@@ -195,12 +221,8 @@ export function createBattlesStore(): BattlesStore {
       ) {
         return;
       }
+      persistDraftBattle(value);
       draftBattle = value;
-      if (value.turnOrder === null && value.result === null) {
-        localStorage.removeItem(DRAFT_BATTLE_KEY);
-      } else {
-        localStorage.setItem(DRAFT_BATTLE_KEY, JSON.stringify(value));
-      }
       notify();
     },
   };

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { createBattlesStore, type BattlesStore } from "./store";
 
@@ -7,6 +7,18 @@ export const BattlesStoreContext = createContext<BattlesStore | null>(null);
 
 export function BattlesProvider({ children }: { children: ReactNode }) {
   const [store] = useState(createBattlesStore);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleStorage = (event: StorageEvent) => {
+      store.syncExternalStorageChange(event.key);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [store]);
+
   return (
     <BattlesStoreContext.Provider value={store}>
       {children}
