@@ -25,6 +25,12 @@ export function getOcrInterval(_hasCandidate: boolean): number {
   return CAPTURE_SAMPLE_INTERVAL_MS;
 }
 
+// 指定 fps のフレームサンプリング間隔（ms）。判定頻度設定（useCaptureFpsSetting）から
+// 結果判定ループの周期を決めるのに使う。CAPTURE_SAMPLE_INTERVAL_MS と同じ算出式。
+export function getSampleIntervalForFps(fps: number): number {
+  return Math.round(1000 / fps);
+}
+
 export function getRequiredConsecutive(confidence: number): number {
   if (confidence >= SINGLE_FRAME_CONFIDENCE_THRESHOLD) return 1;
   if (confidence >= HIGH_CONFIDENCE_THRESHOLD) return HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE;

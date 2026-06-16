@@ -18,6 +18,8 @@ export interface CaptureContextValue {
   error: string | null;
   autoConfirmEnabled: boolean;
   setAutoConfirmEnabled: (enabled: boolean) => void;
+  captureFps: number;
+  setCaptureFps: (fps: number) => void;
   isCaptureDebugEnabled: boolean;
   hasFirstCandidateFrame: boolean;
   hasCoinTossFrame: boolean;

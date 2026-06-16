@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCaptureContext } from '../../capture/useCaptureContext';
+import { CAPTURE_FPS_OPTIONS } from '../../capture/useCaptureFpsSetting';
 import {
   getProfileSnapshot,
   getTickFpsSnapshot,
@@ -38,6 +39,8 @@ export default function CaptureSection() {
     error,
     autoConfirmEnabled,
     setAutoConfirmEnabled,
+    captureFps,
+    setCaptureFps,
     isCaptureDebugEnabled,
     hasFirstCandidateFrame,
     hasCoinTossFrame,
@@ -62,6 +65,27 @@ export default function CaptureSection() {
 
   return (
     <div className="px-4 py-2">
+      <div className="flex items-center gap-2 mb-2 flex-wrap text-sm text-gray-600">
+        <label htmlFor="capture-fps" className="text-gray-500">
+          判定頻度
+        </label>
+        <select
+          id="capture-fps"
+          value={captureFps}
+          onChange={(e) => setCaptureFps(Number(e.target.value))}
+          className="rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        >
+          {CAPTURE_FPS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-gray-400">
+          低スペックなら下げると軽くなります（取りこぼしやすくなります）
+        </span>
+      </div>
+
       {captureState === 'idle' && (
         <button
           onClick={start}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getOcrInterval } from './captureTiming';
+import { getSampleIntervalForFps } from './captureTiming';
 import {
   canvasToDataUrl,
   createCaptureFilename,
@@ -17,6 +17,7 @@ import {
 } from './captureWorkflow';
 import type { CaptureWorkflowEvent, CaptureWorkflowState } from './captureWorkflow';
 import { useAutoConfirmSetting } from './useAutoConfirmSetting';
+import { useCaptureFpsSetting } from './useCaptureFpsSetting';
 import { useCaptureFrame } from './useCaptureFrame';
 import { useOcrDetector } from './useOcrDetector';
 import { useRatingCaptureLoop } from './useRatingCaptureLoop';
@@ -49,6 +50,14 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   const { detect, dispose } = useOcrDetector();
 
   const { autoConfirmEnabled, setAutoConfirmEnabled } = useAutoConfirmSetting();
+
+  // 結果判定ループのサンプリング頻度（fps）。キャプチャ中に変更しても次ティックから
+  // 効くよう、間隔を ref に持たせて scheduleNextOcr から読む。
+  const { captureFps, setCaptureFps } = useCaptureFpsSetting();
+  const sampleIntervalRef = useRef(getSampleIntervalForFps(captureFps));
+  useEffect(() => {
+    sampleIntervalRef.current = getSampleIntervalForFps(captureFps);
+  }, [captureFps]);
 
   const emitRef = useRef(emit);
   useEffect(() => {
@@ -245,7 +254,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     // （補正前の実測 24.8fps）。OCR 等で interval を超えた場合は即次へ（delay 0）。
     const scheduleNextOcr = (tickStartedAt?: number) => {
       if (!isEffectActive || isStoppedRef.current) return;
-      const interval = getOcrInterval(hasResultCandidateRef.current);
+      const interval = sampleIntervalRef.current;
       const elapsed = tickStartedAt === undefined ? 0 : performance.now() - tickStartedAt;
       ocrTimerRef.current = setTimeout(runOcr, Math.max(0, interval - elapsed));
     };
@@ -291,6 +300,8 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     error,
     autoConfirmEnabled,
     setAutoConfirmEnabled,
+    captureFps,
+    setCaptureFps,
     hasFirstCandidateFrame: resultCapture.hasFirstCandidateFrame,
     hasCoinTossFrame: turnOrderCapture.hasCoinTossFrame,
     hasRatingFrame: ratingCapture.hasRatingFrame,
