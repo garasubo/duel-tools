@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import {
   REQUIRED_CONSECUTIVE,
   averageConfidence,
+  getMinConfirmDurationMs,
   getRequiredConsecutive,
 } from './captureTiming';
 import { canvasToDataUrl } from './captureDebug';
@@ -23,6 +24,9 @@ export interface ResultStreakState {
   // 連続一致の途中で検出が空振り（null）したフレーム数。
   // 演出/アニメの 1 フレームで streak が崩れないよう MISS_TOLERANCE まで許容する。
   missCount: number;
+  // 現在の streak で最初に同一結果を観測した時刻（ms）。確定の最小経過時間判定に使う。
+  // null = まだ一致なし。
+  firstMatchAt: number | null;
 }
 
 // 連続一致の途中で許容する空振りフレーム数。これを超えると streak をリセットする。
@@ -62,15 +66,22 @@ interface UseResultCaptureLoopOptions {
 export function advanceResultStreak(
   streak: ResultStreakState,
   result: DetectionResult,
+  now: number = Date.now(),
 ): ResultStreakUpdate {
   const isSameResult = result.result === streak.lastResult;
   const recentResults = (isSameResult ? [...streak.recentResults, result] : [result]).slice(
     -REQUIRED_CONSECUTIVE,
   );
   const consecutiveCount = isSameResult ? streak.consecutiveCount + 1 : 1;
+  // 同一結果が続く間は最初の一致時刻を保持。結果が変わった/初回なら今回が起点。
+  const firstMatchAt = isSameResult && streak.firstMatchAt !== null ? streak.firstMatchAt : now;
+  const elapsedMs = now - firstMatchAt;
   const requiredConsecutiveCount = getRequiredConsecutive(result.confidence);
+  const minDurationMs = getMinConfirmDurationMs(result.confidence);
+  // 確定は「連続回数 ≥ 要求回数」かつ「最小経過時間 ≥ minDurationMs」の両方を満たすとき。
+  // 後者により 30fps でも演出フラッシュを誤確定しない（fps 非依存）。
   const pendingResult =
-    consecutiveCount >= requiredConsecutiveCount
+    consecutiveCount >= requiredConsecutiveCount && elapsedMs >= minDurationMs
       ? { ...result, confidence: averageConfidence(recentResults) }
       : null;
 
@@ -81,6 +92,8 @@ export function advanceResultStreak(
       recentResults,
       // 本物の同一結果フレームが来たら空振りカウントはリセットする。
       missCount: 0,
+      // 確定したら次に備えてウィンドウをリセット。継続中は起点を保持。
+      firstMatchAt: pendingResult ? null : firstMatchAt,
     },
     lastOcrResult: result.result,
     consecutiveCount,
@@ -94,6 +107,7 @@ const EMPTY_STREAK: ResultStreakState = {
   consecutiveCount: 0,
   recentResults: [],
   missCount: 0,
+  firstMatchAt: null,
 };
 
 // 検出が空振り（null）したときの streak 遷移。

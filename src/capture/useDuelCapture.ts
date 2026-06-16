@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getOcrInterval } from './captureTiming';
-import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
+import {
+  canvasToDataUrl,
+  createCaptureFilename,
+  downloadDataUrl,
+  getCaptureDebugEnabled,
+} from './captureDebug';
+import { recordTick, resetProfile, setProfilerEnabled } from './captureProfiler';
 import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
 import { isPostDuelDark } from './postDuelDetect';
 import type { DuelCaptureState } from './types';
@@ -228,25 +234,35 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     let isEffectActive = true;
     isStoppedRef.current = false;
     hasResultCandidateRef.current = false;
+    // Phase 0: captureDebug 有効時のみプロファイラを有効化し、今回のキャプチャ分から集計し直す。
+    setProfilerEnabled(getCaptureDebugEnabled());
+    resetProfile();
     dispatchWorkflow({ type: 'start' });
     turnOrderCapture.start();
 
-    const scheduleNextOcr = () => {
+    // 次フレームは「処理に要した時間」を差し引いて予約する。setTimeout は処理後にさらに
+    // interval 待つため、補正しないと実効周期が interval + 処理時間になり 30fps に届かない
+    // （補正前の実測 24.8fps）。OCR 等で interval を超えた場合は即次へ（delay 0）。
+    const scheduleNextOcr = (tickStartedAt?: number) => {
       if (!isEffectActive || isStoppedRef.current) return;
-      ocrTimerRef.current = setTimeout(runOcr, getOcrInterval(hasResultCandidateRef.current));
+      const interval = getOcrInterval(hasResultCandidateRef.current);
+      const elapsed = tickStartedAt === undefined ? 0 : performance.now() - tickStartedAt;
+      ocrTimerRef.current = setTimeout(runOcr, Math.max(0, interval - elapsed));
     };
 
     const runOcr = async () => {
       if (!isEffectActive) return;
 
+      const tickStartedAt = performance.now();
+      recordTick('result-loop');
       if (!captureCurrentFrame()) {
-        scheduleNextOcr();
+        scheduleNextOcr(tickStartedAt);
         return;
       }
       const mode = workflowStateRef.current.phase === 'waiting-clear' ? 'gate' : 'detect';
       const result = await resultCapture.runOnce(mode);
       hasResultCandidateRef.current = result.hasCandidate;
-      scheduleNextOcr();
+      scheduleNextOcr(tickStartedAt);
     };
 
     scheduleNextOcr();

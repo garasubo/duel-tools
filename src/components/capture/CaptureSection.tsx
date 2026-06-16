@@ -1,4 +1,32 @@
+import { useEffect, useState } from 'react';
 import { useCaptureContext } from '../../capture/useCaptureContext';
+import {
+  getProfileSnapshot,
+  getTickFpsSnapshot,
+} from '../../capture/captureProfiler';
+import type { ProfileStat, TickFps } from '../../capture/captureProfiler';
+
+interface ProfilerSnapshot {
+  stats: ProfileStat[];
+  fps: TickFps[];
+}
+
+const EMPTY_SNAPSHOT: ProfilerSnapshot = { stats: [], fps: [] };
+
+// captureDebug 有効時、プロファイラの集計を 500ms 間隔でポーリングして表示用に取り込む。
+function useProfilerSnapshot(active: boolean): ProfilerSnapshot {
+  const [snapshot, setSnapshot] = useState<ProfilerSnapshot>(EMPTY_SNAPSHOT);
+
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => {
+      setSnapshot({ stats: getProfileSnapshot(), fps: getTickFpsSnapshot() });
+    }, 500);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return active ? snapshot : EMPTY_SNAPSHOT;
+}
 
 export default function CaptureSection() {
   const {
@@ -24,6 +52,10 @@ export default function CaptureSection() {
     start,
     stop,
   } = useCaptureContext();
+
+  const { stats: profileStats, fps: profileFps } = useProfilerSnapshot(
+    isCaptureDebugEnabled && captureState !== 'idle',
+  );
 
   const statusResult = pendingResult?.result ?? lastOcrResult;
   const statusLabel = statusResult === 'win' ? 'VICTORY' : 'LOSE';
@@ -163,6 +195,22 @@ export default function CaptureSection() {
               ? `${turnOrderDetection.order}:${turnOrderDetection.source}#${turnOrderDetection.id}`
               : 'null'}
           </div>
+          {(profileStats.length > 0 || profileFps.length > 0) && (
+            <div className="text-xs text-gray-500 font-mono">
+              <div className="font-semibold text-gray-600">Profiler</div>
+              {profileFps.map((f) => (
+                <div key={f.label}>
+                  {f.label}: {f.fps.toFixed(1)} fps
+                </div>
+              ))}
+              {profileStats.map((s) => (
+                <div key={s.label}>
+                  {s.label}: avg {s.avgMs.toFixed(1)}ms / max {s.maxMs.toFixed(1)}ms / last{' '}
+                  {s.lastMs.toFixed(1)}ms (n={s.count})
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

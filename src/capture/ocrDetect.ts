@@ -1,5 +1,6 @@
 import type { ImageLike, Worker } from 'tesseract.js';
 import { minWordDistance, normalizeOcrLatinChars } from '../utils/fuzzyText';
+import { measureAsync } from './captureProfiler';
 import type { DetectionResult, ROI } from './types';
 
 type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
@@ -664,7 +665,9 @@ export async function detectWithOcrWorker(
   imageHeight?: number,
   reusableCanvasRef?: { current: HTMLCanvasElement | null },
 ): Promise<DetectionResult | null> {
-  const imageFeatureResult = await classifyResultScreenByImageFeatures(input);
+  const imageFeatureResult = await measureAsync('image-classify', () =>
+    classifyResultScreenByImageFeatures(input),
+  );
   if (imageFeatureResult.kind === 'result') return imageFeatureResult.result;
   if (imageFeatureResult.kind === 'none') return null;
 

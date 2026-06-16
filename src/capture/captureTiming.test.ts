@@ -1,21 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FAST_OCR_INTERVAL_MS,
+  CAPTURE_SAMPLE_INTERVAL_MS,
   HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE,
-  NORMAL_OCR_INTERVAL_MS,
+  MIN_CONFIRM_DURATION_MS,
   REQUIRED_CONSECUTIVE,
   SINGLE_FRAME_CONFIDENCE_THRESHOLD,
+  TARGET_CAPTURE_FPS,
   averageConfidence,
   getElapsedMs,
+  getMinConfirmDurationMs,
   getOcrInterval,
   getRequiredConsecutive,
   isCoinTossWindowExpired,
 } from './captureTiming';
 
 describe('captureTiming', () => {
-  it('候補検出後は OCR 間隔を短くする', () => {
-    expect(getOcrInterval(false)).toBe(NORMAL_OCR_INTERVAL_MS);
-    expect(getOcrInterval(true)).toBe(FAST_OCR_INTERVAL_MS);
+  it('サンプル間隔は目標 fps（30fps）由来で候補有無によらず一定', () => {
+    expect(CAPTURE_SAMPLE_INTERVAL_MS).toBe(Math.round(1000 / TARGET_CAPTURE_FPS));
+    expect(getOcrInterval(false)).toBe(CAPTURE_SAMPLE_INTERVAL_MS);
+    expect(getOcrInterval(true)).toBe(CAPTURE_SAMPLE_INTERVAL_MS);
+  });
+
+  it('確定の最小経過時間は確定的一致（≥92）では0、それ以外は MIN_CONFIRM_DURATION_MS', () => {
+    expect(getMinConfirmDurationMs(SINGLE_FRAME_CONFIDENCE_THRESHOLD)).toBe(0);
+    expect(getMinConfirmDurationMs(99)).toBe(0);
+    expect(getMinConfirmDurationMs(91)).toBe(MIN_CONFIRM_DURATION_MS);
+    expect(getMinConfirmDurationMs(70)).toBe(MIN_CONFIRM_DURATION_MS);
   });
 
   it('高信頼度の候補は少ない連続確認回数で確定できる', () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { Worker } from 'tesseract.js';
 import { canvasToDataUrl } from './captureDebug';
+import { measureAsync, recordTick } from './captureProfiler';
 import { createRatingOcrWorker, detectRatingFromScreen } from './ratingDetect';
 
 // 500ms 間隔でスキャン
@@ -167,10 +168,13 @@ export function useRatingCaptureLoop({
         return;
       }
 
+      recordTick('rating-loop');
       runningRef.current = true;
       let rating: number | null = null;
       try {
-        rating = await depsRef.current.detectRating(worker, canvas, reusableOcrCanvasRef);
+        rating = await measureAsync('rating-detect', () =>
+          depsRef.current.detectRating(worker, canvas, reusableOcrCanvasRef),
+        );
       } catch {
         // OCR エラーは無視して継続
       } finally {

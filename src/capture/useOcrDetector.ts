@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { Worker } from 'tesseract.js';
+import { measureAsync } from './captureProfiler';
 import { createOcrWorker, detectWithOcrWorker } from './ocrDetect';
 import type { DetectionResult, ROI } from './types';
 
@@ -62,12 +63,15 @@ export function useOcrDetector() {
         const worker = await getWorker();
         // ROI を切り出した小さい canvas で OCR する。reusableCanvasRef を渡して
         // 同じ ROI 寸法のあいだはキャンバスを使い回す。
-        return await detectWithOcrWorker(
-          worker,
-          _canvas as unknown as Blob,
-          _canvas.width,
-          _canvas.height,
-          reusableCanvasRef,
+        // result-detect = 画像特徴分類 + OCR の合計。OCR 単体は result-detect - image-classify。
+        return await measureAsync('result-detect', () =>
+          detectWithOcrWorker(
+            worker,
+            _canvas as unknown as Blob,
+            _canvas.width,
+            _canvas.height,
+            reusableCanvasRef,
+          ),
         );
       } catch (error) {
         if (error instanceof Error && error.message === 'OCR worker initialization was disposed') {

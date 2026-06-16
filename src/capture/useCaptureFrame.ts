@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
+import { measure } from './captureProfiler';
 
 const HAVE_CURRENT_DATA = 2;
 
@@ -14,9 +15,11 @@ export function captureFrame(
   const ctx = canvas.getContext('2d');
   if (!ctx) return false;
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0);
+  measure('frame-capture', () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+  });
   return true;
 }
 

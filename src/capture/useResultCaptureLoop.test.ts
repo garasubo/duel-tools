@@ -11,49 +11,62 @@ const EMPTY_STREAK: ResultStreakState = {
   consecutiveCount: 0,
   recentResults: [],
   missCount: 0,
+  firstMatchAt: null,
 };
 
 describe('advanceResultStreak', () => {
-  it('低信頼度の候補は通常回数の連続一致で pending になる', () => {
+  it('低信頼度の候補は通常回数の連続一致かつ最小経過時間で pending になる', () => {
     let streak = EMPTY_STREAK;
-    let update = advanceResultStreak(streak, { result: 'win', confidence: 70 });
+    let update = advanceResultStreak(streak, { result: 'win', confidence: 70 }, 0);
     streak = update.nextStreak;
     expect(update.pendingResult).toBeNull();
     expect(update.consecutiveCount).toBe(1);
     expect(update.requiredConsecutiveCount).toBe(REQUIRED_CONSECUTIVE);
 
-    update = advanceResultStreak(streak, { result: 'win', confidence: 75 });
+    update = advanceResultStreak(streak, { result: 'win', confidence: 75 }, 350);
     streak = update.nextStreak;
     expect(update.pendingResult).toBeNull();
     expect(update.consecutiveCount).toBe(2);
 
-    update = advanceResultStreak(streak, { result: 'win', confidence: 80 });
+    update = advanceResultStreak(streak, { result: 'win', confidence: 80 }, 700);
     expect(update.pendingResult).toEqual({ result: 'win', confidence: 75 });
     expect(update.consecutiveCount).toBe(REQUIRED_CONSECUTIVE);
   });
 
-  it('画像特徴の確定的一致（信頼度92）は1フレームで即 pending になる', () => {
-    const update = advanceResultStreak(EMPTY_STREAK, { result: 'loss', confidence: 92 });
+  it('回数を満たしても最小経過時間に達しなければ pending にしない（30fps の誤確定防止）', () => {
+    // 33ms 間隔で 3 連続一致しても elapsed=66ms < MIN_CONFIRM_DURATION_MS のため未確定。
+    let streak = EMPTY_STREAK;
+    let update = advanceResultStreak(streak, { result: 'win', confidence: 70 }, 0);
+    streak = update.nextStreak;
+    update = advanceResultStreak(streak, { result: 'win', confidence: 75 }, 33);
+    streak = update.nextStreak;
+    update = advanceResultStreak(streak, { result: 'win', confidence: 80 }, 66);
+    expect(update.consecutiveCount).toBe(3);
+    expect(update.pendingResult).toBeNull();
+  });
+
+  it('画像特徴の確定的一致（信頼度92）は1フレームで即 pending になる（時間条件なし）', () => {
+    const update = advanceResultStreak(EMPTY_STREAK, { result: 'loss', confidence: 92 }, 1000);
     expect(update.requiredConsecutiveCount).toBe(1);
     expect(update.consecutiveCount).toBe(1);
     expect(update.pendingResult).toEqual({ result: 'loss', confidence: 92 });
   });
 
-  it('高信頼度の候補は短縮回数の連続一致で pending になる', () => {
+  it('高信頼度の候補は短縮回数かつ最小経過時間で pending になる', () => {
     let streak = EMPTY_STREAK;
-    let update = advanceResultStreak(streak, { result: 'loss', confidence: 90 });
+    let update = advanceResultStreak(streak, { result: 'loss', confidence: 90 }, 0);
     streak = update.nextStreak;
     expect(update.pendingResult).toBeNull();
     expect(update.requiredConsecutiveCount).toBe(HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE);
 
-    update = advanceResultStreak(streak, { result: 'loss', confidence: 86 });
+    update = advanceResultStreak(streak, { result: 'loss', confidence: 86 }, 300);
     expect(update.pendingResult).toEqual({ result: 'loss', confidence: 88 });
     expect(update.consecutiveCount).toBe(HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE);
   });
 
   it('違う結果が混ざると連続数と直近結果をリセットする', () => {
-    let update = advanceResultStreak(EMPTY_STREAK, { result: 'win', confidence: 90 });
-    update = advanceResultStreak(update.nextStreak, { result: 'loss', confidence: 70 });
+    let update = advanceResultStreak(EMPTY_STREAK, { result: 'win', confidence: 90 }, 0);
+    update = advanceResultStreak(update.nextStreak, { result: 'loss', confidence: 70 }, 33);
 
     expect(update.pendingResult).toBeNull();
     expect(update.lastOcrResult).toBe('loss');

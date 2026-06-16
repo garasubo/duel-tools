@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { ImageLike, Worker } from 'tesseract.js';
 import { getElapsedMs, isCoinTossWindowExpired } from './captureTiming';
-import { canvasToDataUrl, createCaptureFilename, downloadDataUrl } from './captureDebug';
+import {
+  canvasToDataUrl,
+  createCaptureFilename,
+  downloadDataUrl,
+  getCaptureDebugEnabled,
+} from './captureDebug';
+import { measureAsync, recordTick } from './captureProfiler';
 import {
   createJpnOcrWorker,
   detectCoinTossScreen,
@@ -255,30 +261,37 @@ export function useTurnOrderCaptureLoop({
       const canvas = canvasRef.current;
       if (!worker || !canvas) return;
 
+      recordTick('coin-toss-loop');
       coinTossRunningRef.current = true;
       if (!captureCurrentFrame()) {
         coinTossRunningRef.current = false;
         scheduleCoinTossOcr();
         return;
       }
-      const coinTossFrame = canvasToDataUrl(canvas);
-      if (coinTossFrame) {
-        coinTossFrameRef.current = coinTossFrame;
-        setHasCoinTossFrame(true);
+      // デバッグ画像（PNG エンコード）は毎ティック走ると重い。captureDebug 有効時のみ生成する。
+      // ダウンロードボタンは debug 有効時しか表示されないため、本番では取得不要。
+      if (getCaptureDebugEnabled()) {
+        const coinTossFrame = canvasToDataUrl(canvas);
+        if (coinTossFrame) {
+          coinTossFrameRef.current = coinTossFrame;
+          setHasCoinTossFrame(true);
+        }
       }
       try {
-        const screen = await depsRef.current.detectCoinToss(
-          worker,
-          canvasToImageLike(canvas),
-          canvas.width,
-          canvas.height,
-          {
-            preferredRoi: lastHitRoiRef.current,
-            onRoiHit: (roi) => {
-              lastHitRoiRef.current = roi;
+        const screen = await measureAsync('coin-toss-detect', () =>
+          depsRef.current.detectCoinToss(
+            worker,
+            canvasToImageLike(canvas),
+            canvas.width,
+            canvas.height,
+            {
+              preferredRoi: lastHitRoiRef.current,
+              onRoiHit: (roi) => {
+                lastHitRoiRef.current = roi;
+              },
+              reusableCanvasRef: reusableOcrCanvasRef,
             },
-            reusableCanvasRef: reusableOcrCanvasRef,
-          },
+          ),
         );
         if (generation !== generationRef.current || !isActiveRef.current) return;
 
