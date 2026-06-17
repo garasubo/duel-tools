@@ -1,5 +1,7 @@
 import type {
   AppStorage,
+  BattleFormState,
+  CaptureMemoShot,
   Deck,
   DraftBattle,
   OverlayStatSetting,
@@ -104,6 +106,13 @@ export interface BattlesStore {
 
   getDraftBattle(): DraftBattle;
   setDraftBattle(value: DraftBattle): void;
+
+  // 記録タブの入力途中データ。タブ移動でコンポーネントが再マウントされても
+  // 失わないようメモリ上に保持する（localStorage には永続化しない）。
+  getDraftForm(): BattleFormState | null;
+  setDraftForm(value: BattleFormState | null): void;
+  getDraftMemoShots(): CaptureMemoShot[];
+  setDraftMemoShots(value: CaptureMemoShot[]): void;
 }
 
 export function createBattlesStore(
@@ -112,6 +121,8 @@ export function createBattlesStore(
   const storage = options.storage ?? getDefaultStorage();
   let state: AppStorage = loadStorage(storage);
   let draftBattle: DraftBattle = loadDraftBattle(storage);
+  let draftForm: BattleFormState | null = null;
+  let draftMemoShots: CaptureMemoShot[] = [];
   const listeners = new Set<() => void>();
 
   function notify() {
@@ -224,6 +235,15 @@ export function createBattlesStore(
       persistDraftBattle(value);
       draftBattle = value;
       notify();
+    },
+
+    getDraftForm: () => draftForm,
+    setDraftForm(value) {
+      draftForm = value;
+    },
+    getDraftMemoShots: () => draftMemoShots,
+    setDraftMemoShots(value) {
+      draftMemoShots = value;
     },
   };
 }

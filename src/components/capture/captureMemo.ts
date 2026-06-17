@@ -1,8 +1,6 @@
-export interface CaptureMemoShot {
-  id: string;
-  dataUrl: string;
-  createdAt: number;
-}
+import type { CaptureMemoShot } from "../../types";
+
+export type { CaptureMemoShot };
 
 function generateId(now: number): string {
   const cryptoObj = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;

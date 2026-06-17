@@ -25,6 +25,23 @@ export interface DraftBattle {
   result: BattleResult | null;
 }
 
+export interface BattleFormState {
+  ownDeckId: string;
+  opponentDeckId: string;
+  result: BattleResult | null;
+  turnOrder: TurnOrder | null;
+  reasonTags: string[];
+  memo: string;
+  battleMode: BattleMode | null;
+  score: string;
+}
+
+export interface CaptureMemoShot {
+  id: string;
+  dataUrl: string;
+  createdAt: number;
+}
+
 export interface OverlayStatSetting {
   id: OverlayStatId;
   visible: boolean;

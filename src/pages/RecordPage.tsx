@@ -7,6 +7,7 @@ import BattleForm from '../components/battle-form/BattleForm';
 import LastBattleQuickEdit from '../components/battle-form/LastBattleQuickEdit';
 import { OverlayStatsPanel } from '../components/stats/OverlayStatsPanel';
 import { useCaptureContext } from '../capture/useCaptureContext';
+import { useBattlesStore } from '../state/BattlesProvider';
 import { openOverlay } from '../utils/openOverlay';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { BattleResult } from '../types';
@@ -17,7 +18,10 @@ export default function RecordPage() {
   const [suggestedPreviewResult, setSuggestedPreviewResult] = useState<BattleResult | null>(null);
   const [suggestedScore, setSuggestedScore] = useState<number | null>(null);
   const [ratingConfirmToken, setRatingConfirmToken] = useState(0);
-  const [memoShots, setMemoShots] = useState<CaptureMemoShot[]>([]);
+  const store = useBattlesStore();
+  const [memoShots, setMemoShots] = useState<CaptureMemoShot[]>(() =>
+    store.getDraftMemoShots(),
+  );
   const {
     turnOrderDetection,
     clearTurnOrderDetection,
@@ -46,6 +50,12 @@ export default function RecordPage() {
       }),
     [subscribeCaptureEvents],
   );
+
+  // タブ移動で RecordPage が再マウントされてもメモ画像を失わないよう、
+  // 共有ストアのメモリ上スタッシュへ退避する。
+  useEffect(() => {
+    store.setDraftMemoShots(memoShots);
+  }, [memoShots, store]);
 
   const handleSuggestedResultConsumed = useCallback(() => setSuggestedResult(null), []);
   const handleCapturePreviewResultConsumed = useCallback(

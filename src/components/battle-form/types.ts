@@ -1,16 +1,7 @@
-import type { BattleMode, BattleRecord, BattleResult, TurnOrder } from "../../types";
+import type { BattleRecord, BattleResult, BattleFormState } from "../../types";
 import { autoCalcDuelistsCupScore } from "./autoCalcScore";
 
-export interface BattleFormState {
-  ownDeckId: string;
-  opponentDeckId: string;
-  result: BattleResult | null;
-  turnOrder: TurnOrder | null;
-  reasonTags: string[];
-  memo: string;
-  battleMode: BattleMode | null;
-  score: string;
-}
+export type { BattleFormState };
 
 export const EMPTY_BATTLE_FORM_STATE: BattleFormState = {
   ownDeckId: "",

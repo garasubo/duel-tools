@@ -56,8 +56,8 @@ export default function BattleForm({
   const { add: addRecord } = useRecords();
   const latestRecord = useLatestRecord();
 
-  const [form, setForm] = useState<BattleFormState>(() =>
-    createInitialBattleFormState(latestRecord),
+  const [form, setForm] = useState<BattleFormState>(
+    () => store.getDraftForm() ?? createInitialBattleFormState(latestRecord),
   );
   const [saved, setSaved] = useState(false);
   const [captureResultApplied, setCaptureResultApplied] = useState(false);
@@ -74,6 +74,12 @@ export default function BattleForm({
   useEffect(() => {
     store.setDraftBattle({ turnOrder: form.turnOrder, result: form.result });
   }, [form.turnOrder, form.result, store]);
+
+  // 記録タブを離れて再マウントされても入力途中フォームを失わないよう、
+  // フォーム全体を共有ストアのメモリ上スタッシュへ退避する。
+  useEffect(() => {
+    store.setDraftForm(form);
+  }, [form, store]);
 
   // 記録タブを離れたら入力途中表示を残さない。
   useEffect(
