@@ -6,6 +6,7 @@ import {
   downloadDataUrl,
   getCaptureDebugEnabled,
 } from './captureDebug';
+import { captureLog } from './captureLog';
 import { recordTick, resetProfile, setProfilerEnabled } from './captureProfiler';
 import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
 import { isPostDuelDark } from './postDuelDetect';
@@ -100,8 +101,12 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
 
   const dispatchWorkflow = useCallback(
     (event: CaptureWorkflowEvent) => {
+      const fromPhase = workflowStateRef.current.phase;
       const { state, effects } = captureWorkflowReducer(workflowStateRef.current, event, {
         rated: waitForRatingRef.current,
+      });
+      captureLog('workflow', `${event.type}  ${fromPhase} → ${state.phase}`, {
+        effects: effects.map((e) => e.type),
       });
       workflowStateRef.current = state;
       setWorkflowState(state);
@@ -118,6 +123,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
 
   const handleResultPreview = useCallback(
     (result: 'win' | 'loss') => {
+      captureLog('duel', `handleResultPreview ${result} (autoConfirm=${autoConfirmEnabledRef.current})`);
       emitRef.current({ type: 'result-preview', result });
       dispatchWorkflow({
         type: 'result-confirmed',
@@ -129,6 +135,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   );
 
   const handleResultScreenCleared = useCallback(() => {
+    captureLog('duel', 'handleResultScreenCleared');
     dispatchWorkflow({ type: 'screen-cleared' });
   }, [dispatchWorkflow]);
 
@@ -170,6 +177,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   );
 
   const stop = useCallback(() => {
+    captureLog('duel', 'stop');
     isStoppedRef.current = true;
     stopCapture();
     if (ocrTimerRef.current) {
@@ -185,6 +193,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   }, [stopCapture, dispatchWorkflow, resultCapture, turnOrderCapture, ratingCapture]);
 
   const prepareNextDuelDetection = useCallback(() => {
+    captureLog('duel', 'prepareNextDuelDetection (record saved → next duel)');
     dispatchWorkflow({ type: 'record-saved' });
     resetDetectionState({ resetResult: true, restartTurnOrder: isCapturing });
     ratingCapture.reset();
@@ -246,6 +255,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     // Phase 0: captureDebug 有効時のみプロファイラを有効化し、今回のキャプチャ分から集計し直す。
     setProfilerEnabled(getCaptureDebugEnabled());
     resetProfile();
+    captureLog('duel', 'capture started');
     dispatchWorkflow({ type: 'start' });
     turnOrderCapture.start();
 

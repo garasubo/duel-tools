@@ -5,6 +5,7 @@ import { useTags } from "../../state/hooks/useTags";
 import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
 import { useBattlesStore } from "../../state/BattlesProvider";
 import { useCaptureContext } from "../../capture/useCaptureContext";
+import { captureLog } from "../../capture/captureLog";
 import type { TurnOrderDetectionEvent } from "../../capture/types";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
@@ -103,6 +104,7 @@ export default function BattleForm({
       // 簡易戦績の一瞬の二重計上を防ぐ。
       store.setDraftBattle({ turnOrder: null, result: null });
       onRecordSaved?.();
+      captureLog("battle-form", `submitForm: recorded ${currentForm.result}, form reset (result→null)`);
       setForm(createNextBattleFormState(currentForm));
       setSaved(true);
       setCaptureResultApplied(false);
@@ -123,6 +125,10 @@ export default function BattleForm({
   useEffect(() => {
     if (!suggestedResult) return;
     autoSubmitRef.current = shouldAutoSubmitSuggestedResult(latestFormRef.current);
+    captureLog(
+      "battle-form",
+      `result effect fire ${suggestedResult} (before=${latestFormRef.current.result}, autoSubmit=${autoSubmitRef.current})`,
+    );
     queueMicrotask(() => {
       setCaptureResultApplied(true);
       setForm((f) => {
@@ -139,6 +145,10 @@ export default function BattleForm({
 
   useEffect(() => {
     if (!capturePreviewResult) return;
+    captureLog(
+      "battle-form",
+      `preview effect fire ${capturePreviewResult} (before=${latestFormRef.current.result})`,
+    );
     queueMicrotask(() => {
       setCaptureResultApplied(true);
       setForm((f) =>

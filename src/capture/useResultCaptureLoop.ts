@@ -8,6 +8,7 @@ import {
   getRequiredConsecutive,
 } from './captureTiming';
 import { canvasToDataUrl } from './captureDebug';
+import { captureLog } from './captureLog';
 import { updateResultScreenGate } from './resultScreenGate';
 import { DEFAULT_RESULT_ROI } from './types';
 import type { DetectionResult, ROI } from './types';
@@ -213,16 +214,27 @@ export function useResultCaptureLoop({
       if (mode === 'gate') {
         // 結果画面が消えたことだけを通知し、確定（フォーム反映・レート待ち分岐）は
         // ワークフロー状態機械（captureWorkflow）に委ねる。
-        const triggerScreenCleared = () => {
+        const triggerScreenCleared = (via: 'dark' | 'no-text-fallback') => {
+          captureLog('result-loop', `gate: screen cleared via ${via} → onResultScreenCleared`);
           onResultScreenClearedRef.current?.();
           setPendingResult(null);
           resetStreak();
           resetCandidateFrame();
         };
 
+        // gate 中に結果テキストが見えている = 「画面がまだクリアされていない」と解釈され、
+        // この間は onResultPreview を一切呼ばない。次デュエルの Victory がここで観測されると
+        // フォームの勝ちが反映されない（有力仮説1）の決定的証拠になるため必ずログする。
+        if (result) {
+          captureLog('result-loop', 'gate: text still present, NOT emitting preview', {
+            result: result.result,
+            confidence: result.confidence,
+          });
+        }
+
         // 輝度検出: VICTORY テキスト不在 かつ 画面が暗い → デュエル後画面と判定し即確定
         if (!result && detectPostDuelScreenRef.current?.(canvas)) {
-          triggerScreenCleared();
+          triggerScreenCleared('dark');
           return { hasCandidate: hasCandidateRef.current };
         }
 
@@ -230,7 +242,7 @@ export function useResultCaptureLoop({
         const gate = updateResultScreenGate(result !== null, clearFrameCountRef.current);
         clearFrameCountRef.current = gate.clearFrameCount;
         if (gate.isReadyForNextDetection) {
-          triggerScreenCleared();
+          triggerScreenCleared('no-text-fallback');
         }
         return { hasCandidate: hasCandidateRef.current };
       }
@@ -245,6 +257,9 @@ export function useResultCaptureLoop({
           if (isTentativeExpired(tentative, now)) {
             tentativeRef.current = null; // 救済窓を過ぎた候補は誤検出とみなして破棄
           } else if (detectPostDuelScreenRef.current?.(canvas)) {
+            captureLog('result-loop', 'detect: tentative rescue (dark) → onResultPreview', {
+              result: tentative.result.result,
+            });
             resetStreak();
             // 確定（フォーム反映・レート待ち分岐）は gate と同じくワークフローに委譲する。
             onResultPreviewRef.current?.(tentative.result.result);
@@ -276,9 +291,19 @@ export function useResultCaptureLoop({
       setConsecutiveCount(update.consecutiveCount);
       setRequiredConsecutiveCount(update.requiredConsecutiveCount);
 
+      captureLog('result-loop', 'detect: result text', {
+        result: result.result,
+        confidence: result.confidence,
+        streak: `${update.consecutiveCount}/${update.requiredConsecutiveCount}`,
+        pending: update.pendingResult !== null,
+      });
+
       if (update.pendingResult) {
         // 通常確定したので保持中の暫定候補は破棄する。
         tentativeRef.current = null;
+        captureLog('result-loop', 'detect: pendingResult reached → onResultPreview', {
+          result: update.pendingResult.result,
+        });
         onResultPreviewRef.current?.(update.pendingResult.result);
         setPendingResult(update.pendingResult);
       } else {

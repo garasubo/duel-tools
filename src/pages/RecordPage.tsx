@@ -7,6 +7,7 @@ import BattleForm from '../components/battle-form/BattleForm';
 import LastBattleQuickEdit from '../components/battle-form/LastBattleQuickEdit';
 import { OverlayStatsPanel } from '../components/stats/OverlayStatsPanel';
 import { useCaptureContext } from '../capture/useCaptureContext';
+import { captureLog } from '../capture/captureLog';
 import { useBattlesStore } from '../state/BattlesProvider';
 import { openOverlay } from '../utils/openOverlay';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -35,15 +36,19 @@ export default function RecordPage() {
       subscribeCaptureEvents((event) => {
         switch (event.type) {
           case 'result':
+            captureLog('record-page', `event result ${event.result}`);
             setSuggestedResult(event.result);
             break;
           case 'result-preview':
+            captureLog('record-page', `event result-preview ${event.result}`);
             setSuggestedPreviewResult(event.result);
             break;
           case 'rating':
+            captureLog('record-page', `event rating ${event.rating}`);
             setSuggestedScore(event.rating);
             break;
           case 'rating-confirmed':
+            captureLog('record-page', 'event rating-confirmed');
             setRatingConfirmToken((token) => token + 1);
             break;
         }
