@@ -19,6 +19,10 @@ export const SINGLE_FRAME_CONFIDENCE_THRESHOLD = 92;
 // 信頼度 85〜91 帯）を誤確定しやすい。サンプリング fps に依存しない確定にするため、
 // 確定的一致（≥92, 1 フレーム即確定）以外は最低この時間継続することを併せて要求する。
 export const MIN_CONFIRM_DURATION_MS = 250;
+// 暫定候補（連続確定に届かなかった 1〜数フレームの検出）を保持し、暗転による救済の
+// 対象とする時間窓（ms）。最後に候補を観測してからこの時間内に画面が暗転したら確定する。
+// 結果バナー→暗転の遷移を拾える長さ、かつ誤検出後の偶発的な暗転を拾わない短さにする。
+export const TENTATIVE_RESCUE_WINDOW_MS = 2500;
 
 export function getOcrInterval(_hasCandidate: boolean): number {
   void _hasCandidate;

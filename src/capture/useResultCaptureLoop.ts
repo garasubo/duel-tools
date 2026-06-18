@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import {
   REQUIRED_CONSECUTIVE,
+  TENTATIVE_RESCUE_WINDOW_MS,
   averageConfidence,
   getMinConfirmDurationMs,
   getRequiredConsecutive,
@@ -118,6 +119,35 @@ export function applyMissToStreak(streak: ResultStreakState): ResultStreakState 
   return missCount > MISS_TOLERANCE ? EMPTY_STREAK : { ...streak, missCount };
 }
 
+// 連続確定に届かなかった検出を保持しておく暫定候補。streak が崩れて破棄された後でも、
+// 直後に結果画面が消えた（暗転）のを観測したら確定する「暗転救済」の対象になる。
+export interface TentativeCandidate {
+  result: DetectionResult; // 保持中の最良候補（最高信頼度）
+  lastSeenAt: number; // 最終観測時刻（ms）
+}
+
+// 候補を観測したときに呼ぶ。より高信頼（同値含む）の候補で差し替え、観測時刻を更新する。
+// 低信頼の候補が来た場合は結果は据え置き、最終観測時刻だけ更新して救済窓を延命する。
+export function trackTentativeCandidate(
+  current: TentativeCandidate | null,
+  result: DetectionResult,
+  now: number,
+): TentativeCandidate {
+  if (!current || result.confidence >= current.result.confidence) {
+    return { result, lastSeenAt: now };
+  }
+  return { ...current, lastSeenAt: now };
+}
+
+// 暫定候補が救済窓を過ぎたか。過ぎていれば誤検出とみなして破棄する。
+export function isTentativeExpired(
+  tentative: TentativeCandidate,
+  now: number,
+  windowMs = TENTATIVE_RESCUE_WINDOW_MS,
+): boolean {
+  return now - tentative.lastSeenAt > windowMs;
+}
+
 export function useResultCaptureLoop({
   canvasRef,
   detect,
@@ -133,6 +163,8 @@ export function useResultCaptureLoop({
   const [firstCandidateFrameDataUrl, setFirstCandidateFrameDataUrl] = useState<string | null>(null);
 
   const streakRef = useRef<ResultStreakState>(EMPTY_STREAK);
+  // 連続確定に届かなかった検出を保持し、暗転救済の対象にする。streak とは独立に生き残る。
+  const tentativeRef = useRef<TentativeCandidate | null>(null);
   const clearFrameCountRef = useRef(0);
   const hasCandidateRef = useRef(false);
   const onResultPreviewRef = useRef(onResultPreview);
@@ -153,6 +185,7 @@ export function useResultCaptureLoop({
 
   const resetStreak = useCallback(() => {
     streakRef.current = EMPTY_STREAK;
+    tentativeRef.current = null;
     clearFrameCountRef.current = 0;
     hasCandidateRef.current = false;
     setLastOcrResult(null);
@@ -203,6 +236,23 @@ export function useResultCaptureLoop({
       }
 
       if (!result) {
+        // 暗転救済: 直近に検出した未確定候補があり、結果画面が消えて暗転したら確定する。
+        // 本物の負けはデュエル終了（暗転）が続き、演出フラッシュはデュエルが継続する（暗転
+        // しない）ため、フラッシュの誤確定を再導入せずに 1 フレーム検出の取りこぼしを防ぐ。
+        const tentative = tentativeRef.current;
+        if (tentative) {
+          const now = Date.now();
+          if (isTentativeExpired(tentative, now)) {
+            tentativeRef.current = null; // 救済窓を過ぎた候補は誤検出とみなして破棄
+          } else if (detectPostDuelScreenRef.current?.(canvas)) {
+            resetStreak();
+            // 確定（フォーム反映・レート待ち分岐）は gate と同じくワークフローに委譲する。
+            onResultPreviewRef.current?.(tentative.result.result);
+            setPendingResult(tentative.result);
+            return { hasCandidate: hasCandidateRef.current };
+          }
+        }
+
         const next = applyMissToStreak(streakRef.current);
         streakRef.current = next;
         // 完全に崩壊したときだけ候補状態と表示をクリアする。
@@ -219,15 +269,21 @@ export function useResultCaptureLoop({
       hasCandidateRef.current = true;
       setFirstCandidateFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
 
-      const update = advanceResultStreak(streakRef.current, result);
+      const now = Date.now();
+      const update = advanceResultStreak(streakRef.current, result, now);
       streakRef.current = update.nextStreak;
       setLastOcrResult(update.lastOcrResult);
       setConsecutiveCount(update.consecutiveCount);
       setRequiredConsecutiveCount(update.requiredConsecutiveCount);
 
       if (update.pendingResult) {
+        // 通常確定したので保持中の暫定候補は破棄する。
+        tentativeRef.current = null;
         onResultPreviewRef.current?.(update.pendingResult.result);
         setPendingResult(update.pendingResult);
+      } else {
+        // まだ確定に届かない検出は暫定候補として保持し、暗転救済の対象にする。
+        tentativeRef.current = trackTentativeCandidate(tentativeRef.current, result, now);
       }
       return { hasCandidate: hasCandidateRef.current };
     },

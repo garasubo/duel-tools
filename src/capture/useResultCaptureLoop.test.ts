@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   HIGH_CONFIDENCE_REQUIRED_CONSECUTIVE,
   REQUIRED_CONSECUTIVE,
+  TENTATIVE_RESCUE_WINDOW_MS,
 } from './captureTiming';
-import { advanceResultStreak, applyMissToStreak } from './useResultCaptureLoop';
-import type { ResultStreakState } from './useResultCaptureLoop';
+import {
+  advanceResultStreak,
+  applyMissToStreak,
+  isTentativeExpired,
+  trackTentativeCandidate,
+} from './useResultCaptureLoop';
+import type { ResultStreakState, TentativeCandidate } from './useResultCaptureLoop';
 
 const EMPTY_STREAK: ResultStreakState = {
   lastResult: null,
@@ -101,5 +107,46 @@ describe('applyMissToStreak', () => {
 
   it('streak が無いときの空振りは EMPTY_STREAK のまま', () => {
     expect(applyMissToStreak(EMPTY_STREAK)).toEqual(EMPTY_STREAK);
+  });
+});
+
+describe('trackTentativeCandidate', () => {
+  it('候補が無ければ今回の検出をそのまま保持する', () => {
+    const next = trackTentativeCandidate(null, { result: 'loss', confidence: 88 }, 100);
+    expect(next).toEqual({ result: { result: 'loss', confidence: 88 }, lastSeenAt: 100 });
+  });
+
+  it('より高信頼（同値含む）の候補で差し替え、観測時刻を更新する', () => {
+    const current: TentativeCandidate = {
+      result: { result: 'loss', confidence: 70 },
+      lastSeenAt: 100,
+    };
+    const next = trackTentativeCandidate(current, { result: 'win', confidence: 85 }, 200);
+    expect(next).toEqual({ result: { result: 'win', confidence: 85 }, lastSeenAt: 200 });
+  });
+
+  it('低信頼の候補では結果を据え置き、最終観測時刻だけ更新して窓を延命する', () => {
+    const current: TentativeCandidate = {
+      result: { result: 'loss', confidence: 88 },
+      lastSeenAt: 100,
+    };
+    const next = trackTentativeCandidate(current, { result: 'loss', confidence: 65 }, 200);
+    expect(next).toEqual({ result: { result: 'loss', confidence: 88 }, lastSeenAt: 200 });
+  });
+});
+
+describe('isTentativeExpired', () => {
+  const tentative: TentativeCandidate = {
+    result: { result: 'loss', confidence: 88 },
+    lastSeenAt: 1000,
+  };
+
+  it('救済窓内なら期限切れにしない（境界含む）', () => {
+    expect(isTentativeExpired(tentative, 1000)).toBe(false);
+    expect(isTentativeExpired(tentative, 1000 + TENTATIVE_RESCUE_WINDOW_MS)).toBe(false);
+  });
+
+  it('救済窓を過ぎたら期限切れにする', () => {
+    expect(isTentativeExpired(tentative, 1000 + TENTATIVE_RESCUE_WINDOW_MS + 1)).toBe(true);
   });
 });
