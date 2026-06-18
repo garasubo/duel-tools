@@ -7,9 +7,10 @@ import { getCaptureDebugEnabled } from './captureDebug';
 export function captureLog(scope: string, message: string, data?: unknown): void {
   if (!getCaptureDebugEnabled()) return;
   const ts = performance.now().toFixed(1);
+  // console.debug は Chrome DevTools 既定（Verbose 非表示）で見えないため console.log を使う。
   if (data !== undefined) {
-    console.debug(`[capture ${ts}ms] ${scope}: ${message}`, data);
+    console.log(`[capture ${ts}ms] ${scope}: ${message}`, data);
   } else {
-    console.debug(`[capture ${ts}ms] ${scope}: ${message}`);
+    console.log(`[capture ${ts}ms] ${scope}: ${message}`);
   }
 }
