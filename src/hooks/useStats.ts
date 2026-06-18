@@ -22,12 +22,67 @@ export interface MatchupCell {
   stats: WinLoss;
 }
 
+export interface OpponentDeckStat {
+  deckId: string; // '' = 不明
+  deckName: string; // '不明' を含む
+  overall: WinLoss;
+  asFirst: WinLoss;
+  asSecond: WinLoss;
+}
+
 export function calcWLD(records: BattleRecord[]): WinLoss {
   const win = records.filter((r) => r.result === 'win').length;
   const loss = records.filter((r) => r.result === 'loss').length;
   const total = records.length;
   const winRate = total > 0 ? win / total : 0;
   return { win, loss, total, winRate };
+}
+
+// 相手デッキ単位で勝率を集計する。
+// - opponentDecks に登録されていない id（空文字 or 削除済み）はすべて「不明」バケットへ集約する。
+// - 先攻/後攻の振り分けは deckStats と同一ロジック（includeGrantedFirst を尊重）。
+// - 試合数の降順（頻度順）でソートする。ただし「不明」は頻度に関わらず常に最下部に置く。0件のデッキは含めない。
+export function computeOpponentDeckStats(
+  records: BattleRecord[],
+  opponentDecks: Deck[],
+  includeGrantedFirst = false,
+): OpponentDeckStat[] {
+  const knownIds = new Set(opponentDecks.map((d) => d.id));
+  const groups = new Map<string, BattleRecord[]>();
+  for (const r of records) {
+    const key = knownIds.has(r.opponentDeckId) ? r.opponentDeckId : '';
+    const bucket = groups.get(key);
+    if (bucket) {
+      bucket.push(r);
+    } else {
+      groups.set(key, [r]);
+    }
+  }
+
+  const stats: OpponentDeckStat[] = [];
+  for (const [deckId, recs] of groups) {
+    const deckName =
+      deckId === '' ? '不明' : (opponentDecks.find((d) => d.id === deckId)?.name ?? '不明');
+    stats.push({
+      deckId,
+      deckName,
+      overall: calcWLD(recs),
+      asFirst: calcWLD(
+        recs.filter(
+          (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
+        ),
+      ),
+      asSecond: calcWLD(recs.filter((r) => r.turnOrder === 'second')),
+    });
+  }
+
+  stats.sort((a, b) => {
+    // 「不明」は頻度に関わらず常に最下部
+    if (a.deckId === '') return 1;
+    if (b.deckId === '') return -1;
+    return b.overall.total - a.overall.total;
+  });
+  return stats;
 }
 
 // コイントスは「先攻を取れたか」で勝敗を分類する（先攻=win、後攻/ゆずられ先攻=loss）。
@@ -135,6 +190,11 @@ export function useStats(
     });
   }, [records, ownDecks, includeGrantedFirst]);
 
+  const opponentDeckStats = useMemo(
+    () => computeOpponentDeckStats(records, opponentDecks, includeGrantedFirst),
+    [records, opponentDecks, includeGrantedFirst],
+  );
+
   const matchupCells = useMemo((): MatchupCell[] => {
     const cells: MatchupCell[] = [];
     for (const own of ownDecks) {
@@ -154,5 +214,5 @@ export function useStats(
     return cells;
   }, [records, ownDecks, opponentDecks]);
 
-  return { overall, asFirst, asSecond, coinToss, deckStats, matchupCells };
+  return { overall, asFirst, asSecond, coinToss, deckStats, opponentDeckStats, matchupCells };
 }

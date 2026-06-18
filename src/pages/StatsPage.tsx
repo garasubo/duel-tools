@@ -5,6 +5,8 @@ import { useOpponentDecks } from "../state/hooks/useOpponentDecks";
 import { useStats } from "../hooks/useStats";
 import EmptyState from "../components/ui/EmptyState";
 import OverallSummaryCard from "../components/stats/OverallSummaryCard";
+import OpponentDeckDistribution from "../components/stats/OpponentDeckDistribution";
+import OpponentDeckStatsTable from "../components/stats/OpponentDeckStatsTable";
 import DeckStatsTable from "../components/stats/DeckStatsTable";
 import MatchupTable from "../components/stats/MatchupTable";
 import { openOverlay } from "../utils/openOverlay";
@@ -17,7 +19,7 @@ export default function StatsPage() {
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
   const [includeGrantedFirst, setIncludeGrantedFirst] = useState(false);
-  const { overall, asFirst, asSecond, deckStats, matchupCells } = useStats(
+  const { overall, asFirst, asSecond, deckStats, opponentDeckStats, matchupCells } = useStats(
     records,
     ownDecks,
     opponentDecks,
@@ -65,6 +67,8 @@ export default function StatsPage() {
         asFirst={asFirst}
         asSecond={asSecond}
       />
+      <OpponentDeckDistribution opponentDeckStats={opponentDeckStats} />
+      <OpponentDeckStatsTable opponentDeckStats={opponentDeckStats} />
       <DeckStatsTable deckStats={deckStats} />
       <MatchupTable
         matchupCells={matchupCells}
