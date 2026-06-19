@@ -50,7 +50,7 @@ const MAX_VICTORY_TOP_THIRD_RATIO = 0.2;
 const MIN_VICTORY_LOWDENSITY_TOP_THIRD_RATIO = 1.0;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
-const MIN_LOSS_BANNER_WIDTH_RATIO = 0.24;
+const MIN_LOSS_BANNER_WIDTH_RATIO = 0.23;
 const MAX_LOSS_BANNER_HEIGHT_RATIO = 0.20;
 const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
 const MAX_LOSS_BANNER_WIDTH_RATIO = 0.50;
@@ -58,11 +58,10 @@ const MAX_LOSS_BANNER_WIDTH_RATIO = 0.50;
 // 閾値にしてタイトな bbox を取り直し、LOSE のコア文字を切り出す（0085.png のような
 // 明るい盤面背景での取りこぼし対策）。
 const LOSS_CORE_THRESHOLD_RATIO = 0.35;
-// 救済パス（明るい背景でバナーが膨張）専用の、本物 LOSE グリフ核に合わせた厳しい閾値。
-// 本物の核は幅 ~0.30・密度 ~0.55。0086.png のような非結果フレームは幅 ~0.49・密度 ~0.42 と
-// 太く拡散しており、ここで弾く（通常 LOSE 帯 0.24-0.50・密度 0.35 では取りこぼせない）。
+// 本物 LOSE グリフ核に合わせた閾値。古い capture では核がやや細い/薄い一方、
+// RESOLVE などの横長演出は幅・アスペクト比で弾ける。
 const MAX_LOSS_CORE_WIDTH_RATIO = 0.40; // 0085=0.302 通過 / 0086=0.493 棄却
-const MIN_LOSS_CORE_DENSITY = 0.48; // 0085=0.555 通過 / 0086=0.420 棄却
+const MIN_LOSS_CORE_DENSITY = 0.38; // 0026=0.399 通過 / RESOLVE 0105 は幅・aspect で棄却
 // LOSE は 4 文字で横長（核アスペクト比 幅/高さ ≈ 2.2）。正方形に近い明るいブロブ
 // （爆発エフェクト等）を弾く形状ガード。本物 LOSE は全例 1.70〜2.25。
 const MIN_LOSS_CORE_ASPECT_RATIO = 1.6;
@@ -646,16 +645,25 @@ export async function classifyResultScreenByImageFeatures(
     bannerHeightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     bannerHeightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO
   ) {
+    const hasLossCore = detectLossCoreByTightBbox(
+      pixels,
+      cols,
+      rows,
+      left,
+      top,
+      tightColThreshold,
+      tightRowThreshold,
+    );
+
+    if (!hasLossCore) return { kind: 'possible' };
+
     // 下部領域が明るい場合（OK ボタンのプログレスバー等で暗転確定できない）でも、
     // 中央に強い LOSE 核があれば一段低い信頼度（2 フレーム連続要求）で確定する。
     if (!hasResultScreenBottomDark(pixels, MAX_LOSE_RESULT_BOTTOM_BRIGHTNESS)) {
-      if (detectLossCoreByTightBbox(pixels, cols, rows, left, top, tightColThreshold, tightRowThreshold)) {
-        return {
-          kind: 'result',
-          result: { result: 'loss', confidence: LOSS_FALLBACK_CONFIDENCE },
-        };
-      }
-      return { kind: 'possible' };
+      return {
+        kind: 'result',
+        result: { result: 'loss', confidence: LOSS_FALLBACK_CONFIDENCE },
+      };
     }
     return {
       kind: 'result',

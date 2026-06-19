@@ -152,10 +152,12 @@ async function runDpOcr(
     tessedit_char_whitelist: '',
   });
   const { data: d1 } = await recognize(worker);
-  const r1 = parseDpScreen(d1.text);
+  const r1 = parseDpResultScreen(d1.text);
   if (r1 !== null) return r1;
+  const r1Fallback = !isDpResultScreenText(d1.text) ? parseDpLobbyScreen(d1.text) : null;
 
   // パス2: PSM 11 — PSM 6 でノイズが多い場合のフォールバック（ロビー画面含む）。
+  // ロビー/単一矢印画面では PSM 6 が末尾を 1 桁誤読することがあるため、PSM 11 を優先する。
   await worker.setParameters({ tessedit_pageseg_mode: '11' as PageSegmentationMode });
   const { data: d2 } = await recognize(worker);
   const r2 = parseDpScreen(d2.text);
@@ -171,7 +173,7 @@ async function runDpOcr(
   const r3 = parseDpFromText(d3.text);
   if (r3 !== null) return r3;
 
-  return null;
+  return r1Fallback;
 }
 
 export async function detectDpFromImageLike(
