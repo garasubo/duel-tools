@@ -1,8 +1,17 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
-import type { ImageLike, Worker } from 'tesseract.js';
+import type { Worker } from 'tesseract.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDpOcrWorker, detectDpFromImageLike } from './dpDetect';
+import {
+  collapseDigitSpaces,
+  createDpOcrWorker,
+  detectDpFromImageLike,
+  isDpResultScreenText,
+  isDpScreenText,
+  parseDpFromText,
+  parseDpLobbyScreen,
+  parseDpResultScreen,
+} from './dpDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
@@ -41,13 +50,98 @@ function readPngDimensions(filepath: string): { width: number; height: number } 
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
-describe('detectDpFromImageLike（プレースホルダ）', () => {
-  it('現状はスタブで常に null を返す', async () => {
-    // スタブは worker を使わないため、OCR 起動コストを避けてダミーを渡す。
-    const dummy = null as unknown as Worker;
-    await expect(
-      detectDpFromImageLike(dummy, 'dummy.png' as unknown as ImageLike, 1600, 900),
-    ).resolves.toBeNull();
+// ---------------------------------------------------------------------------
+// 推定ロジック（純粋関数）の単体テスト。Tesseract 不要で即時に走る。
+// Tesseract は DCモードの矢印 "▶" を "))"（や ">>"）として出力する。DP は整数。
+// ---------------------------------------------------------------------------
+
+describe('collapseDigitSpaces', () => {
+  it('数字間のスペースを連結する（"1 859" → "1859"）', () => {
+    expect(collapseDigitSpaces('DP )) 1 859')).toBe('DP )) 1859');
+  });
+  it('数字以外のスペースはそのまま', () => {
+    expect(collapseDigitSpaces('DP )) 1859')).toBe('DP )) 1859');
+  });
+});
+
+describe('parseDpFromText', () => {
+  it('矢印以降の整数を新DPとして抽出する', () => {
+    expect(parseDpFromText('DP )) 1859')).toBe(1859);
+  });
+  it('複数矢印では最後の矢印以降を採用する（旧 → 新）', () => {
+    expect(parseDpFromText(')) 849 +1010 )) 1859')).toBe(1859);
+  });
+  it('スペース分断された数字を連結して抽出する', () => {
+    expect(parseDpFromText('DP )) 1 859')).toBe(1859);
+  });
+  it('矢印が無くても妥当整数が1つなら採用する', () => {
+    expect(parseDpFromText('1859')).toBe(1859);
+  });
+  it('矢印が無く妥当整数が複数なら曖昧として null', () => {
+    expect(parseDpFromText('2026 1500')).toBe(null);
+  });
+  it('2桁以下のノイズは無視する', () => {
+    expect(parseDpFromText('勝利数 2')).toBe(null);
+  });
+  it('該当なしで null', () => {
+    expect(parseDpFromText('VICTORY')).toBe(null);
+  });
+});
+
+describe('parseDpResultScreen（旧 ± 変化量 による検証）', () => {
+  it('旧 + 変化量 と一致する新DPを採用する（0098 系）', () => {
+    expect(parseDpResultScreen('DP )) 849 +1010 )) 1859')).toBe(1859);
+  });
+  it('減算ケースも検証して採用する', () => {
+    expect(parseDpResultScreen('DP )) 2000 -141 )) 1859')).toBe(1859);
+  });
+  it('新DPが 旧 ± 変化量 と矛盾する場合は null（誤読フレームを確定しない）', () => {
+    expect(parseDpResultScreen('DP )) 849 +1000 )) 1859')).toBe(null);
+  });
+  it('旧/変化量が読めない場合は最後の矢印以降の整数にフォールバックする', () => {
+    expect(parseDpResultScreen('noise )) 1859')).toBe(1859);
+  });
+  it('マイナス記号が em ダッシュに誤読されても検証できる', () => {
+    expect(parseDpResultScreen('DP )) 2000 — 141 )) 1859')).toBe(1859);
+  });
+});
+
+describe('parseDpLobbyScreen（現在DPのみ表示）', () => {
+  it('"DP ▶ 値" から DP を抽出する（0099 系）', () => {
+    expect(parseDpLobbyScreen('DP )) 1859')).toBe(1859);
+  });
+  it('スペース分断された数字を連結して抽出する', () => {
+    expect(parseDpLobbyScreen('DP )) 1 859')).toBe(1859);
+  });
+  it('矢印が読めなくても "DP" キーワード以降から抽出する', () => {
+    expect(parseDpLobbyScreen('DP 1859')).toBe(1859);
+  });
+  it('数字が無ければ null', () => {
+    expect(parseDpLobbyScreen('DP )) ---')).toBe(null);
+  });
+});
+
+describe('isDpResultScreenText', () => {
+  it('矢印が2群以上ならリザルト画面と判定する', () => {
+    expect(isDpResultScreenText('DP )) 849 +1010 )) 1859')).toBe(true);
+  });
+  it('矢印1群（ロビー画面）はリザルト画面と判定しない', () => {
+    expect(isDpResultScreenText('DP )) 1859')).toBe(false);
+  });
+  it('矢印が無ければ false', () => {
+    expect(isDpResultScreenText('DP 1859')).toBe(false);
+  });
+});
+
+describe('isDpScreenText', () => {
+  it('矢印でDP画面と判定する', () => {
+    expect(isDpScreenText('DP )) 1859')).toBe(true);
+  });
+  it('"DP" キーワードでDP画面と判定する', () => {
+    expect(isDpScreenText('DP 1859')).toBe(true);
+  });
+  it('無関係なテキストは false', () => {
+    expect(isDpScreenText('VICTORY')).toBe(false);
   });
 });
 
