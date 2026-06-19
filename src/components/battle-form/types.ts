@@ -57,6 +57,15 @@ export function applyScoreSuggestionToBattleForm(
   return state;
 }
 
+export function applyConfirmedScoreToBattleForm(
+  state: BattleFormState,
+  suggestedScore: number | null,
+): BattleFormState {
+  return suggestedScore == null
+    ? state
+    : applyScoreSuggestionToBattleForm(state, suggestedScore);
+}
+
 // 結果検出だけで即確定してよいか。レート戦・DCモードはスコア（レート/DP）検出を
 // 待ってから確定するため false。
 export function shouldAutoSubmitSuggestedResult(state: BattleFormState): boolean {

@@ -11,6 +11,7 @@ import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
 import {
+  applyConfirmedScoreToBattleForm,
   applySuggestedResultToBattleForm,
   applyScoreSuggestionToBattleForm,
   createInitialBattleFormState,
@@ -70,6 +71,17 @@ export default function BattleForm({
     latestFormRef.current = form;
   }, [form]);
 
+  const replaceForm = useCallback((nextForm: BattleFormState) => {
+    latestFormRef.current = nextForm;
+    setForm(nextForm);
+  }, []);
+
+  const updateForm = useCallback((updater: (current: BattleFormState) => BattleFormState) => {
+    const nextForm = updater(latestFormRef.current);
+    replaceForm(nextForm);
+    return nextForm;
+  }, [replaceForm]);
+
   // キャプチャ中の DC モードでは結果反映時の ±1000 見積りをスキップし、画面 DP 検出に任せる。
   // 検出系 effect の依存に isCapturing を増やさないよう ref で参照する。
   const isCapturingRef = useRef(isCapturing);
@@ -112,12 +124,12 @@ export default function BattleForm({
       store.setDraftBattle({ turnOrder: null, result: null });
       onRecordSaved?.();
       captureLog("battle-form", `submitForm: recorded ${currentForm.result}, form reset (result→null)`);
-      setForm(createNextBattleFormState(currentForm));
+      replaceForm(createNextBattleFormState(currentForm));
       setSaved(true);
       setCaptureResultApplied(false);
       setTimeout(() => setSaved(false), 3000);
     },
-    [addRecord, onRecordSaved, store],
+    [addRecord, onRecordSaved, replaceForm, store],
   );
 
   const suggestedScoreRef = useRef<number | null>(null);
@@ -140,8 +152,8 @@ export default function BattleForm({
     );
     queueMicrotask(() => {
       setCaptureResultApplied(true);
-      setForm((f) => {
-        let newForm = applySuggestedResultToBattleForm(f, suggestedResult, store.getState().records, {
+      updateForm((current) => {
+        let newForm = applySuggestedResultToBattleForm(current, suggestedResult, store.getState().records, {
           skipAutoScore: isCapturingRef.current,
         });
         if (suggestedScoreRef.current != null) {
@@ -152,7 +164,7 @@ export default function BattleForm({
       setAutoSubmitTick((t) => t + 1);
       onSuggestedResultConsumed?.();
     });
-  }, [suggestedResult, store, onSuggestedResultConsumed]);
+  }, [suggestedResult, store, onSuggestedResultConsumed, updateForm]);
 
   useEffect(() => {
     if (!capturePreviewResult) return;
@@ -162,39 +174,45 @@ export default function BattleForm({
     );
     queueMicrotask(() => {
       setCaptureResultApplied(true);
-      setForm((f) =>
-        applySuggestedResultToBattleForm(f, capturePreviewResult, store.getState().records, {
+      updateForm((current) =>
+        applySuggestedResultToBattleForm(current, capturePreviewResult, store.getState().records, {
           skipAutoScore: isCapturingRef.current,
         }),
       );
       onCapturePreviewResultConsumed?.();
     });
-  }, [capturePreviewResult, store, onCapturePreviewResultConsumed]);
+  }, [capturePreviewResult, store, onCapturePreviewResultConsumed, updateForm]);
 
   const suggestedTurnOrderId = suggestedTurnOrder?.id;
   const suggestedTurnOrderValue = suggestedTurnOrder?.order;
   useEffect(() => {
     if (!suggestedTurnOrderId || !suggestedTurnOrderValue) return;
     queueMicrotask(() => {
-      setForm((f) => ({ ...f, turnOrder: suggestedTurnOrderValue }));
+      updateForm((current) => ({ ...current, turnOrder: suggestedTurnOrderValue }));
       onSuggestedTurnOrderConsumed?.();
     });
-  }, [suggestedTurnOrderId, suggestedTurnOrderValue, onSuggestedTurnOrderConsumed]);
+  }, [suggestedTurnOrderId, suggestedTurnOrderValue, onSuggestedTurnOrderConsumed, updateForm]);
 
   useEffect(() => {
     if (suggestedScore == null) return;
     queueMicrotask(() => {
-      setForm((f) => applyScoreSuggestionToBattleForm(f, suggestedScore));
+      updateForm((current) => applyScoreSuggestionToBattleForm(current, suggestedScore));
       onSuggestedScoreConsumed?.();
     });
-  }, [suggestedScore, onSuggestedScoreConsumed]);
+  }, [suggestedScore, onSuggestedScoreConsumed, updateForm]);
 
   useEffect(() => {
     if (!autoSubmitRef.current) return;
     autoSubmitRef.current = false;
-    if (isBattleFormValid(form)) {
-      queueMicrotask(() => submitForm(form));
-    }
+    queueMicrotask(() => {
+      const currentForm = latestFormRef.current;
+      if (
+        isBattleFormValid(currentForm) &&
+        shouldAutoSubmitSuggestedResult(currentForm)
+      ) {
+        submitForm(currentForm);
+      }
+    });
   }, [form, autoSubmitTick, submitForm]);
 
   const ratingConfirmTokenRef = useRef(ratingConfirmToken);
@@ -202,25 +220,23 @@ export default function BattleForm({
     if (ratingConfirmTokenRef.current === ratingConfirmToken) return;
     ratingConfirmTokenRef.current = ratingConfirmToken;
     queueMicrotask(() => {
-      let nextForm = latestFormRef.current;
-      if (suggestedScoreRef.current != null) {
-        nextForm = applyScoreSuggestionToBattleForm(nextForm, suggestedScoreRef.current);
-      }
-      setForm(nextForm);
+      const nextForm = updateForm((current) =>
+        applyConfirmedScoreToBattleForm(current, suggestedScoreRef.current),
+      );
       if (isBattleFormValid(nextForm)) {
         submitForm(nextForm);
       }
     });
-  }, [ratingConfirmToken, submitForm]);
+  }, [ratingConfirmToken, submitForm, updateForm]);
 
   const isValid = isBattleFormValid(form);
 
   function patchForm(patch: Partial<BattleFormState>) {
-    setForm((f) => ({ ...f, ...patch }));
+    updateForm((current) => ({ ...current, ...patch }));
   }
 
   function handleFieldsChange(patch: Partial<BattleFormState>) {
-    if (patch.turnOrder === null && form.turnOrder !== null) {
+    if (patch.turnOrder === null && latestFormRef.current.turnOrder !== null) {
       onTurnOrderCleared?.();
     }
     patchForm(patch);
@@ -241,8 +257,8 @@ export default function BattleForm({
     if (result === null) {
       patchForm({ result: null });
     } else {
-      setForm((f) =>
-        applySuggestedResultToBattleForm(f, result, store.getState().records, {
+      updateForm((current) =>
+        applySuggestedResultToBattleForm(current, result, store.getState().records, {
           skipAutoScore: isCapturing,
         }),
       );
@@ -259,7 +275,7 @@ export default function BattleForm({
           ? await captureDpOnce()
           : await captureRatingOnce();
       if (score !== null) {
-        setForm((f) => ({ ...f, score: String(score) }));
+        updateForm((current) => ({ ...current, score: String(score) }));
       } else {
         setCaptureRatingFailed(true);
         setTimeout(() => setCaptureRatingFailed(false), 3000);
@@ -267,12 +283,13 @@ export default function BattleForm({
     } finally {
       setIsCapturingRating(false);
     }
-  }, [captureRatingOnce, captureDpOnce]);
+  }, [captureRatingOnce, captureDpOnce, updateForm]);
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!isValid) return;
-    submitForm(form);
+    const currentForm = latestFormRef.current;
+    if (!isBattleFormValid(currentForm)) return;
+    submitForm(currentForm);
   }
 
   return (

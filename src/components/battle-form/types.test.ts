@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BattleFormState } from './types';
 import {
+  applyConfirmedScoreToBattleForm,
   applySuggestedResultToBattleForm,
   applyScoreSuggestionToBattleForm,
   createInitialBattleFormState,
@@ -140,6 +141,40 @@ describe('applyScoreSuggestionToBattleForm', () => {
   it('小数値が文字列として正しく保持される', () => {
     const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
     expect(applyScoreSuggestionToBattleForm(state, 1508.94).score).toBe('1508.94');
+  });
+});
+
+describe('applyConfirmedScoreToBattleForm', () => {
+  it('自動確定時も最新フォームの手動変更を保持する', () => {
+    const state: BattleFormState = {
+      ...EMPTY_BATTLE_FORM_STATE,
+      ownDeckId: 'own-1',
+      opponentDeckId: 'opponent-manual',
+      result: 'win',
+      turnOrder: 'first',
+      battleMode: 'rated',
+    };
+
+    const next = applyConfirmedScoreToBattleForm(state, 1510);
+
+    expect(next).toEqual({
+      ...state,
+      score: '1510',
+    });
+  });
+
+  it('自動確定時も手動入力済みスコアを上書きしない', () => {
+    const state: BattleFormState = {
+      ...EMPTY_BATTLE_FORM_STATE,
+      ownDeckId: 'own-1',
+      opponentDeckId: 'opponent-1',
+      result: 'loss',
+      turnOrder: 'second',
+      battleMode: 'duelists-cup',
+      score: '49000',
+    };
+
+    expect(applyConfirmedScoreToBattleForm(state, 48000)).toBe(state);
   });
 });
 
