@@ -43,6 +43,11 @@ const MIN_VICTORY_DENSITY = 0.268;
 // とみなす。0092.png のような非結果フレーム（top/mid=0.275）を弾くため 0.5→0.2 に
 // 引き締めた。閾値 0.2 は true win(≤0.103) と false positive(0.275) の間に余裕を持つ。
 const MAX_VICTORY_TOP_THIRD_RATIO = 0.2;
+// 低密度 VICTORY 分岐（density<MIN_VICTORY_DENSITY のワイドバナー）用。本物の VICTORY は
+// bbox 上部 1/3 が中央 1/3 と同等以上に密（全 fixture で t3/m3 ≥ 1.43）。0094.png のような
+// 背景の横ストリーク（t3/m3 ≈ 0.61）を弾く。しきい値 1.0 は true win(≥1.43) と
+// false positive(0.61) のほぼ中点。下部輝度は使わない（明るい下部の本物 0096 を救うため）。
+const MIN_VICTORY_LOWDENSITY_TOP_THIRD_RATIO = 1.0;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
 const MIN_LOSS_BANNER_WIDTH_RATIO = 0.24;
@@ -59,8 +64,11 @@ const LOSS_CORE_THRESHOLD_RATIO = 0.35;
 const MAX_LOSS_CORE_WIDTH_RATIO = 0.40; // 0085=0.302 通過 / 0086=0.493 棄却
 const MIN_LOSS_CORE_DENSITY = 0.48; // 0085=0.555 通過 / 0086=0.420 棄却
 // LOSE は 4 文字で横長（核アスペクト比 幅/高さ ≈ 2.2）。正方形に近い明るいブロブ
-// （爆発エフェクト等）を弾く形状ガード。本物 LOSE は全例 1.70〜2.24。
+// （爆発エフェクト等）を弾く形状ガード。本物 LOSE は全例 1.70〜2.25。
 const MIN_LOSS_CORE_ASPECT_RATIO = 1.6;
+// 本物 LOSE のコアは全 fixture で幅/高さ ≈ 1.70〜2.25。横長すぎる帯（ゲームプレイ中の
+// 明るい横ストリーク等、0095.png はアスペクト 3.07）を弾くため上限を設ける。
+const MAX_LOSS_CORE_ASPECT_RATIO = 2.6;
 // 救済パスで確定した loss の信頼度。鮮明な LOSE（IMAGE_FEATURE_CONFIDENCE=92）より一段低くし、
 // ストリーク層の getRequiredConsecutive で 2 フレーム連続一致を要求させる（1 フレーム即確定にしない）。
 const LOSS_FALLBACK_CONFIDENCE = 88; // 85 <= 88 < 92 → getRequiredConsecutive = 2
@@ -474,6 +482,7 @@ function detectLossCoreByTightBbox(
     heightRatio >= MIN_LOSS_BANNER_HEIGHT_RATIO &&
     heightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO &&
     widthRatio / heightRatio >= MIN_LOSS_CORE_ASPECT_RATIO &&
+    widthRatio / heightRatio <= MAX_LOSS_CORE_ASPECT_RATIO &&
     centerX >= 0.35 &&
     centerX <= 0.65 &&
     centerY >= 0.35 &&
@@ -576,6 +585,11 @@ export async function classifyResultScreenByImageFeatures(
   if (
     bannerWidthRatio > MAX_LOSS_BANNER_WIDTH_RATIO &&
     bannerWidthRatio < MIN_VICTORY_BANNER_WIDTH_RATIO &&
+    // 本物の LOSE バナーはルーズ bbox 全体も水平中央寄せ（真陽性 0085=0.443 / 0091=0.542）。
+    // タイト核だけ中央に collapse する左寄り演出（0097.png「DUEL!」スプラッシュ centerX=0.338）を
+    // 弾く。main path（centerX∈[0.35,0.65]）と同じ「結果バナーは中央寄せ」原則を rescue 分岐にも適用。
+    centerX >= 0.40 &&
+    centerX <= 0.60 &&
     detectLossCoreByTightBbox(pixels, cols, rows, left, top, tightColThreshold, tightRowThreshold)
   ) {
     return {
@@ -609,6 +623,18 @@ export async function classifyResultScreenByImageFeatures(
   }
 
   if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO) {
+    // 低密度のワイドバナー。本物 VICTORY 文字は上部 1/3 が密（top-heavy, t3/m3 ≥ 1.43）。
+    // 0094.png のような背景の横ストリーク（t3/m3 ≈ 0.61）はこれを満たさないので棄却する。
+    // 下部輝度は判定に使わない（明るい下部の本物 VICTORY 0096 を取りこぼすため）。
+    const bboxH = maxY - minY + 1;
+    const third = Math.max(1, Math.floor(bboxH / 3));
+    let topThirdPixels = 0;
+    let midThirdPixels = 0;
+    for (let ry = minY; ry < minY + third; ry++) topThirdPixels += rows[ry];
+    for (let ry = minY + third; ry < minY + 2 * third; ry++) midThirdPixels += rows[ry];
+    if (topThirdPixels < midThirdPixels * MIN_VICTORY_LOWDENSITY_TOP_THIRD_RATIO) {
+      return { kind: 'none' };
+    }
     return {
       kind: 'result',
       result: { result: 'win', confidence: IMAGE_FEATURE_CONFIDENCE },
