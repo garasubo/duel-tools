@@ -46,9 +46,9 @@ describe('captureWorkflowReducer', () => {
     }
   });
 
-  it('record-saved はキャプチャ中の状態から scanning に戻す（副作用なし）', () => {
+  it('record-saved はキャプチャ中の状態から draining に入る（副作用なし）', () => {
     expect(reduce({ phase: 'waiting-rating', result: 'win' }, { type: 'record-saved' })).toEqual({
-      state: { phase: 'scanning' },
+      state: { phase: 'draining' },
       effects: [],
     });
   });
@@ -161,7 +161,7 @@ describe('captureWorkflowReducer', () => {
     });
   });
 
-  it('waiting-dp 中の検出イベントは無視し、record-saved で scanning へ', () => {
+  it('waiting-dp 中の検出イベントは無視し、record-saved で draining へ', () => {
     const state: CaptureWorkflowState = { phase: 'waiting-dp', result: 'win' };
     expect(reduce(state, { type: 'screen-cleared' }, DC)).toEqual({ state, effects: [] });
     expect(reduce(state, { type: 'result-confirmed', result: 'loss', autoConfirm: true }, DC)).toEqual({
@@ -169,8 +169,41 @@ describe('captureWorkflowReducer', () => {
       effects: [],
     });
     expect(reduce(state, { type: 'record-saved' }, DC)).toEqual({
-      state: { phase: 'scanning' },
+      state: { phase: 'draining' },
       effects: [],
+    });
+  });
+
+  // 回帰: 勝敗確定画面のまま「記録する」を押すと再判定が走る不具合（旧ガード 8b98116 の復元）。
+  describe('draining（記録後の結果画面クリア待ち）', () => {
+    it('result-detected から record-saved で直接 scanning に戻さず draining に入る', () => {
+      expect(reduce({ phase: 'result-detected', result: 'win' }, { type: 'record-saved' })).toEqual({
+        state: { phase: 'draining' },
+        effects: [],
+      });
+    });
+
+    it('draining 中の result-confirmed は無視する（記録後にフォームへ再反映しない）', () => {
+      const state: CaptureWorkflowState = { phase: 'draining' };
+      expect(reduce(state, { type: 'result-confirmed', result: 'win', autoConfirm: false })).toEqual({
+        state,
+        effects: [],
+      });
+      expect(reduce(state, { type: 'result-confirmed', result: 'loss', autoConfirm: true })).toEqual({
+        state,
+        effects: [],
+      });
+    });
+
+    it('screen-cleared で scanning へ戻る（commit はしない）', () => {
+      expect(reduce({ phase: 'draining' }, { type: 'screen-cleared' })).toEqual({
+        state: { phase: 'scanning' },
+        effects: [],
+      });
+    });
+
+    it('stop で idle に戻る', () => {
+      expect(reduce({ phase: 'draining' }, { type: 'stop' }).state).toEqual({ phase: 'idle' });
     });
   });
 });

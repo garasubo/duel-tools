@@ -9,7 +9,8 @@ export type CaptureWorkflowState =
   | { phase: 'result-detected'; result: BattleResult } // 手動確定待ち（autoConfirm OFF）
   | { phase: 'waiting-clear'; result: BattleResult } // autoConfirm ON: 結果画面の終了待ち
   | { phase: 'waiting-rating'; result: BattleResult } // rated: 結果確定後のレートスキャン中
-  | { phase: 'waiting-dp'; result: BattleResult }; // duelists-cup: 結果確定後の DP スキャン中
+  | { phase: 'waiting-dp'; result: BattleResult } // duelists-cup: 結果確定後の DP スキャン中
+  | { phase: 'draining' }; // 記録保存後、結果画面が消えるまで再検出を止めるドレイン状態
 
 export type CaptureWorkflowEvent =
   | { type: 'start' } // キャプチャ開始
@@ -72,7 +73,10 @@ export function captureWorkflowReducer(
     case 'record-saved':
       // キャプチャ未開始（idle）なら記録保存してもスキャンを開始しない。
       if (state.phase === 'idle') return { state, effects: [] };
-      return { state: { phase: 'scanning' }, effects: [] };
+      // 記録直後は勝敗確定画面がまだ表示されている可能性がある。直接 scanning に戻すと
+      // 残っている VICTORY/LOSE を再検出して勝敗判定が再発火してしまうため、画面が消えるまで
+      // 待つ draining 状態を経由する（旧ガード 8b98116 を新状態機械で復元）。
+      return { state: { phase: 'draining' }, effects: [] };
   }
 
   switch (state.phase) {
@@ -105,6 +109,14 @@ export function captureWorkflowReducer(
     case 'waiting-clear':
       if (event.type === 'screen-cleared') {
         return commitResult(state.result, ctx);
+      }
+      return { state, effects: [] };
+
+    case 'draining':
+      // 結果画面が消えたら（gate モードの screen-cleared）再検出を再開する。
+      // commit はしない（記録は既に保存済み）。検出イベントは無視して二重確定を防ぐ。
+      if (event.type === 'screen-cleared') {
+        return { state: { phase: 'scanning' }, effects: [] };
       }
       return { state, effects: [] };
 

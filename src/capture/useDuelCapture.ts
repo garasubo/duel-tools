@@ -44,6 +44,9 @@ function mapWorkflowPhaseToCaptureState(
       return 'waiting-rating';
     case 'waiting-dp':
       return 'waiting-dp';
+    case 'draining':
+      // 記録後の結果画面ドレイン中。UI 上は通常のスキャン中表示でよい。
+      return 'capturing';
   }
 }
 
@@ -319,7 +322,10 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
         scheduleNextOcr(tickStartedAt);
         return;
       }
-      const mode = workflowStateRef.current.phase === 'waiting-clear' ? 'gate' : 'detect';
+      // waiting-clear（確定前の画面クリア待ち）と draining（記録後の画面クリア待ち）は
+      // gate モードで再検出を止め、結果画面が消えるのを待つ。
+      const phase = workflowStateRef.current.phase;
+      const mode = phase === 'waiting-clear' || phase === 'draining' ? 'gate' : 'detect';
       const result = await resultCapture.runOnce(mode);
       hasResultCandidateRef.current = result.hasCandidate;
       scheduleNextOcr(tickStartedAt);
