@@ -13,7 +13,8 @@ export type DuelCaptureState =
   | 'capturing'
   | 'detected'
   | 'waiting-clear'
-  | 'waiting-rating';
+  | 'waiting-rating'
+  | 'waiting-dp';
 
 export interface DetectionResult {
   result: 'win' | 'loss';

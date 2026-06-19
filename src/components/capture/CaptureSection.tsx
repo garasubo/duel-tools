@@ -45,13 +45,16 @@ export default function CaptureSection() {
     hasFirstCandidateFrame,
     hasCoinTossFrame,
     hasRatingFrame,
+    hasDpFrame,
     coinTossDebug,
     turnOrderDetection,
     ratingDetection,
+    dpDetection,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     downloadCoinTossFrame,
     downloadRatingFrame,
+    downloadDpFrame,
     start,
     stop,
   } = useCaptureContext();
@@ -118,7 +121,8 @@ export default function CaptureSection() {
 
       {(captureState === 'capturing' ||
         captureState === 'detected' ||
-        captureState === 'waiting-rating') && (
+        captureState === 'waiting-rating' ||
+        captureState === 'waiting-dp') && (
         <div className="flex items-center gap-2 text-sm mt-1">
           {captureState === 'waiting-rating' ? (
             ratingDetection ? (
@@ -130,6 +134,18 @@ export default function CaptureSection() {
               <>
                 <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
                 <span className="text-gray-400">レートをスキャン中...</span>
+              </>
+            )
+          ) : captureState === 'waiting-dp' ? (
+            dpDetection ? (
+              <>
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-green-600">検出DP: {dpDetection.rating}</span>
+              </>
+            ) : (
+              <>
+                <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+                <span className="text-gray-400">DPをスキャン中...</span>
               </>
             )
           ) : captureState === 'detected' && pendingResult ? (
@@ -207,6 +223,14 @@ export default function CaptureSection() {
               className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               レート検出画像を保存
+            </button>
+            <button
+              type="button"
+              onClick={downloadDpFrame}
+              disabled={!hasDpFrame}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              DP検出画像を保存
             </button>
           </div>
           <div className="text-xs text-gray-500 font-mono break-all">

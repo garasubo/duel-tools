@@ -26,8 +26,14 @@ export function applySuggestedResultToBattleForm(
   state: BattleFormState,
   suggestedResult: BattleResult,
   records: BattleRecord[],
+  options?: { skipAutoScore?: boolean },
 ): BattleFormState {
-  if (state.battleMode === "duelists-cup" && state.score === "") {
+  // skipAutoScore: キャプチャ中の DC モードでは ±1000 見積りを入れず、画面 DP 検出に任せる。
+  if (
+    !options?.skipAutoScore &&
+    state.battleMode === "duelists-cup" &&
+    state.score === ""
+  ) {
     const autoScore = autoCalcDuelistsCupScore(suggestedResult, records);
     if (autoScore !== null) {
       return { ...state, result: suggestedResult, score: autoScore };
@@ -37,18 +43,24 @@ export function applySuggestedResultToBattleForm(
   return { ...state, result: suggestedResult };
 }
 
-export function applyRatingSuggestionToBattleForm(
+// 検出したスコア（レート戦=レート / DCモード=DP）を空欄時のみ反映する。手動入力は保持する。
+export function applyScoreSuggestionToBattleForm(
   state: BattleFormState,
   suggestedScore: number,
 ): BattleFormState {
-  if (state.battleMode === 'rated' && state.score === '') {
+  if (
+    (state.battleMode === 'rated' || state.battleMode === 'duelists-cup') &&
+    state.score === ''
+  ) {
     return { ...state, score: String(suggestedScore) };
   }
   return state;
 }
 
+// 結果検出だけで即確定してよいか。レート戦・DCモードはスコア（レート/DP）検出を
+// 待ってから確定するため false。
 export function shouldAutoSubmitSuggestedResult(state: BattleFormState): boolean {
-  return state.battleMode !== 'rated';
+  return state.battleMode !== 'rated' && state.battleMode !== 'duelists-cup';
 }
 
 export function createInitialBattleFormState(latestRecord: BattleRecord | null): BattleFormState {

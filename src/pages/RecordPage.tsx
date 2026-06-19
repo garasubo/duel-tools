@@ -51,6 +51,15 @@ export default function RecordPage() {
             captureLog('record-page', 'event rating-confirmed');
             setRatingConfirmToken((token) => token + 1);
             break;
+          // DP もレートと同じ score 配線（suggestedScore / ratingConfirmToken）へ流す。
+          case 'dp':
+            captureLog('record-page', `event dp ${event.dp}`);
+            setSuggestedScore(event.dp);
+            break;
+          case 'dp-confirmed':
+            captureLog('record-page', 'event dp-confirmed');
+            setRatingConfirmToken((token) => token + 1);
+            break;
         }
       }),
     [subscribeCaptureEvents],

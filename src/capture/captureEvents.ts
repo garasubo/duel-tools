@@ -6,6 +6,8 @@ export type CaptureEvent =
   | { type: 'result'; result: BattleResult }
   | { type: 'result-preview'; result: BattleResult }
   | { type: 'rating'; rating: number }
-  | { type: 'rating-confirmed'; rating: number };
+  | { type: 'rating-confirmed'; rating: number }
+  | { type: 'dp'; dp: number }
+  | { type: 'dp-confirmed'; dp: number };
 
 export type CaptureEventListener = (event: CaptureEvent) => void;

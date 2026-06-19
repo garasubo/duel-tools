@@ -9,6 +9,7 @@ import {
 import { captureLog } from './captureLog';
 import { recordTick, resetProfile, setProfilerEnabled } from './captureProfiler';
 import { detectRatingFromScreen, createRatingOcrWorker } from './ratingDetect';
+import { detectDpFromScreen, createDpOcrWorker } from './dpDetect';
 import { isPostDuelDark } from './postDuelDetect';
 import type { DuelCaptureState } from './types';
 import type { CaptureEvent } from './captureEvents';
@@ -41,6 +42,8 @@ function mapWorkflowPhaseToCaptureState(
       return 'waiting-clear';
     case 'waiting-rating':
       return 'waiting-rating';
+    case 'waiting-dp':
+      return 'waiting-dp';
   }
 }
 
@@ -65,10 +68,12 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     emitRef.current = emit;
   }, [emit]);
 
-  const waitForRatingRef = useRef(false);
+  // 結果確定後に開始するスコア検出（'rating'=レート戦 / 'dp'=DCモード / null=なし）。
+  // 対戦モードに応じて BattleForm から注入される。
+  const postResultScanRef = useRef<'rating' | 'dp' | null>(null);
 
-  const setWaitForRatingBeforeAutoConfirm = useCallback((wait: boolean) => {
-    waitForRatingRef.current = wait;
+  const setPostResultScanMode = useCallback((mode: 'rating' | 'dp' | null) => {
+    postResultScanRef.current = mode;
   }, []);
 
   const autoConfirmEnabledRef = useRef(autoConfirmEnabled);
@@ -83,9 +88,24 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     }
   }, []);
 
+  const handleDpDetected = useCallback((dp: number) => {
+    emitRef.current({ type: 'dp', dp });
+    if (autoConfirmEnabledRef.current) {
+      emitRef.current({ type: 'dp-confirmed', dp });
+    }
+  }, []);
+
   const ratingCapture = useRatingCaptureLoop({
     canvasRef,
     onRatingDetected: handleRatingDetected,
+  });
+
+  // DP 検出ループ。汎用ループ（useRatingCaptureLoop）を DP 用 deps で再利用する。
+  // 出力の ratingDetection.rating / ratingFrameDataUrl はそのまま DP 値・DP 画像として扱う。
+  const dpCapture = useRatingCaptureLoop({
+    canvasRef,
+    onRatingDetected: handleDpDetected,
+    dependencies: { createWorker: createDpOcrWorker, detectRating: detectDpFromScreen },
   });
 
   // --- ワークフロー状態機械（captureWorkflow）---
@@ -103,7 +123,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     (event: CaptureWorkflowEvent) => {
       const fromPhase = workflowStateRef.current.phase;
       const { state, effects } = captureWorkflowReducer(workflowStateRef.current, event, {
-        rated: waitForRatingRef.current,
+        postResultScan: postResultScanRef.current,
       });
       captureLog('workflow', `${event.type}  ${fromPhase} → ${state.phase}`, {
         effects: effects.map((e) => e.type),
@@ -115,10 +135,12 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
           emitRef.current({ type: 'result', result: effect.result });
         } else if (effect.type === 'start-rating-loop') {
           ratingCapture.start();
+        } else if (effect.type === 'start-dp-loop') {
+          dpCapture.start();
         }
       }
     },
-    [ratingCapture],
+    [ratingCapture, dpCapture],
   );
 
   const handleResultPreview = useCallback(
@@ -190,14 +212,16 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     resultCapture.dispose();
     turnOrderCapture.reset();
     ratingCapture.reset();
-  }, [stopCapture, dispatchWorkflow, resultCapture, turnOrderCapture, ratingCapture]);
+    dpCapture.reset();
+  }, [stopCapture, dispatchWorkflow, resultCapture, turnOrderCapture, ratingCapture, dpCapture]);
 
   const prepareNextDuelDetection = useCallback(() => {
     captureLog('duel', 'prepareNextDuelDetection (record saved → next duel)');
     dispatchWorkflow({ type: 'record-saved' });
     resetDetectionState({ resetResult: true, restartTurnOrder: isCapturing });
     ratingCapture.reset();
-  }, [dispatchWorkflow, isCapturing, resetDetectionState, ratingCapture]);
+    dpCapture.reset();
+  }, [dispatchWorkflow, isCapturing, resetDetectionState, ratingCapture, dpCapture]);
 
   const restartTurnOrderDetection = useCallback(() => {
     resetDetectionState({ resetResult: false, restartTurnOrder: isCapturing });
@@ -209,6 +233,17 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     const worker = await createRatingOcrWorker();
     try {
       return await detectRatingFromScreen(worker, canvasRef.current);
+    } finally {
+      await worker.terminate();
+    }
+  }, [isCapturing, captureCurrentFrame]);
+
+  const captureDpOnce = useCallback(async (): Promise<number | null> => {
+    if (!isCapturing || !canvasRef.current) return null;
+    if (!captureCurrentFrame()) return null;
+    const worker = await createDpOcrWorker();
+    try {
+      return await detectDpFromScreen(worker, canvasRef.current);
     } finally {
       await worker.terminate();
     }
@@ -238,6 +273,12 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     if (!dataUrl) return;
     downloadDataUrl(dataUrl, createCaptureFilename('rating-candidate'));
   }, [ratingCapture.ratingFrameDataUrl]);
+
+  const downloadDpFrame = useCallback(() => {
+    const dataUrl = dpCapture.ratingFrameDataUrl;
+    if (!dataUrl) return;
+    downloadDataUrl(dataUrl, createCaptureFilename('dp-candidate'));
+  }, [dpCapture.ratingFrameDataUrl]);
 
   useEffect(() => {
     if (!isCapturing) {
@@ -315,20 +356,25 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     hasFirstCandidateFrame: resultCapture.hasFirstCandidateFrame,
     hasCoinTossFrame: turnOrderCapture.hasCoinTossFrame,
     hasRatingFrame: ratingCapture.hasRatingFrame,
+    hasDpFrame: dpCapture.hasRatingFrame,
     coinTossDebug: turnOrderCapture.coinTossDebug,
     turnOrderDetection: turnOrderCapture.turnOrderDetection,
     clearTurnOrderDetection: turnOrderCapture.clearTurnOrderDetection,
     ratingDetection: ratingCapture.ratingDetection,
     clearRatingDetection: ratingCapture.clearRatingDetection,
+    dpDetection: dpCapture.ratingDetection,
+    clearDpDetection: dpCapture.clearRatingDetection,
     captureRatingOnce,
+    captureDpOnce,
     captureCurrentFrameDataUrl,
     restartTurnOrderDetection,
     prepareNextDuelDetection,
-    setWaitForRatingBeforeAutoConfirm,
+    setPostResultScanMode,
     downloadCurrentFrame,
     downloadFirstCandidateFrame,
     downloadCoinTossFrame: turnOrderCapture.downloadFrame,
     downloadRatingFrame,
+    downloadDpFrame,
     start,
     stop,
   };

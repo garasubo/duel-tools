@@ -9,8 +9,9 @@ import type {
   CaptureWorkflowState,
 } from './captureWorkflow';
 
-const NON_RATED: CaptureWorkflowContext = { rated: false };
-const RATED: CaptureWorkflowContext = { rated: true };
+const NON_RATED: CaptureWorkflowContext = { postResultScan: null };
+const RATED: CaptureWorkflowContext = { postResultScan: 'rating' };
+const DC: CaptureWorkflowContext = { postResultScan: 'dp' };
 
 function reduce(
   state: CaptureWorkflowState,
@@ -38,6 +39,7 @@ describe('captureWorkflowReducer', () => {
       { phase: 'result-detected', result: 'win' },
       { phase: 'waiting-clear', result: 'loss' },
       { phase: 'waiting-rating', result: 'win' },
+      { phase: 'waiting-dp', result: 'loss' },
     ];
     for (const state of states) {
       expect(reduce(state, { type: 'stop' }, RATED).state).toEqual({ phase: 'idle' });
@@ -110,6 +112,13 @@ describe('captureWorkflowReducer', () => {
         effects: [{ type: 'commit-result', result: 'loss' }, { type: 'start-rating-loop' }],
       });
     });
+
+    it('manual-confirm（DC）は commit して DP ループ開始・waiting-dp へ', () => {
+      expect(reduce({ phase: 'result-detected', result: 'win' }, { type: 'manual-confirm' }, DC)).toEqual({
+        state: { phase: 'waiting-dp', result: 'win' },
+        effects: [{ type: 'commit-result', result: 'win' }, { type: 'start-dp-loop' }],
+      });
+    });
   });
 
   describe('waiting-clear からの screen-cleared', () => {
@@ -127,6 +136,13 @@ describe('captureWorkflowReducer', () => {
       });
     });
 
+    it('DC は commit して DP ループ開始・waiting-dp へ', () => {
+      expect(reduce({ phase: 'waiting-clear', result: 'win' }, { type: 'screen-cleared' }, DC)).toEqual({
+        state: { phase: 'waiting-dp', result: 'win' },
+        effects: [{ type: 'commit-result', result: 'win' }, { type: 'start-dp-loop' }],
+      });
+    });
+
     it('screen-cleared 以外では遷移しない', () => {
       const state: CaptureWorkflowState = { phase: 'waiting-clear', result: 'win' };
       expect(reduce(state, { type: 'result-confirmed', result: 'loss', autoConfirm: true })).toEqual({
@@ -141,6 +157,19 @@ describe('captureWorkflowReducer', () => {
     expect(reduce(state, { type: 'screen-cleared' }, RATED)).toEqual({ state, effects: [] });
     expect(reduce(state, { type: 'result-confirmed', result: 'loss', autoConfirm: true }, RATED)).toEqual({
       state,
+      effects: [],
+    });
+  });
+
+  it('waiting-dp 中の検出イベントは無視し、record-saved で scanning へ', () => {
+    const state: CaptureWorkflowState = { phase: 'waiting-dp', result: 'win' };
+    expect(reduce(state, { type: 'screen-cleared' }, DC)).toEqual({ state, effects: [] });
+    expect(reduce(state, { type: 'result-confirmed', result: 'loss', autoConfirm: true }, DC)).toEqual({
+      state,
+      effects: [],
+    });
+    expect(reduce(state, { type: 'record-saved' }, DC)).toEqual({
+      state: { phase: 'scanning' },
       effects: [],
     });
   });

@@ -12,7 +12,7 @@ import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
 import {
   applySuggestedResultToBattleForm,
-  applyRatingSuggestionToBattleForm,
+  applyScoreSuggestionToBattleForm,
   createInitialBattleFormState,
   createNextBattleFormState,
   isBattleFormValid,
@@ -47,7 +47,7 @@ export default function BattleForm({
   onRecordSaved,
   onTurnOrderCleared,
 }: BattleFormProps) {
-  const { captureRatingOnce, isCapturing, setWaitForRatingBeforeAutoConfirm } = useCaptureContext();
+  const { captureRatingOnce, captureDpOnce, isCapturing, setPostResultScanMode } = useCaptureContext();
   const [isCapturingRating, setIsCapturingRating] = useState(false);
   const [captureRatingFailed, setCaptureRatingFailed] = useState(false);
   const store = useBattlesStore();
@@ -69,6 +69,13 @@ export default function BattleForm({
   useEffect(() => {
     latestFormRef.current = form;
   }, [form]);
+
+  // キャプチャ中の DC モードでは結果反映時の ±1000 見積りをスキップし、画面 DP 検出に任せる。
+  // 検出系 effect の依存に isCapturing を増やさないよう ref で参照する。
+  const isCapturingRef = useRef(isCapturing);
+  useEffect(() => {
+    isCapturingRef.current = isCapturing;
+  }, [isCapturing]);
 
   // 入力途中のコイントス結果・勝敗を共有ストアへ公開し、簡易戦績パネルと
   // 別ウィンドウのオーバーレイの両方に試合数・コイン勝率・全体/先攻/後攻を反映する。
@@ -119,8 +126,10 @@ export default function BattleForm({
   }, [suggestedScore]);
 
   useEffect(() => {
-    setWaitForRatingBeforeAutoConfirm(form.battleMode === 'rated');
-  }, [form.battleMode, setWaitForRatingBeforeAutoConfirm]);
+    setPostResultScanMode(
+      form.battleMode === 'rated' ? 'rating' : form.battleMode === 'duelists-cup' ? 'dp' : null,
+    );
+  }, [form.battleMode, setPostResultScanMode]);
 
   useEffect(() => {
     if (!suggestedResult) return;
@@ -132,9 +141,11 @@ export default function BattleForm({
     queueMicrotask(() => {
       setCaptureResultApplied(true);
       setForm((f) => {
-        let newForm = applySuggestedResultToBattleForm(f, suggestedResult, store.getState().records);
+        let newForm = applySuggestedResultToBattleForm(f, suggestedResult, store.getState().records, {
+          skipAutoScore: isCapturingRef.current,
+        });
         if (suggestedScoreRef.current != null) {
-          newForm = applyRatingSuggestionToBattleForm(newForm, suggestedScoreRef.current);
+          newForm = applyScoreSuggestionToBattleForm(newForm, suggestedScoreRef.current);
         }
         return newForm;
       });
@@ -152,11 +163,9 @@ export default function BattleForm({
     queueMicrotask(() => {
       setCaptureResultApplied(true);
       setForm((f) =>
-        applySuggestedResultToBattleForm(
-          f,
-          capturePreviewResult,
-          store.getState().records,
-        ),
+        applySuggestedResultToBattleForm(f, capturePreviewResult, store.getState().records, {
+          skipAutoScore: isCapturingRef.current,
+        }),
       );
       onCapturePreviewResultConsumed?.();
     });
@@ -175,7 +184,7 @@ export default function BattleForm({
   useEffect(() => {
     if (suggestedScore == null) return;
     queueMicrotask(() => {
-      setForm((f) => applyRatingSuggestionToBattleForm(f, suggestedScore));
+      setForm((f) => applyScoreSuggestionToBattleForm(f, suggestedScore));
       onSuggestedScoreConsumed?.();
     });
   }, [suggestedScore, onSuggestedScoreConsumed]);
@@ -195,7 +204,7 @@ export default function BattleForm({
     queueMicrotask(() => {
       let nextForm = latestFormRef.current;
       if (suggestedScoreRef.current != null) {
-        nextForm = applyRatingSuggestionToBattleForm(nextForm, suggestedScoreRef.current);
+        nextForm = applyScoreSuggestionToBattleForm(nextForm, suggestedScoreRef.current);
       }
       setForm(nextForm);
       if (isBattleFormValid(nextForm)) {
@@ -233,18 +242,24 @@ export default function BattleForm({
       patchForm({ result: null });
     } else {
       setForm((f) =>
-        applySuggestedResultToBattleForm(f, result, store.getState().records),
+        applySuggestedResultToBattleForm(f, result, store.getState().records, {
+          skipAutoScore: isCapturing,
+        }),
       );
     }
   }
 
-  const handleCaptureRatingOnce = useCallback(async () => {
+  // 対戦モードに応じてレート / DP を画面から手動読み取りする。
+  const handleCaptureScoreOnce = useCallback(async () => {
     setIsCapturingRating(true);
     setCaptureRatingFailed(false);
     try {
-      const rating = await captureRatingOnce();
-      if (rating !== null) {
-        setForm((f) => ({ ...f, score: String(rating) }));
+      const score =
+        latestFormRef.current.battleMode === 'duelists-cup'
+          ? await captureDpOnce()
+          : await captureRatingOnce();
+      if (score !== null) {
+        setForm((f) => ({ ...f, score: String(score) }));
       } else {
         setCaptureRatingFailed(true);
         setTimeout(() => setCaptureRatingFailed(false), 3000);
@@ -252,7 +267,7 @@ export default function BattleForm({
     } finally {
       setIsCapturingRating(false);
     }
-  }, [captureRatingOnce]);
+  }, [captureRatingOnce, captureDpOnce]);
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -272,7 +287,7 @@ export default function BattleForm({
         onAddOpponentDeck={handleAddOpponentDeck}
         onAddKnownTag={addKnownTag}
         onResultChange={handleResultChange}
-        onCaptureRating={isCapturing ? handleCaptureRatingOnce : undefined}
+        onCaptureRating={isCapturing ? handleCaptureScoreOnce : undefined}
         isCapturingRating={isCapturingRating}
         captureRatingFailed={captureRatingFailed}
       />

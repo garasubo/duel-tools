@@ -119,7 +119,8 @@ export default function BattleFields({
                 step="any"
                 className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              {value.battleMode === 'rated' && onCaptureRating && (
+              {(value.battleMode === 'rated' || value.battleMode === 'duelists-cup') &&
+                onCaptureRating && (
                 <>
                   <button
                     type="button"

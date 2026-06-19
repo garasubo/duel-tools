@@ -8,7 +8,8 @@ export type CaptureWorkflowState =
   | { phase: 'scanning' }
   | { phase: 'result-detected'; result: BattleResult } // 手動確定待ち（autoConfirm OFF）
   | { phase: 'waiting-clear'; result: BattleResult } // autoConfirm ON: 結果画面の終了待ち
-  | { phase: 'waiting-rating'; result: BattleResult }; // rated: 結果確定後のレートスキャン中
+  | { phase: 'waiting-rating'; result: BattleResult } // rated: 結果確定後のレートスキャン中
+  | { phase: 'waiting-dp'; result: BattleResult }; // duelists-cup: 結果確定後の DP スキャン中
 
 export type CaptureWorkflowEvent =
   | { type: 'start' } // キャプチャ開始
@@ -21,11 +22,13 @@ export type CaptureWorkflowEvent =
 // 副作用は呼び出し側（useDuelCapture）で実行する intent。
 export type CaptureWorkflowEffect =
   | { type: 'commit-result'; result: BattleResult } // フォームへ反映（外向き 'result' イベント発火）
-  | { type: 'start-rating-loop' }; // レート検出ループ開始
+  | { type: 'start-rating-loop' } // レート検出ループ開始（rated）
+  | { type: 'start-dp-loop' }; // DP 検出ループ開始（duelists-cup）
 
 export interface CaptureWorkflowContext {
-  // 結果確定後にレート検出を待つか（= rated モード）。呼び出し側から注入する。
-  rated: boolean;
+  // 結果確定後にどのスコア検出を待つか。'rating'=レート戦 / 'dp'=DCモード / null=待たない。
+  // 呼び出し側（= 対戦モード）から注入する。
+  postResultScan: 'rating' | 'dp' | null;
 }
 
 export interface CaptureWorkflowResult {
@@ -37,10 +40,16 @@ export const INITIAL_CAPTURE_WORKFLOW_STATE: CaptureWorkflowState = { phase: 'id
 
 // 結果確定後の遷移（手動確定・自動確定の screen-cleared 共通）。
 function commitResult(result: BattleResult, ctx: CaptureWorkflowContext): CaptureWorkflowResult {
-  if (ctx.rated) {
+  if (ctx.postResultScan === 'rating') {
     return {
       state: { phase: 'waiting-rating', result },
       effects: [{ type: 'commit-result', result }, { type: 'start-rating-loop' }],
+    };
+  }
+  if (ctx.postResultScan === 'dp') {
+    return {
+      state: { phase: 'waiting-dp', result },
+      effects: [{ type: 'commit-result', result }, { type: 'start-dp-loop' }],
     };
   }
   return {
@@ -101,7 +110,8 @@ export function captureWorkflowReducer(
 
     case 'idle':
     case 'waiting-rating':
-      // 検出イベントは無視（waiting-rating は record-saved / stop でのみ抜ける）。
+    case 'waiting-dp':
+      // 検出イベントは無視（waiting-rating / waiting-dp は record-saved / stop でのみ抜ける）。
       return { state, effects: [] };
   }
 }

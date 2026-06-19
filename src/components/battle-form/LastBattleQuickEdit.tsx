@@ -51,7 +51,7 @@ function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturing
           max={bounds.max}
           className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
-        {mode === 'rated' && onCaptureRating && (
+        {(mode === 'rated' || mode === 'duelists-cup') && onCaptureRating && (
           <>
             <button
               type="button"
@@ -81,16 +81,19 @@ export default function LastBattleQuickEdit() {
   const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
   const { update: updateRecord } = useRecords();
   const latestRecord = useLatestRecord();
-  const { captureRatingOnce, isCapturing } = useCaptureContext();
+  const { captureRatingOnce, captureDpOnce, isCapturing } = useCaptureContext();
 
-  const handleCaptureRatingOnce = useCallback(async () => {
+  const handleCaptureScoreOnce = useCallback(async () => {
     if (!latestRecord) return;
     setIsCapturingRating(true);
     setCaptureRatingFailed(false);
     try {
-      const rating = await captureRatingOnce();
-      if (rating !== null) {
-        updateRecord(latestRecord.id, { score: rating });
+      const score =
+        latestRecord.battleMode === 'duelists-cup'
+          ? await captureDpOnce()
+          : await captureRatingOnce();
+      if (score !== null) {
+        updateRecord(latestRecord.id, { score });
       } else {
         setCaptureRatingFailed(true);
         setTimeout(() => setCaptureRatingFailed(false), 3000);
@@ -98,7 +101,7 @@ export default function LastBattleQuickEdit() {
     } finally {
       setIsCapturingRating(false);
     }
-  }, [captureRatingOnce, latestRecord, updateRecord]);
+  }, [captureRatingOnce, captureDpOnce, latestRecord, updateRecord]);
 
   if (!latestRecord) return null;
 
@@ -191,7 +194,7 @@ export default function LastBattleQuickEdit() {
                   score: value !== "" ? Number(value) : undefined,
                 })
               }
-              onCaptureRating={isCapturing ? handleCaptureRatingOnce : undefined}
+              onCaptureRating={isCapturing ? handleCaptureScoreOnce : undefined}
               isCapturingRating={isCapturingRating}
               captureRatingFailed={captureRatingFailed}
             />

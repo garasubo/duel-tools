@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BattleFormState } from './types';
 import {
   applySuggestedResultToBattleForm,
-  applyRatingSuggestionToBattleForm,
+  applyScoreSuggestionToBattleForm,
   createInitialBattleFormState,
   createNextBattleFormState,
   EMPTY_BATTLE_FORM_STATE,
@@ -89,20 +89,43 @@ describe('battle-form state helpers', () => {
   });
 });
 
-describe('applyRatingSuggestionToBattleForm', () => {
-  it('rated モード・スコア未入力のとき適用する', () => {
-    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
-    expect(applyRatingSuggestionToBattleForm(state, 1501.43).score).toBe('1501.43');
+describe('applySuggestedResultToBattleForm（DC の ±1000 見積り）', () => {
+  const prevDcRecord: BattleRecord = {
+    ...latestRecord,
+    id: 'dc-prev',
+    battleMode: 'duelists-cup',
+    score: 50000,
+  };
+
+  it('DC・スコア未入力なら直前DP±1000の見積りを入れる', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'duelists-cup' };
+    expect(applySuggestedResultToBattleForm(state, 'win', [prevDcRecord]).score).toBe('51000');
   });
 
-  it('duelists-cup モードでは適用しない', () => {
+  it('skipAutoScore のときは見積りを入れない（画面DP検出に任せる）', () => {
     const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'duelists-cup' };
-    expect(applyRatingSuggestionToBattleForm(state, 1500).score).toBe('');
+    const next = applySuggestedResultToBattleForm(state, 'win', [prevDcRecord], {
+      skipAutoScore: true,
+    });
+    expect(next.result).toBe('win');
+    expect(next.score).toBe('');
+  });
+});
+
+describe('applyScoreSuggestionToBattleForm', () => {
+  it('rated モード・スコア未入力のとき適用する', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
+    expect(applyScoreSuggestionToBattleForm(state, 1501.43).score).toBe('1501.43');
+  });
+
+  it('duelists-cup モード・スコア未入力のとき適用する（DP）', () => {
+    const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'duelists-cup' };
+    expect(applyScoreSuggestionToBattleForm(state, 1859).score).toBe('1859');
   });
 
   it('battleMode が null のときは適用しない', () => {
     const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE };
-    expect(applyRatingSuggestionToBattleForm(state, 1500).score).toBe('');
+    expect(applyScoreSuggestionToBattleForm(state, 1500).score).toBe('');
   });
 
   it('スコアが既に入力済みのときは上書きしない', () => {
@@ -111,12 +134,12 @@ describe('applyRatingSuggestionToBattleForm', () => {
       battleMode: 'rated',
       score: '1450',
     };
-    expect(applyRatingSuggestionToBattleForm(state, 1500).score).toBe('1450');
+    expect(applyScoreSuggestionToBattleForm(state, 1500).score).toBe('1450');
   });
 
   it('小数値が文字列として正しく保持される', () => {
     const state: BattleFormState = { ...EMPTY_BATTLE_FORM_STATE, battleMode: 'rated' };
-    expect(applyRatingSuggestionToBattleForm(state, 1508.94).score).toBe('1508.94');
+    expect(applyScoreSuggestionToBattleForm(state, 1508.94).score).toBe('1508.94');
   });
 });
 
@@ -130,13 +153,16 @@ describe('shouldAutoSubmitSuggestedResult', () => {
     ).toBe(false);
   });
 
-  it('レート戦以外では勝敗確定後に自動送信できる', () => {
+  it('DCモードでも DP 検出を待つため自動送信しない', () => {
     expect(
       shouldAutoSubmitSuggestedResult({
         ...EMPTY_BATTLE_FORM_STATE,
         battleMode: 'duelists-cup',
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('対戦モード未選択では勝敗確定後に自動送信できる', () => {
     expect(shouldAutoSubmitSuggestedResult(EMPTY_BATTLE_FORM_STATE)).toBe(true);
   });
 });

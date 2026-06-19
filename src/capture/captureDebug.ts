@@ -24,7 +24,7 @@ export function getCaptureDebugEnabled(): boolean {
 }
 
 export function createCaptureFilename(
-  kind: 'current' | 'result-candidate' | 'coin-toss' | 'rating-candidate',
+  kind: 'current' | 'result-candidate' | 'coin-toss' | 'rating-candidate' | 'dp-candidate',
   date = new Date(),
 ): string {
   const timestamp = [
