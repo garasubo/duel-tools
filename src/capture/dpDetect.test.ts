@@ -62,6 +62,15 @@ describe('collapseDigitSpaces', () => {
   it('数字以外のスペースはそのまま', () => {
     expect(collapseDigitSpaces('DP )) 1859')).toBe('DP )) 1859');
   });
+  it('千区切りでない隣接単一数字ノイズは連結しない（"5735 0" はそのまま）', () => {
+    expect(collapseDigitSpaces('= 5735 0')).toBe('= 5735 0');
+  });
+  it('3桁グループでない分割は連結しない（"173 50" はそのまま）', () => {
+    expect(collapseDigitSpaces('173 50')).toBe('173 50');
+  });
+  it('複数の千区切りグループも連結する（"1 234 567" → "1234567"）', () => {
+    expect(collapseDigitSpaces('1 234 567')).toBe('1234567');
+  });
 });
 
 describe('parseDpFromText', () => {

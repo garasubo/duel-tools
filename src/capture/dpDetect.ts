@@ -29,10 +29,12 @@ function isInDpRange(value: number): boolean {
   return Number.isInteger(value) && value >= DP_MIN && value <= DP_MAX;
 }
 
-// OCR がロビー/リザルト画面の数値間にスペースを挿入することがある（例: "1 859"）。
-// 数字-スペース-数字 のパターンを連結してパース精度を上げる。
+// OCR がロビー/リザルト画面の千区切りスペースを挿入することがある（例: "1 859"）。
+// 「1〜3桁 + (空白 + 3桁)+」の千区切りパターンのみ連結してパース精度を上げる。
+// "5735 0"（4桁+1桁）のような桁区切りでない隣接ノイズは連結しない
+// （数値の右側にある装飾アイコンを "0" と誤読したものが本来値に合体するのを防ぐ）。
 export function collapseDigitSpaces(text: string): string {
-  return text.replace(/(\d) +(\d)/g, '$1$2');
+  return text.replace(/\d{1,3}(?: +\d{3})+/g, (m) => m.replace(/ +/g, ''));
 }
 
 // テキストから DP 妥当範囲（3〜6桁）の整数を出現順に列挙する。
