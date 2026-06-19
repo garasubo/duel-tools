@@ -1,4 +1,4 @@
-filename,coin_expected,ocr_expected,badge_expected,rate_expected
+filename,coin_expected,ocr_expected,badge_expected,rate_expected,dp_expected
 0001.png,user-selecting,none,none
 0002.png,opponent-selecting,none,none
 0003.png,opponent-selecting,none,none
@@ -97,3 +97,5 @@ filename,coin_expected,ocr_expected,badge_expected,rate_expected
 0095.png,none,none,,none
 0096.png,none,win,,none
 0097.png,none,none,,none
+0098.png,none,none,,none,1859
+0099.png,none,none,,none,1859
