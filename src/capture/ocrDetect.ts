@@ -416,6 +416,30 @@ export function hasResultScreenBottomDark(pixels: ImagePixels, maxBrightness = M
   return totalBrightness / count < maxBrightness;
 }
 
+/**
+ * 任意 ROI 内の「明るいテキスト相当ピクセル（isResultTextPixel）」の密度を返す。
+ * OCR を走らせる前に「その帯に読むべき明テキストが在るか」を判定する用途
+ * （DP 画面種別分類の none ゲート等）。0..1。
+ */
+export function brightTextDensityInRoi(pixels: ImagePixels, roi: ROI): number {
+  const rect = roiToRectangle(roi, pixels.width, pixels.height);
+  const left = Math.max(0, rect.left);
+  const top = Math.max(0, rect.top);
+  const right = Math.min(pixels.width, rect.left + rect.width);
+  const bottom = Math.min(pixels.height, rect.top + rect.height);
+  const width = right - left;
+  const height = bottom - top;
+  if (width <= 0 || height <= 0) return 0;
+
+  let bright = 0;
+  for (let y = top; y < bottom; y++) {
+    for (let x = left; x < right; x++) {
+      if (isResultTextPixel(pixels.data, (y * pixels.width + x) * 4)) bright += 1;
+    }
+  }
+  return bright / (width * height);
+}
+
 export async function detectResultByImageFeatures(input: ImageLike): Promise<DetectionResult | null> {
   const classification = await classifyResultScreenByImageFeatures(input);
   return classification.kind === 'result' ? classification.result : null;

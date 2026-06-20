@@ -1,5 +1,13 @@
 import type { ImageLike, Worker } from 'tesseract.js';
-import { buildOcrInput, hasResultScreenText, roiToRectangle } from './ocrDetect';
+import {
+  brightTextDensityInRoi,
+  buildOcrInput,
+  hasResultScreenText,
+  type ImagePixels,
+  readImagePixels,
+  roiToRectangle,
+} from './ocrDetect';
+import { recordSample } from './captureProfiler';
 import type { ROI } from './types';
 
 type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
@@ -29,6 +37,40 @@ const DP_MAX = 999999;
 
 function isInDpRange(value: number): boolean {
   return Number.isInteger(value) && value >= DP_MIN && value <= DP_MAX;
+}
+
+// 画像特徴（OCR 非依存）による「OCR を走らせる価値があるか」の事前ゲート。
+// DP_ROI 内の明テキスト密度がこの値未満なら、DP 表示が無い idle/盤面/暗転フレームとみなし
+// OCR を 1 パスも走らせず null を返す（本番の waiting-dp ループで毎秒走る無駄を撤廃する）。
+//
+// 注意: キャプチャされた DP 画面は結果・ロビー・エリア代表決定戦のいずれも画面下部が暗く、
+// hasResultScreenBottomDark や VICTORY 画像分類では種別を識別できないことを fixture で実証済み
+// （全件 dark=true / 既存分類器は none）。よって種別ルーティングはせず、密度ゲートのみ画像特徴を使う。
+// 閾値は値あり fixture の最小密度（≈0.015）の約 1/3。値フレームを絶対に弾かない保守値。
+export const DP_MIN_TEXT_DENSITY = 0.005;
+
+export function dpRoiHasText(pixels: ImagePixels): boolean {
+  return brightTextDensityInRoi(pixels, DP_ROI) >= DP_MIN_TEXT_DENSITY;
+}
+
+// 直近の DP 検出が実行した OCR recognize 回数（プロファイラ／テストで削減を検証する）。
+// 密度ゲートで OCR を1パスも走らせなかった場合は 0。
+let lastDpOcrPassCount = 0;
+export function getLastDpOcrPassCount(): number {
+  return lastDpOcrPassCount;
+}
+
+// 画像特徴ゲート: DP_ROI に明テキストがほぼ無ければ OCR を一切走らせず null を返す。
+// pixels が読めない場合（null）は安全側に倒し、ゲートせず OCR を走らせる（fail open）。
+async function shouldSkipDpOcrByImageFeatures(input: ImageLike): Promise<boolean> {
+  const pixels = await readImagePixels(input);
+  return pixels !== null && !dpRoiHasText(pixels);
+}
+
+function recordDpOcrSkip(): null {
+  lastDpOcrPassCount = 0;
+  recordSample('dp-ocr-passes', 0);
+  return null;
 }
 
 // OCR がロビー/リザルト画面の千区切りスペースを挿入することがある（例: "1 859"）。
@@ -148,6 +190,14 @@ export async function createDpOcrWorker(): Promise<Worker> {
   return createWorker('eng');
 }
 
+// DP OCR の3パスを「PSM11 先頭の早期 exit ラダー」で実行する。
+//
+// 背景: 旧実装は PSM6 → PSM11 → PSM11+whitelist の順で、ロビー/エリア代表決定戦画面（QUALIFIERS）
+// は PSM6 が末尾桁を誤読/矢印を読めず、必ず2パス目（PSM11）まで走っていた。実測（fixture 0098-0114）で
+// 値ありフレームは全件「PSM11 単独」で正しく解決できる（VICTORY 系は confirmedDp、QUALIFIERS 系は
+// dpAfterArrow）ことを確認したため、PSM11 を先頭に置いて常用ケースを 1 パスに短縮する。
+// PSM6 / PSM11+whitelist は未知画面用のフォールバックとして温存し（3パスの集合は不変）、精度は落とさない。
+// 結果画面（VICTORY/LOSE）では遷移アニメ途中に旧DPの裸矢印を確定しないよう、従来どおり arrow 抑制する。
 async function runDpOcr(
   worker: Worker,
   ocrInput: ImageLike,
@@ -155,6 +205,19 @@ async function runDpOcr(
 ): Promise<number | null> {
   const recognize = (w: Worker) =>
     recognizeOpts ? w.recognize(ocrInput, recognizeOpts) : w.recognize(ocrInput);
+
+  let passes = 0;
+  const runPass = async (psm: PageSegmentationMode, whitelist: string): Promise<string> => {
+    await worker.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: whitelist });
+    passes += 1;
+    const { data } = await recognize(worker);
+    return data.text;
+  };
+  const finish = (value: number | null): number | null => {
+    lastDpOcrPassCount = passes;
+    recordSample('dp-ocr-passes', passes);
+    return value;
+  };
 
   // 各パスから「確定 DP（validatedTransition → 二重矢印リザルト解析）」を試みる。
   // どちらも矢印アンカー付き・算術検証済みなので、盤面 ATK 値などの裸整数を拾わない。
@@ -164,51 +227,38 @@ async function runDpOcr(
     return isDpResultScreenText(text) ? parseDpResultScreen(text) : null;
   };
 
-  // パス1: PSM 6 — 大フォントのリザルト画面向け。ホワイトリストは無効化し、
-  // "DP"/"))" などの画面判定マーカーも読めるようにする。
-  await worker.setParameters({
-    tessedit_pageseg_mode: '6' as PageSegmentationMode,
-    tessedit_char_whitelist: '',
-  });
-  const { data: d1 } = await recognize(worker);
-  const c1 = confirmedDp(d1.text);
-  if (c1 !== null) return c1;
-
-  // パス2: PSM 11 — PSM 6 でノイズが多い場合のフォールバック（ロビー画面含む）。
-  await worker.setParameters({ tessedit_pageseg_mode: '11' as PageSegmentationMode });
-  const { data: d2 } = await recognize(worker);
-  const c2 = confirmedDp(d2.text);
-  if (c2 !== null) return c2;
-
-  // 確定遷移が取れなかった段階で画面種別を判定する。
-  // 結果画面（VICTORY/LOSE）なら遷移アニメ途中の可能性が高く、旧DP単独の矢印値を
-  // 確定してしまうと誤った旧DPを記録するため、ここでは確定せず null（次フレーム待ち）。
-  // ロビー画面なら現在DPの単独表示が正なので、矢印アンカー値を採用する。
-  const isResultScreen = hasResultScreenText(d1.text) || hasResultScreenText(d2.text);
-
-  // ロビー/単一矢印画面では PSM 6 が末尾を 1 桁誤読することがあるため、PSM 11 を優先する。
+  // パスA（先頭）: PSM 11 — 結果画面の遷移（confirmedDp）もロビーの単一矢印（dpAfterArrow）も
+  // 単独で読める常用パス。値ありフレームはここで確定し 1 パスで終わる。
+  const tA = await runPass('11' as PageSegmentationMode, '');
+  const cA = confirmedDp(tA);
+  if (cA !== null) return finish(cA);
+  // 結果画面（VICTORY/LOSE）判定。結果画面では旧DP単独の矢印値を確定しない（遷移アニメ途中の
+  // 誤確定防止）。ロビー画面は現在DPの単独表示が正なので矢印アンカー値を採用する。
+  let isResultScreen = hasResultScreenText(tA);
   if (!isResultScreen) {
-    const a2 = dpAfterArrow(collapseDigitSpaces(d2.text));
-    if (a2 !== null) return a2;
+    const aA = dpAfterArrow(collapseDigitSpaces(tA));
+    if (aA !== null) return finish(aA);
   }
 
-  // パス3: 数字＋矢印記号ホワイトリスト + PSM 11 の最終手段。
+  // パスB（フォールバック）: PSM 6 — 大フォントのリザルト画面で PSM11 が取りこぼした遷移を救済。
+  const tB = await runPass('6' as PageSegmentationMode, '');
+  const cB = confirmedDp(tB);
+  if (cB !== null) return finish(cB);
+  isResultScreen = isResultScreen || hasResultScreenText(tB);
+
+  // パスC（フォールバック）: 数字＋矢印記号ホワイトリスト + PSM 11 の最終手段。
   // 小フォントの数字認識を安定させる（"DP" は消えるが矢印・符号アンカーは残す）。
-  await worker.setParameters({
-    tessedit_pageseg_mode: '11' as PageSegmentationMode,
-    tessedit_char_whitelist: DP_WHITELIST,
-  });
-  const { data: d3 } = await recognize(worker);
-  const v3 = validatedTransition(collapseDigitSpaces(d3.text));
-  if (v3 !== null) return v3;
+  const tC = await runPass('11' as PageSegmentationMode, DP_WHITELIST);
+  const vC = validatedTransition(collapseDigitSpaces(tC));
+  if (vC !== null) return finish(vC);
   if (!isResultScreen) {
-    const a3 = dpAfterArrow(collapseDigitSpaces(d3.text));
-    if (a3 !== null) return a3;
-    const a1 = dpAfterArrow(collapseDigitSpaces(d1.text));
-    if (a1 !== null) return a1;
+    const aC = dpAfterArrow(collapseDigitSpaces(tC));
+    if (aC !== null) return finish(aC);
+    const aB = dpAfterArrow(collapseDigitSpaces(tB));
+    if (aB !== null) return finish(aB);
   }
 
-  return null;
+  return finish(null);
 }
 
 export async function detectDpFromImageLike(
@@ -217,6 +267,7 @@ export async function detectDpFromImageLike(
   imageWidth: number,
   imageHeight: number,
 ): Promise<number | null> {
+  if (await shouldSkipDpOcrByImageFeatures(input)) return recordDpOcrSkip();
   const rect = roiToRectangle(DP_ROI, imageWidth, imageHeight);
   const built = buildOcrInput(
     input as unknown as Parameters<typeof buildOcrInput>[0],
@@ -233,6 +284,7 @@ export async function detectDpFromScreen(
   canvas: HTMLCanvasElement,
   reusableCanvasRef?: { current: HTMLCanvasElement | null },
 ): Promise<number | null> {
+  if (await shouldSkipDpOcrByImageFeatures(canvas as unknown as ImageLike)) return recordDpOcrSkip();
   const rect = roiToRectangle(DP_ROI, canvas.width, canvas.height);
   const built = buildOcrInput(
     canvas as unknown as Parameters<typeof buildOcrInput>[0],

@@ -7,6 +7,10 @@ import {
   createDpOcrWorker,
   detectDpFromImageLike,
   dpAfterArrow,
+  DP_MIN_TEXT_DENSITY,
+  DP_ROI,
+  dpRoiHasText,
+  getLastDpOcrPassCount,
   isDpResultScreenText,
   isDpScreenText,
   parseDpFromText,
@@ -14,6 +18,7 @@ import {
   parseDpResultScreen,
   validatedTransition,
 } from './dpDetect';
+import { brightTextDensityInRoi, type ImagePixels } from './ocrDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
@@ -187,6 +192,63 @@ describe('isDpScreenText', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 画像特徴ゲート（OCR 非依存）の単体テスト。
+// DP_ROI 内の明テキスト密度で「OCR を走らせる価値があるか」を判定する。
+// ---------------------------------------------------------------------------
+
+// 全面黒（不透明）のピクセル。white で指定矩形を白く塗る。
+function makePixels(
+  width: number,
+  height: number,
+  white?: { x0: number; y0: number; x1: number; y1: number },
+): ImagePixels {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let i = 0; i < width * height; i++) data[i * 4 + 3] = 255; // alpha 不透明
+  if (white) {
+    for (let y = white.y0; y < white.y1; y++) {
+      for (let x = white.x0; x < white.x1; x++) {
+        const o = (y * width + x) * 4;
+        data[o] = 255;
+        data[o + 1] = 255;
+        data[o + 2] = 255;
+        data[o + 3] = 255;
+      }
+    }
+  }
+  return { width, height, data };
+}
+
+describe('dpRoiHasText / brightTextDensityInRoi（画像特徴ゲート）', () => {
+  // DP_ROI は x0.05,y0.4,w0.9,h0.5 → 100x100 では rect 5,40,90,50（面積 4500）。
+  it('明テキストが無い（全面黒）フレームは密度0でゲートが false', () => {
+    const pixels = makePixels(100, 100);
+    expect(brightTextDensityInRoi(pixels, DP_ROI)).toBe(0);
+    expect(dpRoiHasText(pixels)).toBe(false);
+  });
+
+  it('DP_ROI 内に十分な明テキストがあれば true（OCR を走らせる）', () => {
+    // 20x20 の白ブロック（DP_ROI 内）= 400px / 4500 ≈ 0.089 > 閾値
+    const pixels = makePixels(100, 100, { x0: 20, y0: 50, x1: 40, y1: 70 });
+    expect(brightTextDensityInRoi(pixels, DP_ROI)).toBeGreaterThan(DP_MIN_TEXT_DENSITY);
+    expect(dpRoiHasText(pixels)).toBe(true);
+  });
+
+  it('明ピクセルが閾値未満のわずかなノイズはゲートで false（OCR スキップ）', () => {
+    // 3x3 の白（DP_ROI 内）= 9px / 4500 ≈ 0.002 < 閾値（fixture 0112 相当）
+    const pixels = makePixels(100, 100, { x0: 20, y0: 50, x1: 23, y1: 53 });
+    expect(brightTextDensityInRoi(pixels, DP_ROI)).toBeLessThan(DP_MIN_TEXT_DENSITY);
+    expect(dpRoiHasText(pixels)).toBe(false);
+  });
+
+  it('DP_ROI 外（画面上部）の明テキストは密度に寄与しない', () => {
+    // y=0..20 は DP_ROI(top=40) より上 → ROI 密度 0
+    const pixels = makePixels(100, 100, { x0: 20, y0: 0, x1: 60, y1: 20 });
+    expect(brightTextDensityInRoi(pixels, DP_ROI)).toBe(0);
+    expect(dpRoiHasText(pixels)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // fixture 画像による統合テスト
 // fixtures.csv の dp_expected 列に値がある行のみテストを生成する。
 // 現状の fixture は全てレート戦由来で dp_expected は空のため 0 件。
@@ -218,6 +280,9 @@ if (dpFixtures.length > 0) {
             expect(result).toBeNull();
           } else {
             expect(result).toBe(dpExpected);
+            // 高速化の要: 値ありフレームは PSM11 先頭ラダーで 1 パスで確定する
+            // （旧実装の QUALIFIERS 系 2 パス・最大3パスからの削減をロックする）。
+            expect(getLastDpOcrPassCount()).toBeLessThanOrEqual(1);
           }
         },
         30000,
