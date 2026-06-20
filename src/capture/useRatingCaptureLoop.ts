@@ -38,6 +38,7 @@ interface RatingCaptureLoopDependencies {
 interface UseRatingCaptureLoopOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   onRatingDetected: (rating: number) => void;
+  captureCurrentFrame?: () => boolean;
   dependencies?: Partial<RatingCaptureLoopDependencies>;
 }
 
@@ -84,6 +85,10 @@ export function advanceRatingStreak(
   };
 }
 
+export function shouldRunScoreOcr(captureCurrentFrame?: () => boolean): boolean {
+  return captureCurrentFrame ? captureCurrentFrame() : true;
+}
+
 const defaultDependencies: RatingCaptureLoopDependencies = {
   createWorker: createRatingOcrWorker,
   detectRating: detectRatingFromScreen,
@@ -92,6 +97,7 @@ const defaultDependencies: RatingCaptureLoopDependencies = {
 export function useRatingCaptureLoop({
   canvasRef,
   onRatingDetected,
+  captureCurrentFrame,
   dependencies,
 }: UseRatingCaptureLoopOptions): RatingCaptureLoop {
   const depsRef = useRef({ ...defaultDependencies, ...dependencies });
@@ -167,6 +173,10 @@ export function useRatingCaptureLoop({
         scheduleNext();
         return;
       }
+      if (!shouldRunScoreOcr(captureCurrentFrame)) {
+        scheduleNext();
+        return;
+      }
 
       recordTick('rating-loop');
       runningRef.current = true;
@@ -217,7 +227,7 @@ export function useRatingCaptureLoop({
       workerRef.current = worker;
       scheduleNext();
     })();
-  }, [canvasRef, reset]);
+  }, [canvasRef, captureCurrentFrame, reset]);
 
   useEffect(() => stop, [stop]);
 

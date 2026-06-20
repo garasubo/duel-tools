@@ -6,7 +6,7 @@ import type { BattleResult } from '../types';
 export type CaptureWorkflowState =
   | { phase: 'idle' }
   | { phase: 'scanning' }
-  | { phase: 'result-detected'; result: BattleResult } // 手動確定待ち（autoConfirm OFF）
+  | { phase: 'result-detected'; result: BattleResult } // autoConfirm OFF: preview 反映後、結果画面の終了待ち
   | { phase: 'waiting-clear'; result: BattleResult } // autoConfirm ON: 結果画面の終了待ち
   | { phase: 'waiting-rating'; result: BattleResult } // rated: 結果確定後のレートスキャン中
   | { phase: 'waiting-dp'; result: BattleResult } // duelists-cup: 結果確定後の DP スキャン中
@@ -39,23 +39,31 @@ export interface CaptureWorkflowResult {
 
 export const INITIAL_CAPTURE_WORKFLOW_STATE: CaptureWorkflowState = { phase: 'idle' };
 
-// 結果確定後の遷移（手動確定・自動確定の screen-cleared 共通）。
-function commitResult(result: BattleResult, ctx: CaptureWorkflowContext): CaptureWorkflowResult {
+// 結果確定後の遷移。
+function commitResult(
+  result: BattleResult,
+  ctx: CaptureWorkflowContext,
+  options: { emitResult: boolean } = { emitResult: true },
+): CaptureWorkflowResult {
+  const commitEffects: CaptureWorkflowEffect[] = options.emitResult
+    ? [{ type: 'commit-result', result }]
+    : [];
+
   if (ctx.postResultScan === 'rating') {
     return {
       state: { phase: 'waiting-rating', result },
-      effects: [{ type: 'commit-result', result }, { type: 'start-rating-loop' }],
+      effects: [...commitEffects, { type: 'start-rating-loop' }],
     };
   }
   if (ctx.postResultScan === 'dp') {
     return {
       state: { phase: 'waiting-dp', result },
-      effects: [{ type: 'commit-result', result }, { type: 'start-dp-loop' }],
+      effects: [...commitEffects, { type: 'start-dp-loop' }],
     };
   }
   return {
     state: { phase: 'scanning' },
-    effects: [{ type: 'commit-result', result }],
+    effects: commitEffects,
   };
 }
 
@@ -103,6 +111,12 @@ export function captureWorkflowReducer(
       }
       if (event.type === 'manual-confirm') {
         return commitResult(state.result, ctx);
+      }
+      if (event.type === 'screen-cleared') {
+        // 自動確定 OFF では result-preview が既にフォームへ勝敗を反映している。
+        // ここで result イベントまで emit すると非レート戦で自動保存されうるため、
+        // 画面終了後はスコア検出ループ開始だけ行う。
+        return commitResult(state.result, ctx, { emitResult: false });
       }
       return { state, effects: [] };
 

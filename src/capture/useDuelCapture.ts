@@ -101,6 +101,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   const ratingCapture = useRatingCaptureLoop({
     canvasRef,
     onRatingDetected: handleRatingDetected,
+    captureCurrentFrame,
   });
 
   // DP 検出ループ。汎用ループ（useRatingCaptureLoop）を DP 用 deps で再利用する。
@@ -108,6 +109,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   const dpCapture = useRatingCaptureLoop({
     canvasRef,
     onRatingDetected: handleDpDetected,
+    captureCurrentFrame,
     dependencies: { createWorker: createDpOcrWorker, detectRating: detectDpFromScreen },
   });
 
@@ -322,10 +324,14 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
         scheduleNextOcr(tickStartedAt);
         return;
       }
-      // waiting-clear（確定前の画面クリア待ち）と draining（記録後の画面クリア待ち）は
+      // result-detected / waiting-clear（スコア検出前の画面クリア待ち）と
+      // draining（記録後の画面クリア待ち）は
       // gate モードで再検出を止め、結果画面が消えるのを待つ。
       const phase = workflowStateRef.current.phase;
-      const mode = phase === 'waiting-clear' || phase === 'draining' ? 'gate' : 'detect';
+      const mode =
+        phase === 'result-detected' || phase === 'waiting-clear' || phase === 'draining'
+          ? 'gate'
+          : 'detect';
       const result = await resultCapture.runOnce(mode);
       hasResultCandidateRef.current = result.hasCandidate;
       scheduleNextOcr(tickStartedAt);

@@ -119,6 +119,27 @@ describe('captureWorkflowReducer', () => {
         effects: [{ type: 'commit-result', result: 'win' }, { type: 'start-dp-loop' }],
       });
     });
+
+    it('screen-cleared（非rated）は result-preview 反映済みとして commit せず scanning へ', () => {
+      expect(reduce({ phase: 'result-detected', result: 'win' }, { type: 'screen-cleared' }, NON_RATED)).toEqual({
+        state: { phase: 'scanning' },
+        effects: [],
+      });
+    });
+
+    it('screen-cleared（rated）は commit せずレートループ開始・waiting-rating へ', () => {
+      expect(reduce({ phase: 'result-detected', result: 'loss' }, { type: 'screen-cleared' }, RATED)).toEqual({
+        state: { phase: 'waiting-rating', result: 'loss' },
+        effects: [{ type: 'start-rating-loop' }],
+      });
+    });
+
+    it('screen-cleared（DC）は commit せず DP ループ開始・waiting-dp へ', () => {
+      expect(reduce({ phase: 'result-detected', result: 'win' }, { type: 'screen-cleared' }, DC)).toEqual({
+        state: { phase: 'waiting-dp', result: 'win' },
+        effects: [{ type: 'start-dp-loop' }],
+      });
+    });
   });
 
   describe('waiting-clear からの screen-cleared', () => {
