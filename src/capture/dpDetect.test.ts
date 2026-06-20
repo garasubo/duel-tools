@@ -11,6 +11,7 @@ import {
   parseDpFromText,
   parseDpLobbyScreen,
   parseDpResultScreen,
+  validatedTransition,
 } from './dpDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
@@ -112,6 +113,24 @@ describe('parseDpResultScreen（旧 ± 変化量 による検証）', () => {
   });
   it('マイナス記号が em ダッシュに誤読されても検証できる', () => {
     expect(parseDpResultScreen('DP )) 2000 — 141 )) 1859')).toBe(1859);
+  });
+});
+
+describe('validatedTransition（矢印非依存の 旧±変化量==新 検証）', () => {
+  it('二重矢印が ")»" に化けても新DPを取れる（0108 系）', () => {
+    expect(validatedTransition('11805+1000)» 12805')).toBe(12805);
+  });
+  it('正常な二重矢印リザルトも検出する', () => {
+    expect(validatedTransition('DP )) 849 +1010 )) 1859')).toBe(1859);
+  });
+  it('減算ケースも検証して採用する', () => {
+    expect(validatedTransition('2000 -141 )) 1859')).toBe(1859);
+  });
+  it('変化量が無い単独DPは null（遷移ではない）', () => {
+    expect(validatedTransition('11805')).toBe(null);
+  });
+  it('算術が一致しない場合は null（誤読フレームを確定しない）', () => {
+    expect(validatedTransition('849 +1000 )) 1859')).toBe(null);
   });
 });
 

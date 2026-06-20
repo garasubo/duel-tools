@@ -1,5 +1,5 @@
 import type { ImageLike, Worker } from 'tesseract.js';
-import { buildOcrInput, roiToRectangle } from './ocrDetect';
+import { buildOcrInput, hasResultScreenText, roiToRectangle } from './ocrDetect';
 import type { ROI } from './types';
 
 type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
@@ -18,7 +18,9 @@ const DP_OCR_TARGET_WIDTH = 960;
 
 // フォールバックパス用の数字＋矢印記号ホワイトリスト。
 // "DP" ラベルは捨てるが、▶▶ 由来の "))"/">>" は残して矢印アンカーを効かせる。
-const DP_WHITELIST = '0123456789)>';
+// "+"/"-" も残し、ホワイトリストパスでも変化量（"+1000" 等）を読んで
+// validatedTransition で 旧±変化量==新 を検証できるようにする。
+const DP_WHITELIST = '0123456789)>+-';
 
 // DP の妥当範囲。2桁以下のノイズ（"勝利数 2" など）を除外しつつ、
 // 大会後半の高 DP（数万）まで拾えるよう上限は広めに取る。
@@ -81,6 +83,23 @@ export function parseDpFromText(text: string): number | null {
   return all.length === 1 ? all[0] : null;
 }
 
+// "旧 ± 変化量 … 新" の遷移を矢印に依存せず検出する。旧 ± 変化量 == 新 のときだけ新DPを返す。
+// Tesseract が ▶▶ を ")»" 等に化けさせ二重矢印分割（parseDpResultScreen）が壊れても新DPを拾える。
+// 変化量と新DPの間は非数字 8 文字までの隙間（" )) " / ")» " 等の矢印ノイズ）を許容する。
+// 算術一致を必須にすることで、ロビー/ノイズ画面での誤検出を防ぐ。
+export function validatedTransition(text: string): number | null {
+  for (const m of text.matchAll(/(\d{3,6})\s*([+−–—-])\s*(\d{1,6})\D{0,8}?(\d{3,6})/g)) {
+    const oldDp = parseInt(m[1], 10);
+    const delta = parseInt(m[3], 10);
+    const newDp = parseInt(m[4], 10);
+    const sign = m[2] === '+' ? 1 : -1;
+    if (isInDpRange(oldDp) && isInDpRange(newDp) && oldDp + sign * delta === newDp) {
+      return newDp;
+    }
+  }
+  return null;
+}
+
 // リザルト画面（0098 系）の解析: "DP ▶ 旧 ±変化量 ▶ 新" から新DPを返す。
 // 旧DPと変化量（DP は整数）が両方読めた場合は 旧 ± 変化量 == 新 を検証し、
 // フォントによる 1 桁誤読での誤確定を防ぐ:
@@ -136,6 +155,14 @@ async function runDpOcr(
   const recognize = (w: Worker) =>
     recognizeOpts ? w.recognize(ocrInput, recognizeOpts) : w.recognize(ocrInput);
 
+  // 各パスから「確定 DP（validatedTransition → 二重矢印リザルト解析）」を試みる。
+  // どちらも矢印アンカー付き・算術検証済みなので、盤面 ATK 値などの裸整数を拾わない。
+  const confirmedDp = (text: string): number | null => {
+    const v = validatedTransition(collapseDigitSpaces(text));
+    if (v !== null) return v;
+    return isDpResultScreenText(text) ? parseDpResultScreen(text) : null;
+  };
+
   // パス1: PSM 6 — 大フォントのリザルト画面向け。ホワイトリストは無効化し、
   // "DP"/"))" などの画面判定マーカーも読めるようにする。
   await worker.setParameters({
@@ -143,34 +170,44 @@ async function runDpOcr(
     tessedit_char_whitelist: '',
   });
   const { data: d1 } = await recognize(worker);
-  const r1 = parseDpResultScreen(d1.text);
-  if (r1 !== null) return r1;
-  // フォールバックは矢印アンカー付きの値のみ採用する。盤面のモンスター ATK 値（"500" 等）が
-  // DP_ROI に映り込んだ裸の整数を DP と誤確定しないため（lone-integer フォールバックは使わない）。
-  const r1Fallback = !isDpResultScreenText(d1.text)
-    ? dpAfterArrow(collapseDigitSpaces(d1.text))
-    : null;
+  const c1 = confirmedDp(d1.text);
+  if (c1 !== null) return c1;
 
   // パス2: PSM 11 — PSM 6 でノイズが多い場合のフォールバック（ロビー画面含む）。
-  // ロビー/単一矢印画面では PSM 6 が末尾を 1 桁誤読することがあるため、PSM 11 を優先する。
   await worker.setParameters({ tessedit_pageseg_mode: '11' as PageSegmentationMode });
   const { data: d2 } = await recognize(worker);
-  const r2 = isDpResultScreenText(d2.text)
-    ? parseDpResultScreen(d2.text)
-    : dpAfterArrow(collapseDigitSpaces(d2.text));
-  if (r2 !== null) return r2;
+  const c2 = confirmedDp(d2.text);
+  if (c2 !== null) return c2;
+
+  // 確定遷移が取れなかった段階で画面種別を判定する。
+  // 結果画面（VICTORY/LOSE）なら遷移アニメ途中の可能性が高く、旧DP単独の矢印値を
+  // 確定してしまうと誤った旧DPを記録するため、ここでは確定せず null（次フレーム待ち）。
+  // ロビー画面なら現在DPの単独表示が正なので、矢印アンカー値を採用する。
+  const isResultScreen = hasResultScreenText(d1.text) || hasResultScreenText(d2.text);
+
+  // ロビー/単一矢印画面では PSM 6 が末尾を 1 桁誤読することがあるため、PSM 11 を優先する。
+  if (!isResultScreen) {
+    const a2 = dpAfterArrow(collapseDigitSpaces(d2.text));
+    if (a2 !== null) return a2;
+  }
 
   // パス3: 数字＋矢印記号ホワイトリスト + PSM 11 の最終手段。
-  // 小フォントの数字認識を安定させる（"DP" は消えるが矢印アンカーは残す）。
+  // 小フォントの数字認識を安定させる（"DP" は消えるが矢印・符号アンカーは残す）。
   await worker.setParameters({
     tessedit_pageseg_mode: '11' as PageSegmentationMode,
     tessedit_char_whitelist: DP_WHITELIST,
   });
   const { data: d3 } = await recognize(worker);
-  const r3 = dpAfterArrow(collapseDigitSpaces(d3.text));
-  if (r3 !== null) return r3;
+  const v3 = validatedTransition(collapseDigitSpaces(d3.text));
+  if (v3 !== null) return v3;
+  if (!isResultScreen) {
+    const a3 = dpAfterArrow(collapseDigitSpaces(d3.text));
+    if (a3 !== null) return a3;
+    const a1 = dpAfterArrow(collapseDigitSpaces(d1.text));
+    if (a1 !== null) return a1;
+  }
 
-  return r1Fallback;
+  return null;
 }
 
 export async function detectDpFromImageLike(

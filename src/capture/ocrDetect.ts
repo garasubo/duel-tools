@@ -135,6 +135,17 @@ export function parseDetectionResult(
   return null;
 }
 
+// 結果画面（VICTORY / LOSE）のテキストが含まれるかを判定する（confidence は問わない）。
+// parseDetectionResult と同じ 3 段階（完全一致 → 正規化一致 → Levenshtein ≤ 1）で
+// OCR 誤読を許容する。勝敗の区別は不要な呼び出し側（DP 検出の画面種別判定）向け。
+export function hasResultScreenText(text: string): boolean {
+  const upper = text.toUpperCase();
+  if (upper.includes('VICTORY') || upper.includes('LOSE')) return true;
+  const norm = normalizeOcrLatinChars(text);
+  if (norm.includes('VICTORY') || norm.includes('LOSE')) return true;
+  return minWordDistance(upper, 'VICTORY') <= 1 || minWordDistance(upper, 'LOSE') <= 1;
+}
+
 export function roiToRectangle(
   roi: ROI,
   imageWidth: number,
