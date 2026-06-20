@@ -53,7 +53,7 @@ function firstDpInRange(text: string): number | null {
 // 直後にある妥当整数を返す。最後に出現したものを採用する（リザルト画面では新DPが末尾、
 // ロビー画面では矢印が1つ）。矢印と数字の間は空白のみ許容し、離れた位置のノイズ
 // （ロゴの "2026" 等）を拾わないようにする。
-function dpAfterArrow(text: string): number | null {
+export function dpAfterArrow(text: string): number | null {
   const all = [...text.matchAll(/[)>]+\s*(\d{3,6})(?!\d)/g)]
     .map((m) => parseInt(m[1], 10))
     .filter(isInDpRange);
@@ -123,15 +123,6 @@ export function parseDpLobbyScreen(text: string): number | null {
   return all.length === 1 ? all[0] : null;
 }
 
-// 画面種別に応じてパースを振り分ける（リザルト → ロビー の順）。
-function parseDpScreen(text: string): number | null {
-  if (isDpResultScreenText(text)) {
-    const r = parseDpResultScreen(text);
-    if (r !== null) return r;
-  }
-  return parseDpLobbyScreen(text);
-}
-
 export async function createDpOcrWorker(): Promise<Worker> {
   const { createWorker } = await import('tesseract.js');
   return createWorker('eng');
@@ -154,13 +145,19 @@ async function runDpOcr(
   const { data: d1 } = await recognize(worker);
   const r1 = parseDpResultScreen(d1.text);
   if (r1 !== null) return r1;
-  const r1Fallback = !isDpResultScreenText(d1.text) ? parseDpLobbyScreen(d1.text) : null;
+  // フォールバックは矢印アンカー付きの値のみ採用する。盤面のモンスター ATK 値（"500" 等）が
+  // DP_ROI に映り込んだ裸の整数を DP と誤確定しないため（lone-integer フォールバックは使わない）。
+  const r1Fallback = !isDpResultScreenText(d1.text)
+    ? dpAfterArrow(collapseDigitSpaces(d1.text))
+    : null;
 
   // パス2: PSM 11 — PSM 6 でノイズが多い場合のフォールバック（ロビー画面含む）。
   // ロビー/単一矢印画面では PSM 6 が末尾を 1 桁誤読することがあるため、PSM 11 を優先する。
   await worker.setParameters({ tessedit_pageseg_mode: '11' as PageSegmentationMode });
   const { data: d2 } = await recognize(worker);
-  const r2 = parseDpScreen(d2.text);
+  const r2 = isDpResultScreenText(d2.text)
+    ? parseDpResultScreen(d2.text)
+    : dpAfterArrow(collapseDigitSpaces(d2.text));
   if (r2 !== null) return r2;
 
   // パス3: 数字＋矢印記号ホワイトリスト + PSM 11 の最終手段。
@@ -170,7 +167,7 @@ async function runDpOcr(
     tessedit_char_whitelist: DP_WHITELIST,
   });
   const { data: d3 } = await recognize(worker);
-  const r3 = parseDpFromText(d3.text);
+  const r3 = dpAfterArrow(collapseDigitSpaces(d3.text));
   if (r3 !== null) return r3;
 
   return r1Fallback;

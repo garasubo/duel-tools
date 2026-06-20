@@ -482,7 +482,10 @@ function detectLossCoreByTightBbox(
     heightRatio <= MAX_LOSS_BANNER_HEIGHT_RATIO &&
     widthRatio / heightRatio >= MIN_LOSS_CORE_ASPECT_RATIO &&
     widthRatio / heightRatio <= MAX_LOSS_CORE_ASPECT_RATIO &&
-    centerX >= 0.35 &&
+    // 本物の LOSE バナーは水平中央寄せ（全 true-loss fixture で核 centerX ≥ 0.461、大半 ≈0.49-0.50）。
+    // 盤面の左寄りゲームプレイ文字（0106 "R 5" / 0056 はいずれも核 centerX ≈ 0.355）を弾くため、
+    // 下限を 0.35→0.42 に引き締める（true 最小 0.461 に約 0.04、誤検出 0.359 に約 0.06 の余裕）。
+    centerX >= 0.42 &&
     centerX <= 0.65 &&
     centerY >= 0.35 &&
     centerY <= 0.55 &&
