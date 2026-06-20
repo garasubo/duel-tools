@@ -5,8 +5,8 @@ import { canvasToDataUrl } from './captureDebug';
 import { measureAsync, recordTick } from './captureProfiler';
 import { createRatingOcrWorker, detectRatingFromScreen } from './ratingDetect';
 
-// 500ms 間隔でスキャン
-export const RATING_INTERVAL_MS = 500;
+// スコア（レート / DP）OCR は重いため、勝敗判定の fps とは別周期でスキャンする。
+export const SCORE_OCR_INTERVAL_MS = 1000;
 // 同じ値を 3 回連続検出したら確定
 const REQUIRED_CONSECUTIVE = 3;
 
@@ -89,6 +89,15 @@ export function shouldRunScoreOcr(captureCurrentFrame?: () => boolean): boolean 
   return captureCurrentFrame ? captureCurrentFrame() : true;
 }
 
+export function getNextScoreOcrDelay(
+  intervalMs: number = SCORE_OCR_INTERVAL_MS,
+  tickStartedAt?: number,
+  now: number = performance.now(),
+): number {
+  if (tickStartedAt === undefined) return intervalMs;
+  return Math.max(0, intervalMs - (now - tickStartedAt));
+}
+
 const defaultDependencies: RatingCaptureLoopDependencies = {
   createWorker: createRatingOcrWorker,
   detectRating: detectRatingFromScreen,
@@ -153,9 +162,9 @@ export function useRatingCaptureLoop({
     isActiveRef.current = true;
     const generation = generationRef.current;
 
-    const scheduleNext = () => {
+    const scheduleNext = (tickStartedAt?: number) => {
       if (generation !== generationRef.current || !isActiveRef.current) return;
-      timerRef.current = setTimeout(runOcr, RATING_INTERVAL_MS);
+      timerRef.current = setTimeout(runOcr, getNextScoreOcrDelay(SCORE_OCR_INTERVAL_MS, tickStartedAt));
     };
 
     const runOcr = async () => {
@@ -167,14 +176,15 @@ export function useRatingCaptureLoop({
         return;
       }
 
+      const tickStartedAt = performance.now();
       const worker = workerRef.current;
       const canvas = canvasRef.current;
       if (!worker || !canvas) {
-        scheduleNext();
+        scheduleNext(tickStartedAt);
         return;
       }
       if (!shouldRunScoreOcr(captureCurrentFrame)) {
-        scheduleNext();
+        scheduleNext(tickStartedAt);
         return;
       }
 
@@ -210,7 +220,7 @@ export function useRatingCaptureLoop({
         onRatingDetectedRef.current(update.confirmedRating);
       }
 
-      scheduleNext();
+      scheduleNext(tickStartedAt);
     };
 
     void (async () => {

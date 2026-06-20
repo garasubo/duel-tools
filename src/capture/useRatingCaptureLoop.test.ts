@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceRatingStreak,
   EMPTY_RATING_STREAK,
+  getNextScoreOcrDelay,
+  SCORE_OCR_INTERVAL_MS,
   shouldRunScoreOcr,
 } from './useRatingCaptureLoop';
 
@@ -61,5 +63,19 @@ describe('shouldRunScoreOcr', () => {
 
   it('最新フレームを取得できない場合は OCR を実行しない', () => {
     expect(shouldRunScoreOcr(() => false)).toBe(false);
+  });
+});
+
+describe('getNextScoreOcrDelay', () => {
+  it('初回予約はスコアOCR専用 interval をそのまま使う', () => {
+    expect(getNextScoreOcrDelay()).toBe(SCORE_OCR_INTERVAL_MS);
+  });
+
+  it('処理時間を interval から差し引いて次回を予約する', () => {
+    expect(getNextScoreOcrDelay(1000, 100, 867.3)).toBeCloseTo(232.7);
+  });
+
+  it('処理時間が interval を超えた場合は待たずに次回を予約する', () => {
+    expect(getNextScoreOcrDelay(1000, 100, 1300)).toBe(0);
   });
 });
