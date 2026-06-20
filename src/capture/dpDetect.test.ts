@@ -6,6 +6,7 @@ import {
   collapseDigitSpaces,
   createDpOcrWorker,
   detectDpFromImageLike,
+  dpAfterArrow,
   isDpResultScreenText,
   isDpScreenText,
   parseDpFromText,
@@ -71,6 +72,18 @@ describe('collapseDigitSpaces', () => {
   });
   it('複数の千区切りグループも連結する（"1 234 567" → "1234567"）', () => {
     expect(collapseDigitSpaces('1 234 567')).toBe('1234567');
+  });
+});
+
+describe('dpAfterArrow（矢印と数字は同一行のみ）', () => {
+  it('同一行で矢印直後の数字を採用する', () => {
+    expect(dpAfterArrow(') 200')).toBe(200);
+    expect(dpAfterArrow('mB) 2670')).toBe(2670);
+  });
+  it('改行を跨いだブラケット→数値は採用しない（スコア内訳テーブル 0111 系）', () => {
+    expect(dpAfterArrow(') \n 200')).toBe(null);
+    expect(dpAfterArrow('7)\n500')).toBe(null);
+    expect(dpAfterArrow('300054\n7)\n500\n100\n)\n200\n200\n7\n42')).toBe(null);
   });
 });
 

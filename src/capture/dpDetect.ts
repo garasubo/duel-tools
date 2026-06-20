@@ -53,10 +53,11 @@ function firstDpInRange(text: string): number | null {
 
 // 矢印（▶ → Tesseract 出力 "))"/">>"。ロビー画面では単一の ")"/">" に劣化することもある）の
 // 直後にある妥当整数を返す。最後に出現したものを採用する（リザルト画面では新DPが末尾、
-// ロビー画面では矢印が1つ）。矢印と数字の間は空白のみ許容し、離れた位置のノイズ
-// （ロゴの "2026" 等）を拾わないようにする。
+// ロビー画面では矢印が1つ）。矢印と数字の間は同一行の空白のみ許容し（改行を跨がない）、
+// 離れた位置のノイズ（ロゴの "2026" 等）や、スコア内訳テーブルで別行の数値が誤読ブラケットと
+// 結合する誤検出（")\n200" 等）を拾わないようにする。DP 値は画面上で矢印の右に同一行で並ぶ。
 export function dpAfterArrow(text: string): number | null {
-  const all = [...text.matchAll(/[)>]+\s*(\d{3,6})(?!\d)/g)]
+  const all = [...text.matchAll(/[)>]+[^\S\r\n]*(\d{3,6})(?!\d)/g)]
     .map((m) => parseInt(m[1], 10))
     .filter(isInDpRange);
   return all.length > 0 ? all[all.length - 1] : null;
