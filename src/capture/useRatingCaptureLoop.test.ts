@@ -50,6 +50,14 @@ describe('advanceRatingStreak', () => {
     update = advanceRatingStreak(update.nextStreak, 1501.43);
     expect(update.confirmedRating).toBeNull();
   });
+
+  it('requiredConsecutive=2 を渡すと2回連続で確定する（DP 用）', () => {
+    let update = advanceRatingStreak(EMPTY_RATING_STREAK, 1859, 2);
+    expect(update.confirmedRating).toBeNull();
+
+    update = advanceRatingStreak(update.nextStreak, 1859, 2);
+    expect(update.confirmedRating).toBe(1859);
+  });
 });
 
 describe('shouldRunScoreOcr', () => {

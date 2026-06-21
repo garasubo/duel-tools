@@ -40,6 +40,10 @@ interface UseRatingCaptureLoopOptions {
   onRatingDetected: (rating: number) => void;
   captureCurrentFrame?: () => boolean;
   dependencies?: Partial<RatingCaptureLoopDependencies>;
+  // OCR スキャン周期（ms）。既定はレート用の SCORE_OCR_INTERVAL_MS。
+  intervalMs?: number;
+  // 確定に要する同一値の連続検出回数。既定は REQUIRED_CONSECUTIVE。
+  requiredConsecutive?: number;
 }
 
 export interface RatingStreakState {
@@ -62,6 +66,7 @@ export const EMPTY_RATING_STREAK: RatingStreakState = {
 export function advanceRatingStreak(
   streak: RatingStreakState,
   rating: number | null,
+  requiredConsecutive: number = REQUIRED_CONSECUTIVE,
 ): RatingStreakUpdate {
   if (rating === null) {
     return {
@@ -73,7 +78,7 @@ export function advanceRatingStreak(
   const isSameRating = rating === streak.lastRating;
   const consecutiveCount = isSameRating ? streak.consecutiveCount + 1 : 1;
   const confirmedRating =
-    consecutiveCount >= REQUIRED_CONSECUTIVE && rating !== streak.confirmedRating ? rating : null;
+    consecutiveCount >= requiredConsecutive && rating !== streak.confirmedRating ? rating : null;
 
   return {
     nextStreak: {
@@ -108,9 +113,13 @@ export function useRatingCaptureLoop({
   onRatingDetected,
   captureCurrentFrame,
   dependencies,
+  intervalMs = SCORE_OCR_INTERVAL_MS,
+  requiredConsecutive = REQUIRED_CONSECUTIVE,
 }: UseRatingCaptureLoopOptions): RatingCaptureLoop {
   const depsRef = useRef({ ...defaultDependencies, ...dependencies });
   const onRatingDetectedRef = useRef(onRatingDetected);
+  const intervalRef = useRef(intervalMs);
+  const requiredConsecutiveRef = useRef(requiredConsecutive);
 
   const [ratingDetection, setRatingDetection] = useState<RatingDetectionEvent | null>(null);
   const [ratingFrameDataUrl, setRatingFrameDataUrl] = useState<string | null>(null);
@@ -131,6 +140,14 @@ export function useRatingCaptureLoop({
   useEffect(() => {
     onRatingDetectedRef.current = onRatingDetected;
   }, [onRatingDetected]);
+
+  useEffect(() => {
+    intervalRef.current = intervalMs;
+  }, [intervalMs]);
+
+  useEffect(() => {
+    requiredConsecutiveRef.current = requiredConsecutive;
+  }, [requiredConsecutive]);
 
   const clearRatingDetection = useCallback(() => {
     setRatingDetection(null);
@@ -164,7 +181,7 @@ export function useRatingCaptureLoop({
 
     const scheduleNext = (tickStartedAt?: number) => {
       if (generation !== generationRef.current || !isActiveRef.current) return;
-      timerRef.current = setTimeout(runOcr, getNextScoreOcrDelay(SCORE_OCR_INTERVAL_MS, tickStartedAt));
+      timerRef.current = setTimeout(runOcr, getNextScoreOcrDelay(intervalRef.current, tickStartedAt));
     };
 
     const runOcr = async () => {
@@ -207,7 +224,7 @@ export function useRatingCaptureLoop({
         setRatingFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
       }
 
-      const update = advanceRatingStreak(streakRef.current, rating);
+      const update = advanceRatingStreak(streakRef.current, rating, requiredConsecutiveRef.current);
       streakRef.current = update.nextStreak;
 
       if (update.confirmedRating !== null) {

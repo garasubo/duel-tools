@@ -28,6 +28,11 @@ import { useScreenCapture } from './useScreenCapture';
 import { useTurnOrderCaptureLoop } from './useTurnOrderCaptureLoop';
 export { getOpponentSelectingFallbackTurnOrder } from './useTurnOrderCaptureLoop';
 
+// DP 検出ループのスキャン周期と確定に要する連続一致回数。レート戦（既定 1000ms / 3）より
+// 短く・少なく設定する。DP OCR は値フレーム 1 パス・idle は密度ゲートでスキップで高速なため。
+const DP_OCR_INTERVAL_MS = 500;
+const DP_REQUIRED_CONSECUTIVE = 2;
+
 function mapWorkflowPhaseToCaptureState(
   phase: CaptureWorkflowState['phase'],
 ): DuelCaptureState {
@@ -106,11 +111,15 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
 
   // DP 検出ループ。汎用ループ（useRatingCaptureLoop）を DP 用 deps で再利用する。
   // 出力の ratingDetection.rating / ratingFrameDataUrl はそのまま DP 値・DP 画像として扱う。
+  // DP OCR は高速化済み（値フレーム 1 パス / idle は密度ゲートでスキップ）のため、レート戦より
+  // 短い周期・少ない連続回数で確定してよい（確定レイテンシ ~3s → ~1s）。
   const dpCapture = useRatingCaptureLoop({
     canvasRef,
     onRatingDetected: handleDpDetected,
     captureCurrentFrame,
     dependencies: { createWorker: createDpOcrWorker, detectRating: detectDpFromScreen },
+    intervalMs: DP_OCR_INTERVAL_MS,
+    requiredConsecutive: DP_REQUIRED_CONSECUTIVE,
   });
 
   // --- ワークフロー状態機械（captureWorkflow）---
