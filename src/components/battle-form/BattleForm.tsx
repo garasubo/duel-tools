@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useReducer } from "react";
 import { useOwnDecks } from "../../state/hooks/useOwnDecks";
 import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
 import { useTags } from "../../state/hooks/useTags";
@@ -10,16 +10,9 @@ import type { TurnOrderDetectionEvent } from "../../capture/types";
 import type { BattleResult } from "../../types";
 import Button from "../ui/Button";
 import BattleFields from "./BattleFields";
-import {
-  applyConfirmedScoreToBattleForm,
-  applySuggestedResultToBattleForm,
-  applyScoreSuggestionToBattleForm,
-  createInitialBattleFormState,
-  createNextBattleFormState,
-  isBattleFormValid,
-  shouldAutoSubmitSuggestedResult,
-} from "./types";
+import { createInitialBattleFormState, isBattleFormValid } from "./types";
 import type { BattleFormState } from "./types";
+import { battleFormReducer } from "./battleFormReducer";
 
 interface BattleFormProps {
   suggestedResult?: BattleResult | null;
@@ -58,29 +51,13 @@ export default function BattleForm({
   const { add: addRecord } = useRecords();
   const latestRecord = useLatestRecord();
 
-  const [form, setForm] = useState<BattleFormState>(
-    () => store.getDraftForm() ?? createInitialBattleFormState(latestRecord),
-  );
+  const [state, dispatch] = useReducer(battleFormReducer, undefined, () => ({
+    form: store.getDraftForm() ?? createInitialBattleFormState(latestRecord),
+    pendingSubmit: null,
+    captureResultApplied: false,
+  }));
+  const form = state.form;
   const [saved, setSaved] = useState(false);
-  const [captureResultApplied, setCaptureResultApplied] = useState(false);
-  const autoSubmitRef = useRef(false);
-  const [autoSubmitTick, setAutoSubmitTick] = useState(0);
-  const latestFormRef = useRef(form);
-
-  useEffect(() => {
-    latestFormRef.current = form;
-  }, [form]);
-
-  const replaceForm = useCallback((nextForm: BattleFormState) => {
-    latestFormRef.current = nextForm;
-    setForm(nextForm);
-  }, []);
-
-  const updateForm = useCallback((updater: (current: BattleFormState) => BattleFormState) => {
-    const nextForm = updater(latestFormRef.current);
-    replaceForm(nextForm);
-    return nextForm;
-  }, [replaceForm]);
 
   // キャプチャ中の DC モードでは結果反映時の ±1000 見積りをスキップし、画面 DP 検出に任せる。
   // 検出系 effect の依存に isCapturing を増やさないよう ref で参照する。
@@ -107,30 +84,34 @@ export default function BattleForm({
     [store],
   );
 
-  const submitForm = useCallback(
-    (currentForm: BattleFormState) => {
-      addRecord({
-        ownDeckId: currentForm.ownDeckId,
-        opponentDeckId: currentForm.opponentDeckId,
-        result: currentForm.result!,
-        turnOrder: currentForm.turnOrder!,
-        reasonTags: currentForm.reasonTags,
-        memo: currentForm.memo,
-        battleMode: currentForm.battleMode ?? undefined,
-        score: currentForm.score !== "" ? Number(currentForm.score) : undefined,
-      });
-      // 保存済みレコードへ反映するのと同じバッチで入力途中分をクリアし、
-      // 簡易戦績の一瞬の二重計上を防ぐ。
-      store.setDraftBattle({ turnOrder: null, result: null });
-      onRecordSaved?.();
-      captureLog("battle-form", `submitForm: recorded ${currentForm.result}, form reset (result→null)`);
-      replaceForm(createNextBattleFormState(currentForm));
-      setSaved(true);
-      setCaptureResultApplied(false);
-      setTimeout(() => setSaved(false), 3000);
-    },
-    [addRecord, onRecordSaved, replaceForm, store],
-  );
+  // reducer が保存対象（pendingSubmit）を立てたら、ここで副作用を実行して確定する。
+  // reducer が常に最新フォームから pendingSubmit を作るため、手動入力とキャプチャ自動入力が
+  // 近接しても古いスナップショットから保存されない。consumedSubmitRef で二重発火を防ぐ。
+  const consumedSubmitRef = useRef<BattleFormState | null>(null);
+  useEffect(() => {
+    const pending = state.pendingSubmit;
+    if (!pending || consumedSubmitRef.current === pending) return;
+    consumedSubmitRef.current = pending;
+    addRecord({
+      ownDeckId: pending.ownDeckId,
+      opponentDeckId: pending.opponentDeckId,
+      result: pending.result!,
+      turnOrder: pending.turnOrder!,
+      reasonTags: pending.reasonTags,
+      memo: pending.memo,
+      battleMode: pending.battleMode ?? undefined,
+      score: pending.score !== "" ? Number(pending.score) : undefined,
+    });
+    // 保存済みレコードへ反映するのと同じバッチで入力途中分をクリアし、
+    // 簡易戦績の一瞬の二重計上を防ぐ。
+    store.setDraftBattle({ turnOrder: null, result: null });
+    onRecordSaved?.();
+    captureLog("battle-form", `submitForm: recorded ${pending.result}, form reset (result→null)`);
+    dispatch({ type: "recordSaved" });
+    setSaved(true);
+    // pendingSubmit→null の再実行でメッセージが即消えないよう cleanup は付けない（旧実装と同等）。
+    setTimeout(() => setSaved(false), 3000);
+  }, [state.pendingSubmit, addRecord, onRecordSaved, store]);
 
   const suggestedScoreRef = useRef<number | null>(null);
   useEffect(() => {
@@ -145,124 +126,89 @@ export default function BattleForm({
 
   useEffect(() => {
     if (!suggestedResult) return;
-    autoSubmitRef.current = shouldAutoSubmitSuggestedResult(latestFormRef.current);
-    captureLog(
-      "battle-form",
-      `result effect fire ${suggestedResult} (before=${latestFormRef.current.result}, autoSubmit=${autoSubmitRef.current})`,
-    );
+    captureLog("battle-form", `result effect fire ${suggestedResult}`);
     queueMicrotask(() => {
-      setCaptureResultApplied(true);
-      updateForm((current) => {
-        let newForm = applySuggestedResultToBattleForm(current, suggestedResult, store.getState().records, {
-          skipAutoScore: isCapturingRef.current,
-        });
-        if (suggestedScoreRef.current != null) {
-          newForm = applyScoreSuggestionToBattleForm(newForm, suggestedScoreRef.current);
-        }
-        return newForm;
+      // reducer が勝敗反映・スコア空欄反映・自動送信判定（非rated/非DCの即確定）を一括で行う。
+      dispatch({
+        type: "captureResultDetected",
+        result: suggestedResult,
+        records: store.getState().records,
+        skipAutoScore: isCapturingRef.current,
+        suggestedScore: suggestedScoreRef.current,
       });
-      setAutoSubmitTick((t) => t + 1);
       onSuggestedResultConsumed?.();
     });
-  }, [suggestedResult, store, onSuggestedResultConsumed, updateForm]);
+  }, [suggestedResult, store, onSuggestedResultConsumed]);
 
   useEffect(() => {
     if (!capturePreviewResult) return;
-    captureLog(
-      "battle-form",
-      `preview effect fire ${capturePreviewResult} (before=${latestFormRef.current.result})`,
-    );
+    captureLog("battle-form", `preview effect fire ${capturePreviewResult}`);
     queueMicrotask(() => {
-      setCaptureResultApplied(true);
-      updateForm((current) =>
-        applySuggestedResultToBattleForm(current, capturePreviewResult, store.getState().records, {
-          skipAutoScore: isCapturingRef.current,
-        }),
-      );
+      dispatch({
+        type: "capturePreviewResultDetected",
+        result: capturePreviewResult,
+        records: store.getState().records,
+        skipAutoScore: isCapturingRef.current,
+      });
       onCapturePreviewResultConsumed?.();
     });
-  }, [capturePreviewResult, store, onCapturePreviewResultConsumed, updateForm]);
+  }, [capturePreviewResult, store, onCapturePreviewResultConsumed]);
 
   const suggestedTurnOrderId = suggestedTurnOrder?.id;
   const suggestedTurnOrderValue = suggestedTurnOrder?.order;
   useEffect(() => {
     if (!suggestedTurnOrderId || !suggestedTurnOrderValue) return;
     queueMicrotask(() => {
-      updateForm((current) => ({ ...current, turnOrder: suggestedTurnOrderValue }));
+      dispatch({ type: "captureTurnOrderDetected", order: suggestedTurnOrderValue });
       onSuggestedTurnOrderConsumed?.();
     });
-  }, [suggestedTurnOrderId, suggestedTurnOrderValue, onSuggestedTurnOrderConsumed, updateForm]);
+  }, [suggestedTurnOrderId, suggestedTurnOrderValue, onSuggestedTurnOrderConsumed]);
 
   useEffect(() => {
     if (suggestedScore == null) return;
     queueMicrotask(() => {
-      updateForm((current) => applyScoreSuggestionToBattleForm(current, suggestedScore));
+      dispatch({ type: "captureScoreDetected", score: suggestedScore });
       onSuggestedScoreConsumed?.();
     });
-  }, [suggestedScore, onSuggestedScoreConsumed, updateForm]);
-
-  useEffect(() => {
-    if (!autoSubmitRef.current) return;
-    autoSubmitRef.current = false;
-    queueMicrotask(() => {
-      const currentForm = latestFormRef.current;
-      if (
-        isBattleFormValid(currentForm) &&
-        shouldAutoSubmitSuggestedResult(currentForm)
-      ) {
-        submitForm(currentForm);
-      }
-    });
-  }, [form, autoSubmitTick, submitForm]);
+  }, [suggestedScore, onSuggestedScoreConsumed]);
 
   const ratingConfirmTokenRef = useRef(ratingConfirmToken);
   useEffect(() => {
     if (ratingConfirmTokenRef.current === ratingConfirmToken) return;
     ratingConfirmTokenRef.current = ratingConfirmToken;
     queueMicrotask(() => {
-      const nextForm = updateForm((current) =>
-        applyConfirmedScoreToBattleForm(current, suggestedScoreRef.current),
-      );
-      if (isBattleFormValid(nextForm)) {
-        submitForm(nextForm);
-      }
+      // 確定スコアを最新フォームへ反映し、valid なら reducer が pendingSubmit を立てる。
+      dispatch({ type: "captureScoreConfirmed", score: suggestedScoreRef.current });
     });
-  }, [ratingConfirmToken, submitForm, updateForm]);
+  }, [ratingConfirmToken]);
 
   const isValid = isBattleFormValid(form);
 
-  function patchForm(patch: Partial<BattleFormState>) {
-    updateForm((current) => ({ ...current, ...patch }));
-  }
-
   function handleFieldsChange(patch: Partial<BattleFormState>) {
-    if (patch.turnOrder === null && latestFormRef.current.turnOrder !== null) {
+    // turnOrder を手動解除したら turn order 検出を再開する（既存挙動を維持）。
+    if (patch.turnOrder === null && form.turnOrder !== null) {
       onTurnOrderCleared?.();
     }
-    patchForm(patch);
+    dispatch({ type: "manualPatch", patch });
   }
 
   function handleAddOwnDeck(name: string) {
     const deck = addOwnDeck(name);
-    patchForm({ ownDeckId: deck.id });
+    dispatch({ type: "manualPatch", patch: { ownDeckId: deck.id } });
   }
 
   function handleAddOpponentDeck(name: string) {
     const deck = addOpponentDeck(name);
-    patchForm({ opponentDeckId: deck.id });
+    dispatch({ type: "manualPatch", patch: { opponentDeckId: deck.id } });
   }
 
   function handleResultChange(result: BattleResult | null) {
-    setCaptureResultApplied(false);
-    if (result === null) {
-      patchForm({ result: null });
-    } else {
-      updateForm((current) =>
-        applySuggestedResultToBattleForm(current, result, store.getState().records, {
-          skipAutoScore: isCapturing,
-        }),
-      );
-    }
+    dispatch({
+      type: "manualResultChange",
+      result,
+      records: store.getState().records,
+      isCapturing,
+    });
   }
 
   // 対戦モードに応じてレート / DP を画面から手動読み取りする。
@@ -271,11 +217,11 @@ export default function BattleForm({
     setCaptureRatingFailed(false);
     try {
       const score =
-        latestFormRef.current.battleMode === 'duelists-cup'
+        form.battleMode === 'duelists-cup'
           ? await captureDpOnce()
           : await captureRatingOnce();
       if (score !== null) {
-        updateForm((current) => ({ ...current, score: String(score) }));
+        dispatch({ type: "manualPatch", patch: { score: String(score) } });
       } else {
         setCaptureRatingFailed(true);
         setTimeout(() => setCaptureRatingFailed(false), 3000);
@@ -283,13 +229,11 @@ export default function BattleForm({
     } finally {
       setIsCapturingRating(false);
     }
-  }, [captureRatingOnce, captureDpOnce, updateForm]);
+  }, [captureRatingOnce, captureDpOnce, form.battleMode]);
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
-    const currentForm = latestFormRef.current;
-    if (!isBattleFormValid(currentForm)) return;
-    submitForm(currentForm);
+    dispatch({ type: "manualSubmitRequested" });
   }
 
   return (
@@ -318,7 +262,7 @@ export default function BattleForm({
             記録しました！
           </span>
         )}
-        {captureResultApplied && !isValid && !saved && (
+        {state.captureResultApplied && !isValid && !saved && (
           <span className="text-sm text-blue-600 font-medium">
             勝敗だけ反映しました。未入力を埋めると記録できます。
           </span>
