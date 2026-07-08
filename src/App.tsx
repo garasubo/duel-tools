@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { BattlesProvider } from './state/BattlesProvider';
 import AppShell from './components/AppShell';
@@ -10,6 +11,20 @@ import OverlayPage from './pages/OverlayPage';
 import ComboPage from './pages/ComboPage';
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '');
+const CaptureReplayPage = lazy(() => import('./pages/CaptureReplayPage'));
+
+function CaptureReplayRoute() {
+  const enabled =
+    import.meta.env.DEV || new URLSearchParams(window.location.search).get('captureReplay') === '1';
+
+  return enabled ? (
+    <Suspense fallback={null}>
+      <CaptureReplayPage />
+    </Suspense>
+  ) : (
+    <Navigate to="/record" replace />
+  );
+}
 
 const router = createBrowserRouter(
   [
@@ -25,6 +40,7 @@ const router = createBrowserRouter(
       ],
     },
     { path: '/record/overlay', element: <OverlayPage /> },
+    { path: '/record/capture-replay', element: <CaptureReplayRoute /> },
     {
       element: <ComboAppShell />,
       children: [{ path: '/combo', element: <ComboPage /> }],
