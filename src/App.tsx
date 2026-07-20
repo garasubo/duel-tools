@@ -8,6 +8,7 @@ import StatsPage from './pages/StatsPage';
 import ManagePage from './pages/ManagePage';
 import OverlayPage from './pages/OverlayPage';
 import ComboPage from './pages/ComboPage';
+import SharedRecordPage from './pages/SharedRecordPage';
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -25,6 +26,7 @@ const router = createBrowserRouter(
       ],
     },
     { path: '/record/overlay', element: <OverlayPage /> },
+    { path: '/record/shared/:shareId', element: <SharedRecordPage /> },
     {
       element: <ComboAppShell />,
       children: [{ path: '/combo', element: <ComboPage /> }],

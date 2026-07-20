@@ -69,6 +69,7 @@ interface EditableNumberCellProps {
   onCancel: () => void;
   min?: number;
   max?: number;
+  editable?: boolean;
 }
 
 export default function EditableNumberCell({
@@ -79,7 +80,16 @@ export default function EditableNumberCell({
   onCancel,
   min,
   max,
+  editable = true,
 }: EditableNumberCellProps) {
+  if (!editable) {
+    return (
+      <div className="px-1 -mx-1 min-h-[1.5rem]">
+        {value !== undefined ? value.toLocaleString() : ""}
+      </div>
+    );
+  }
+
   if (!isEditing) {
     return (
       <div

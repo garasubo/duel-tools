@@ -5,7 +5,9 @@ import { useOpponentDecks } from '../state/hooks/useOpponentDecks';
 import { useFilter } from '../hooks/useFilter';
 import { useCsvExport } from '../hooks/useCsvExport';
 import { useCsvImport } from '../hooks/useCsvImport';
+import { usePublishShare } from '../hooks/usePublishShare';
 import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
 import FilterBar from '../components/history/FilterBar';
 import RecordList from '../components/history/RecordList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -18,7 +20,9 @@ export default function HistoryPage() {
   const { filter, filtered, updateFilter, resetFilter } = useFilter(records);
   const { exportCsv } = useCsvExport();
   const { importCsv, status: importStatus, result: importResult, reset: resetImport } = useCsvImport();
+  const { publish, status: publishStatus, shareUrl, reset: resetPublish } = usePublishShare();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -37,6 +41,26 @@ export default function HistoryPage() {
   function handleImportClick() {
     resetImport();
     fileInputRef.current?.click();
+  }
+
+  function handleShare() {
+    setCopied(false);
+    void publish();
+  }
+
+  function handleCloseShare() {
+    resetPublish();
+    setCopied(false);
+  }
+
+  async function handleCopy() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -99,6 +123,14 @@ export default function HistoryPage() {
           >
             CSVインポート
           </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleShare}
+            disabled={records.length === 0 || publishStatus === 'loading'}
+          >
+            共有リンクを作成
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -108,6 +140,43 @@ export default function HistoryPage() {
           />
         </div>
       </div>
+
+      <Modal
+        isOpen={publishStatus !== 'idle'}
+        onClose={handleCloseShare}
+        title="共有リンク"
+      >
+        {publishStatus === 'loading' && (
+          <p className="text-sm text-gray-600">共有リンクを作成しています...</p>
+        )}
+        {publishStatus === 'error' && (
+          <p className="text-sm text-red-700">
+            共有リンクの作成に失敗しました。時間をおいて再度お試しください。
+          </p>
+        )}
+        {publishStatus === 'success' && shareUrl && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-gray-600">
+              現在の<strong>全記録</strong>を読み取り専用で公開しました。このリンクを知っている人が閲覧できます。
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm bg-gray-50 text-gray-800"
+              />
+              <Button variant="secondary" size="sm" onClick={handleCopy}>
+                {copied ? 'コピーしました' : 'コピー'}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-400">
+              公開後の内容は固定されます。更新したい場合は再度リンクを作成してください。
+            </p>
+          </div>
+        )}
+      </Modal>
 
       {importStatus === 'success' && importResult && (
         <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
