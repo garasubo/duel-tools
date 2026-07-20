@@ -15,7 +15,7 @@ const resultConfig: Record<
     classes: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   },
   loss: {
-    label: '負',
+    label: '敗',
     ariaLabel: '敗北',
     classes: 'bg-red-100 text-red-800 border-red-200',
   },

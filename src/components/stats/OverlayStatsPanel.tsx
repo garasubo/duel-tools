@@ -45,7 +45,7 @@ function StatBlock({
       </span>
       {wld.total > 0 && (
         <span className={`text-s ${dark ? 'text-gray-300' : 'text-gray-500'}`}>
-          {wld.win}勝{wld.loss}負
+          {wld.win}勝{wld.loss}敗
         </span>
       )}
     </div>
