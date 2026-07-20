@@ -12,6 +12,8 @@ import MatchupTable from "../components/stats/MatchupTable";
 import { openOverlay } from "../utils/openOverlay";
 import DPTransitionChart from "../components/stats/DPTransitionChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useFilter } from "../hooks/useFilter";
+import FilterBar from "../components/history/FilterBar";
 
 export default function StatsPage() {
   useDocumentTitle("統計 | 戦績記録 - duel-tools");
@@ -19,8 +21,9 @@ export default function StatsPage() {
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
   const [includeGrantedFirst, setIncludeGrantedFirst] = useState(false);
+  const { filter, filtered, updateFilter, resetFilter } = useFilter(records);
   const { overall, asFirst, asSecond, deckStats, opponentDeckStats, matchupCells } = useStats(
-    records,
+    filtered,
     ownDecks,
     opponentDecks,
     includeGrantedFirst,
@@ -47,6 +50,13 @@ export default function StatsPage() {
           オーバーレイを開く
         </button>
       </div>
+      <FilterBar
+        filter={filter}
+        onChange={updateFilter}
+        onReset={resetFilter}
+        ownDecks={ownDecks}
+        opponentDecks={opponentDecks}
+      />
       <div className="flex items-center gap-2">
         <input
           id="include-granted-first"
@@ -75,7 +85,7 @@ export default function StatsPage() {
         ownDecks={ownDecks}
         opponentDecks={opponentDecks}
       />
-      <DPTransitionChart records={records} />
+      <DPTransitionChart records={filtered} />
     </div>
   );
 }
