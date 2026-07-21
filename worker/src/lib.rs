@@ -52,7 +52,7 @@ async fn handle_post(mut req: Request, env: &Env, cors: Headers) -> Result<Respo
     // イミュータブル・恒久保存（expiration_ttl は指定しない）。
     kv.put_bytes(&share_id, body.as_bytes())?.execute().await?;
 
-    let mut headers = cors;
+    let headers = cors;
     headers.set("Content-Type", "application/json")?;
     Ok(Response::ok(format!("{{\"id\":\"{share_id}\"}}"))?
         .with_status(201)
@@ -63,7 +63,7 @@ async fn handle_get(env: &Env, share_id: &str, cors: Headers) -> Result<Response
     let kv = env.kv("SHARES")?;
     match kv.get(share_id).text().await? {
         Some(text) => {
-            let mut headers = cors;
+            let headers = cors;
             headers.set("Content-Type", "application/json")?;
             headers.set("Cache-Control", "public, max-age=31536000, immutable")?;
             Ok(Response::ok(text)?.with_headers(headers))
@@ -77,7 +77,7 @@ fn cors_headers(origin: Option<&str>) -> Headers {
         Some(o) if ALLOWED_ORIGINS.contains(&o) => o,
         _ => ALLOWED_ORIGINS[0],
     };
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     let _ = headers.set("Access-Control-Allow-Origin", allow);
     let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     let _ = headers.set("Access-Control-Allow-Headers", "Content-Type");
@@ -86,7 +86,7 @@ fn cors_headers(origin: Option<&str>) -> Headers {
 }
 
 fn json_error(status: u16, message: &str, cors: Headers) -> Response {
-    let mut headers = cors;
+    let headers = cors;
     let _ = headers.set("Content-Type", "application/json");
     let safe = message.replace('"', "'");
     Response::ok(format!("{{\"error\":\"{safe}\"}}"))

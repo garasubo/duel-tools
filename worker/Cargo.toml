@@ -8,7 +8,7 @@ authors = ["garasubo"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-worker = "0.5"
+worker = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # WASM ターゲットでは js バックエンド、ネイティブ(cargo test)では OS RNG を使う
