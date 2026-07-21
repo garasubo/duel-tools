@@ -70,6 +70,12 @@ function SharedRecordLoader({ shareId }: { shareId: string }) {
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [snapshot, setSnapshot] = useState<SharedSnapshot | null>(null);
 
+  useDocumentTitle(
+    snapshot?.title
+      ? `${snapshot.title} - 共有された戦績 - duel-tools`
+      : '共有された戦績 - duel-tools',
+  );
+
   useEffect(() => {
     let cancelled = false;
     fetch(`${SHARE_API_BASE}/shares/${encodeURIComponent(shareId)}`)
@@ -140,7 +146,9 @@ function SharedRecordLoader({ shareId }: { shareId: string }) {
       <div className="min-h-screen flex flex-col bg-gray-50">
         <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-lg font-bold text-gray-900">共有された戦績</h1>
+            <h1 className="text-lg font-bold text-gray-900">
+              {snapshot.title || '共有された戦績'}
+            </h1>
             <p className="text-xs text-gray-500">
               読み取り専用
               {snapshot.createdAt && `・公開日時 ${formatDate(snapshot.createdAt)}`}

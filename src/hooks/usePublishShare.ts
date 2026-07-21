@@ -14,32 +14,35 @@ export function usePublishShare() {
   const [status, setStatus] = useState<PublishStatus>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-  const publish = useCallback(async () => {
-    setStatus('loading');
-    setShareUrl(null);
-    try {
-      const snapshot = buildSharedSnapshot(store.getState());
-      const res = await fetch(`${SHARE_API_BASE}/shares`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(snapshot),
-      });
-      if (!res.ok) {
+  const publish = useCallback(
+    async (title?: string) => {
+      setStatus('loading');
+      setShareUrl(null);
+      try {
+        const snapshot = buildSharedSnapshot(store.getState(), title);
+        const res = await fetch(`${SHARE_API_BASE}/shares`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot),
+        });
+        if (!res.ok) {
+          setStatus('error');
+          return;
+        }
+        const data = (await res.json()) as { id?: unknown };
+        if (typeof data.id !== 'string' || data.id === '') {
+          setStatus('error');
+          return;
+        }
+        const url = `${window.location.origin}${import.meta.env.BASE_URL}record/shared/${data.id}`;
+        setShareUrl(url);
+        setStatus('success');
+      } catch {
         setStatus('error');
-        return;
       }
-      const data = (await res.json()) as { id?: unknown };
-      if (typeof data.id !== 'string' || data.id === '') {
-        setStatus('error');
-        return;
-      }
-      const url = `${window.location.origin}${import.meta.env.BASE_URL}record/shared/${data.id}`;
-      setShareUrl(url);
-      setStatus('success');
-    } catch {
-      setStatus('error');
-    }
-  }, [store]);
+    },
+    [store],
+  );
 
   const reset = useCallback(() => {
     setStatus('idle');

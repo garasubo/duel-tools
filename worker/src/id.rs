@@ -1,7 +1,6 @@
 //! 共有IDの生成。推測困難な base62 12文字。
 
-const ALPHABET: &[u8; 62] =
-    b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const ALPHABET: &[u8; 62] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const ID_LEN: usize = 12;
 
 /// ランダムな base62 12文字の共有IDを生成する。

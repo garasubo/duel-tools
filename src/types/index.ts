@@ -74,6 +74,7 @@ export interface AppStorage {
 export interface SharedSnapshot {
   version: 1;
   createdAt: string; // 公開時刻(ISO 8601)
+  title?: string; // 共有につけた任意のタイトル
   records: BattleRecord[];
   ownDecks: Deck[]; // 記録から参照されているデッキのみ
   opponentDecks: Deck[]; // 同上

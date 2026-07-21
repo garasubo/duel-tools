@@ -63,6 +63,21 @@ describe('buildSharedSnapshot', () => {
     );
     expect(snap.opponentDecks).toEqual([]);
   });
+
+  it('title を渡すと前後の空白を除いて含める', () => {
+    const snap = buildSharedSnapshot(makeState(), '  7月ランク戦  ');
+    expect(snap.title).toBe('7月ランク戦');
+  });
+
+  it('title が空や空白のみなら含めない', () => {
+    expect(buildSharedSnapshot(makeState()).title).toBeUndefined();
+    expect(buildSharedSnapshot(makeState(), '   ').title).toBeUndefined();
+  });
+
+  it('title は最大文字数で切り詰める', () => {
+    const snap = buildSharedSnapshot(makeState(), 'あ'.repeat(200));
+    expect(snap.title).toHaveLength(80);
+  });
 });
 
 describe('normalizeSharedSnapshot', () => {
@@ -102,6 +117,27 @@ describe('normalizeSharedSnapshot', () => {
     const result = normalizeSharedSnapshot(snap);
     expect(result?.records).toHaveLength(1);
     expect(result?.records[0].id).toBe('r1');
+  });
+
+  it('title をラウンドトリップで保持する', () => {
+    const snap = buildSharedSnapshot(makeState(), '7月ランク戦');
+    const result = normalizeSharedSnapshot(JSON.parse(JSON.stringify(snap)));
+    expect(result?.title).toBe('7月ランク戦');
+  });
+
+  it('title が文字列でなければ無視する', () => {
+    const snap = {
+      version: 1,
+      createdAt: '2026-07-01T10:00:00.000Z',
+      title: 123,
+      records: [],
+      ownDecks: [],
+      opponentDecks: [],
+      knownTags: [],
+    };
+    const result = normalizeSharedSnapshot(snap);
+    expect(result).not.toBeNull();
+    expect(result?.title).toBeUndefined();
   });
 
   it('battleMode と score を保持する', () => {

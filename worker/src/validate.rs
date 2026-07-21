@@ -4,6 +4,7 @@
 use serde_json::Value;
 
 const MAX_RECORDS: usize = 5000;
+const MAX_TITLE_CHARS: usize = 80;
 
 /// リクエストボディ(JSON文字列)を検証する。問題があれば `Err(理由)`。
 pub fn validate_snapshot(body: &str) -> Result<(), String> {
@@ -13,6 +14,16 @@ pub fn validate_snapshot(body: &str) -> Result<(), String> {
     match obj.get("version").and_then(Value::as_i64) {
         Some(1) => {}
         _ => return Err("unsupported version".into()),
+    }
+
+    // title は任意。あれば文字列かつ長さ制限内であること。
+    if let Some(title) = obj.get("title") {
+        if !title.is_null() {
+            let text = title.as_str().ok_or("title must be a string")?;
+            if text.chars().count() > MAX_TITLE_CHARS {
+                return Err("title is too long".into());
+            }
+        }
     }
 
     let records = obj
@@ -149,13 +160,41 @@ mod tests {
 
     #[test]
     fn rejects_deck_without_name() {
-        let body = valid_body().replace("{\"id\": \"own-1\", \"name\": \"自デッキ\"}", "{\"id\": \"own-1\"}");
+        let body = valid_body().replace(
+            "{\"id\": \"own-1\", \"name\": \"自デッキ\"}",
+            "{\"id\": \"own-1\"}",
+        );
         assert!(validate_snapshot(&body).is_err());
     }
 
     #[test]
     fn rejects_non_string_tag() {
         let body = valid_body().replace("\"knownTags\": [\"先攻有利\"]", "\"knownTags\": [1]");
+        assert!(validate_snapshot(&body).is_err());
+    }
+
+    #[test]
+    fn accepts_string_title() {
+        let body = valid_body().replace(
+            "\"version\": 1,",
+            "\"version\": 1, \"title\": \"7月ランク戦\",",
+        );
+        assert!(validate_snapshot(&body).is_ok());
+    }
+
+    #[test]
+    fn rejects_non_string_title() {
+        let body = valid_body().replace("\"version\": 1,", "\"version\": 1, \"title\": 123,");
+        assert!(validate_snapshot(&body).is_err());
+    }
+
+    #[test]
+    fn rejects_too_long_title() {
+        let long = "あ".repeat(81);
+        let body = valid_body().replace(
+            "\"version\": 1,",
+            &format!("\"version\": 1, \"title\": \"{long}\","),
+        );
         assert!(validate_snapshot(&body).is_err());
     }
 }

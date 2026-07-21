@@ -6,3 +6,6 @@ export const DRAFT_BATTLE_KEY = 'duel-tools-draft-battle-v1';
 export const SHARE_API_BASE =
   import.meta.env.VITE_SHARE_API_BASE ??
   'https://duel-tools-share.garasubo.workers.dev';
+
+// 共有につけられるタイトルの最大文字数（Worker 側の検証と揃える）。
+export const SHARE_TITLE_MAX_LENGTH = 80;

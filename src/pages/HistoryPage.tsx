@@ -11,6 +11,7 @@ import Modal from '../components/ui/Modal';
 import FilterBar from '../components/history/FilterBar';
 import RecordList from '../components/history/RecordList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { SHARE_TITLE_MAX_LENGTH } from '../utils/constants';
 
 export default function HistoryPage() {
   useDocumentTitle('対戦履歴 | 戦績記録 - duel-tools');
@@ -23,6 +24,8 @@ export default function HistoryPage() {
   const { publish, status: publishStatus, shareUrl, reset: resetPublish } = usePublishShare();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareTitle, setShareTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -43,14 +46,23 @@ export default function HistoryPage() {
     fileInputRef.current?.click();
   }
 
+  function handleOpenShare() {
+    resetPublish();
+    setCopied(false);
+    setShareTitle('');
+    setShareModalOpen(true);
+  }
+
   function handleShare() {
     setCopied(false);
-    void publish();
+    void publish(shareTitle);
   }
 
   function handleCloseShare() {
+    setShareModalOpen(false);
     resetPublish();
     setCopied(false);
+    setShareTitle('');
   }
 
   async function handleCopy() {
@@ -126,8 +138,8 @@ export default function HistoryPage() {
           <Button
             variant="primary"
             size="sm"
-            onClick={handleShare}
-            disabled={records.length === 0 || publishStatus === 'loading'}
+            onClick={handleOpenShare}
+            disabled={records.length === 0}
           >
             共有リンクを作成
           </Button>
@@ -142,10 +154,45 @@ export default function HistoryPage() {
       </div>
 
       <Modal
-        isOpen={publishStatus !== 'idle'}
+        isOpen={shareModalOpen}
         onClose={handleCloseShare}
         title="共有リンク"
       >
+        {publishStatus === 'idle' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-gray-600">
+              現在の<strong>全記録</strong>を読み取り専用で公開します。
+            </p>
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="share-title"
+                className="text-sm font-medium text-gray-700"
+              >
+                タイトル（任意）
+              </label>
+              <input
+                id="share-title"
+                type="text"
+                value={shareTitle}
+                maxLength={SHARE_TITLE_MAX_LENGTH}
+                onChange={(e) => setShareTitle(e.target.value)}
+                placeholder="例: 7月ランク戦の戦績"
+                className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-800"
+              />
+              <span className="text-xs text-gray-400">
+                共有ページの見出しに表示されます（{SHARE_TITLE_MAX_LENGTH}文字まで）。
+              </span>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={handleCloseShare}>
+                キャンセル
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleShare}>
+                共有リンクを作成
+              </Button>
+            </div>
+          </div>
+        )}
         {publishStatus === 'loading' && (
           <p className="text-sm text-gray-600">共有リンクを作成しています...</p>
         )}

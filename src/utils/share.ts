@@ -8,6 +8,7 @@ import type {
   TurnOrder,
 } from '../types';
 import { createDefaultStorage } from './storage';
+import { SHARE_TITLE_MAX_LENGTH } from './constants';
 import {
   selectUsedOpponentDeckIds,
   selectUsedOwnDeckIds,
@@ -21,13 +22,17 @@ const BATTLE_MODES: BattleMode[] = ['duelists-cup', 'rated'];
 /**
  * ローカルの全記録から自己完結な共有スナップショットを作る。
  * 記録で実際に参照されているデッキ・タグだけを埋め込み、未使用のものは載せない。
+ * title を渡すと共有につけるタイトルとして含める（空文字なら省略）。
  */
-export function buildSharedSnapshot(state: AppStorage): SharedSnapshot {
+export function buildSharedSnapshot(
+  state: AppStorage,
+  title?: string,
+): SharedSnapshot {
   const usedOwn = selectUsedOwnDeckIds(state);
   const usedOpponent = selectUsedOpponentDeckIds(state);
   const usedTags = selectUsedTags(state);
 
-  return {
+  const snapshot: SharedSnapshot = {
     version: 1,
     createdAt: new Date().toISOString(),
     records: state.records.map((r) => ({ ...r })),
@@ -35,6 +40,13 @@ export function buildSharedSnapshot(state: AppStorage): SharedSnapshot {
     opponentDecks: state.opponentDecks.filter((d) => usedOpponent.has(d.id)),
     knownTags: [...usedTags],
   };
+
+  const trimmedTitle = title?.trim().slice(0, SHARE_TITLE_MAX_LENGTH);
+  if (trimmedTitle) {
+    snapshot.title = trimmedTitle;
+  }
+
+  return snapshot;
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -112,7 +124,7 @@ export function normalizeSharedSnapshot(value: unknown): SharedSnapshot | null {
     .map(normalizeDeck)
     .filter((d): d is Deck => d !== null);
 
-  return {
+  const snapshot: SharedSnapshot = {
     version: 1,
     createdAt: typeof v.createdAt === 'string' ? v.createdAt : '',
     records,
@@ -120,6 +132,13 @@ export function normalizeSharedSnapshot(value: unknown): SharedSnapshot | null {
     opponentDecks,
     knownTags: v.knownTags,
   };
+
+  const title = typeof v.title === 'string' ? v.title.trim() : '';
+  if (title) {
+    snapshot.title = title.slice(0, SHARE_TITLE_MAX_LENGTH);
+  }
+
+  return snapshot;
 }
 
 /**
