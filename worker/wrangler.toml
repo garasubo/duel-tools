@@ -9,5 +9,5 @@ command = "cargo install -q worker-build && worker-build --release"
 # `wrangler kv namespace create SHARES` で作成した id を設定する。
 [[kv_namespaces]]
 binding = "SHARES"
-id = "<REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID>"
-preview_id = "<REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID>"
+id = "11d869a8dcc4495cb15b9e51c432a751"
+preview_id = "2c6f74f270aa47c0ae2521f5568478a5"
