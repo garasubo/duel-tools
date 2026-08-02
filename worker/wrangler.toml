@@ -1,0 +1,13 @@
+name = "duel-tools-share"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-07-01"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+# 記録共有スナップショットの保存先。
+# `wrangler kv namespace create SHARES` で作成した id を設定する。
+[[kv_namespaces]]
+binding = "SHARES"
+id = "<REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID>"
+preview_id = "<REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID>"

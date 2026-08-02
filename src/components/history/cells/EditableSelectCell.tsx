@@ -14,6 +14,7 @@ interface EditableSelectCellProps {
   onSave: (value: string) => void;
   onCancel: () => void;
   renderDisplay?: () => ReactNode;
+  editable?: boolean;
 }
 
 export default function EditableSelectCell({
@@ -24,6 +25,7 @@ export default function EditableSelectCell({
   onSave,
   onCancel,
   renderDisplay,
+  editable = true,
 }: EditableSelectCellProps) {
   const selectRef = useRef<HTMLSelectElement>(null);
   const savedRef = useRef(false);
@@ -33,6 +35,11 @@ export default function EditableSelectCell({
       selectRef.current.focus();
     }
   }, [isEditing]);
+
+  if (!editable) {
+    const displayLabel = options.find((o) => o.value === value)?.label ?? value;
+    return <div className="px-1 -mx-1">{renderDisplay ? renderDisplay() : displayLabel}</div>;
+  }
 
   if (!isEditing) {
     const displayLabel = options.find((o) => o.value === value)?.label ?? value;

@@ -5,10 +5,13 @@ import { useOpponentDecks } from '../state/hooks/useOpponentDecks';
 import { useFilter } from '../hooks/useFilter';
 import { useCsvExport } from '../hooks/useCsvExport';
 import { useCsvImport } from '../hooks/useCsvImport';
+import { usePublishShare } from '../hooks/usePublishShare';
 import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
 import FilterBar from '../components/history/FilterBar';
 import RecordList from '../components/history/RecordList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { SHARE_TITLE_MAX_LENGTH } from '../utils/constants';
 
 export default function HistoryPage() {
   useDocumentTitle('対戦履歴 | 戦績記録 - duel-tools');
@@ -18,7 +21,11 @@ export default function HistoryPage() {
   const { filter, filtered, updateFilter, resetFilter } = useFilter(records);
   const { exportCsv } = useCsvExport();
   const { importCsv, status: importStatus, result: importResult, reset: resetImport } = useCsvImport();
+  const { publish, status: publishStatus, shareUrl, reset: resetPublish } = usePublishShare();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareTitle, setShareTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -37,6 +44,35 @@ export default function HistoryPage() {
   function handleImportClick() {
     resetImport();
     fileInputRef.current?.click();
+  }
+
+  function handleOpenShare() {
+    resetPublish();
+    setCopied(false);
+    setShareTitle('');
+    setShareModalOpen(true);
+  }
+
+  function handleShare() {
+    setCopied(false);
+    void publish(shareTitle);
+  }
+
+  function handleCloseShare() {
+    setShareModalOpen(false);
+    resetPublish();
+    setCopied(false);
+    setShareTitle('');
+  }
+
+  async function handleCopy() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -99,6 +135,14 @@ export default function HistoryPage() {
           >
             CSVインポート
           </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenShare}
+            disabled={records.length === 0}
+          >
+            共有リンクを作成
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -108,6 +152,78 @@ export default function HistoryPage() {
           />
         </div>
       </div>
+
+      <Modal
+        isOpen={shareModalOpen}
+        onClose={handleCloseShare}
+        title="共有リンク"
+      >
+        {publishStatus === 'idle' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-gray-600">
+              現在の<strong>全記録</strong>を読み取り専用で公開します。
+            </p>
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="share-title"
+                className="text-sm font-medium text-gray-700"
+              >
+                タイトル（任意）
+              </label>
+              <input
+                id="share-title"
+                type="text"
+                value={shareTitle}
+                maxLength={SHARE_TITLE_MAX_LENGTH}
+                onChange={(e) => setShareTitle(e.target.value)}
+                placeholder="例: 7月ランク戦の戦績"
+                className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-800"
+              />
+              <span className="text-xs text-gray-400">
+                共有ページの見出しに表示されます（{SHARE_TITLE_MAX_LENGTH}文字まで）。
+              </span>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={handleCloseShare}>
+                キャンセル
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleShare}>
+                共有リンクを作成
+              </Button>
+            </div>
+          </div>
+        )}
+        {publishStatus === 'loading' && (
+          <p className="text-sm text-gray-600">共有リンクを作成しています...</p>
+        )}
+        {publishStatus === 'error' && (
+          <p className="text-sm text-red-700">
+            共有リンクの作成に失敗しました。時間をおいて再度お試しください。
+          </p>
+        )}
+        {publishStatus === 'success' && shareUrl && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-gray-600">
+              現在の<strong>全記録</strong>を読み取り専用で公開しました。このリンクを知っている人が閲覧できます。
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm bg-gray-50 text-gray-800"
+              />
+              <Button variant="secondary" size="sm" onClick={handleCopy}>
+                {copied ? 'コピーしました' : 'コピー'}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-400">
+              公開後の内容は固定されます。更新したい場合は再度リンクを作成してください。
+            </p>
+          </div>
+        )}
+      </Modal>
 
       {importStatus === 'success' && importResult && (
         <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">

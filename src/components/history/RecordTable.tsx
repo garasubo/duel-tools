@@ -24,6 +24,7 @@ const TURN_ORDER_OPTIONS: { value: TurnOrder; label: string }[] = [
 export interface RecordTableProps {
   records: BattleRecord[];
   onDetailClick: (record: BattleRecord) => void;
+  readOnly?: boolean;
 }
 
 type EditingCell = { recordId: string; field: string } | null;
@@ -33,6 +34,7 @@ const CHUNK_SIZE = 10;
 export default function RecordTable({
   records,
   onDetailClick,
+  readOnly = false,
 }: RecordTableProps) {
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
@@ -132,7 +134,7 @@ export default function RecordTable({
             <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-0">
               メモ
             </th>
-            <th className="px-3 py-2 w-8" />
+            {!readOnly && <th className="px-3 py-2 w-8" />}
           </tr>
         </thead>
         <tbody>
@@ -173,6 +175,7 @@ export default function RecordTable({
                         }
                         onCancel={cancel}
                         renderDisplay={() => <Badge result={record.result} />}
+                        editable={!readOnly}
                       />
                     </td>
                     <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
@@ -185,6 +188,7 @@ export default function RecordTable({
                           save(record, { turnOrder: v as TurnOrder })
                         }
                         onCancel={cancel}
+                        editable={!readOnly}
                       />
                     </td>
                     <td className="px-3 py-2 max-w-[12rem] text-gray-900">
@@ -198,6 +202,7 @@ export default function RecordTable({
                         renderDisplay={() => (
                           <span className="block truncate">{ownName}</span>
                         )}
+                        editable={!readOnly}
                       />
                     </td>
                     <td className="px-3 py-2 max-w-[12rem] text-gray-900">
@@ -211,6 +216,7 @@ export default function RecordTable({
                         renderDisplay={() => (
                           <span className="block truncate">{opponentName}</span>
                         )}
+                        editable={!readOnly}
                       />
                     </td>
                     <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
@@ -222,6 +228,7 @@ export default function RecordTable({
                         onCancel={cancel}
                         min={scoreBounds?.min}
                         max={scoreBounds?.max}
+                        editable={!readOnly}
                       />
                     </td>
                     {recordIndex === 0 && (
@@ -248,25 +255,27 @@ export default function RecordTable({
                     <td className="px-3 py-2 max-w-xs truncate text-gray-500">
                       {record.memo}
                     </td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => onDetailClick(record)}
-                        title="タグ・メモを編集"
-                        className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                        aria-label="詳細・タグ・メモを編集"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          className="w-4 h-4"
-                          aria-hidden="true"
+                    {!readOnly && (
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => onDetailClick(record)}
+                          title="タグ・メモを編集"
+                          className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          aria-label="詳細・タグ・メモを編集"
                         >
-                          <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-                        </svg>
-                      </button>
-                    </td>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="w-4 h-4"
+                            aria-hidden="true"
+                          >
+                            <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                          </svg>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               });

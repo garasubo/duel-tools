@@ -68,3 +68,15 @@ export interface AppStorage {
   overlayStats: OverlayStatSetting[];
   panelDateFilter: PanelDateFilter;
 }
+
+// 記録モードの共有スナップショット。デッキ名・タグを埋め込んだ自己完結データで、
+// Cloudflare Worker + KV に保存し共有リンクで読み取り専用公開する。
+export interface SharedSnapshot {
+  version: 1;
+  createdAt: string; // 公開時刻(ISO 8601)
+  title?: string; // 共有につけた任意のタイトル
+  records: BattleRecord[];
+  ownDecks: Deck[]; // 記録から参照されているデッキのみ
+  opponentDecks: Deck[]; // 同上
+  knownTags: string[]; // 実際に使われているタグのみ
+}
