@@ -10,7 +10,7 @@ mod validate;
 
 use worker::*;
 
-const ALLOWED_ORIGINS: [&str; 2] = ["https://garasubo.github.io", "http://localhost:5173"];
+const ALLOWED_ORIGINS: [&str; 3] = ["https://garasubo.github.io", "https://garasubo.com/", "http://localhost:5173"];
 const MAX_BODY_BYTES: usize = 1_000_000; // ~1MB
 
 #[event(fetch)]
