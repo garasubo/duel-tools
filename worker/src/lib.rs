@@ -10,7 +10,11 @@ mod validate;
 
 use worker::*;
 
-const ALLOWED_ORIGINS: [&str; 3] = ["https://garasubo.github.io", "https://garasubo.com/", "http://localhost:5173"];
+const ALLOWED_ORIGINS: [&str; 3] = [
+    "https://garasubo.github.io",
+    "https://garasubo.com",
+    "http://localhost:5173",
+];
 const MAX_BODY_BYTES: usize = 1_000_000; // ~1MB
 
 #[event(fetch)]
@@ -73,16 +77,18 @@ async fn handle_get(env: &Env, share_id: &str, cors: Headers) -> Result<Response
 }
 
 fn cors_headers(origin: Option<&str>) -> Headers {
-    let allow = match origin {
-        Some(o) if ALLOWED_ORIGINS.contains(&o) => o,
-        _ => ALLOWED_ORIGINS[0],
-    };
     let headers = Headers::new();
-    let _ = headers.set("Access-Control-Allow-Origin", allow);
+    if let Some(allow) = allowed_origin(origin) {
+        let _ = headers.set("Access-Control-Allow-Origin", allow);
+    }
     let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     let _ = headers.set("Access-Control-Allow-Headers", "Content-Type");
     let _ = headers.set("Vary", "Origin");
     headers
+}
+
+fn allowed_origin(origin: Option<&str>) -> Option<&str> {
+    origin.filter(|origin| ALLOWED_ORIGINS.contains(origin))
 }
 
 fn json_error(status: u16, message: &str, cors: Headers) -> Response {
@@ -93,4 +99,24 @@ fn json_error(status: u16, message: &str, cors: Headers) -> Response {
         .expect("static response body")
         .with_status(status)
         .with_headers(headers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::allowed_origin;
+
+    #[test]
+    fn allows_production_origin_without_trailing_slash() {
+        assert_eq!(
+            allowed_origin(Some("https://garasubo.com")),
+            Some("https://garasubo.com")
+        );
+    }
+
+    #[test]
+    fn rejects_unlisted_origins() {
+        assert_eq!(allowed_origin(Some("https://garasubo.com/")), None);
+        assert_eq!(allowed_origin(Some("https://example.com")), None);
+        assert_eq!(allowed_origin(None), None);
+    }
 }
