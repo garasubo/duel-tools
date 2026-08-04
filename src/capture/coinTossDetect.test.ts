@@ -131,6 +131,7 @@ describe('updateCoinTossState', () => {
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
+const SKIP_DVC_TESTS = process.env.SKIP_DVC_TESTS === 'true';
 
 interface CoinFixtureRow {
   filename: string;
@@ -186,7 +187,7 @@ const coinFixtures = loadCoinFixtures();
 const badgeFixtures = loadBadgeFixtures();
 
 if (coinFixtures.length > 0) {
-  describe('fixture image classification', () => {
+  describe.skipIf(SKIP_DVC_TESTS)('fixture image classification', () => {
     let worker: Worker;
 
     beforeAll(async () => {
@@ -214,7 +215,7 @@ if (coinFixtures.length > 0) {
 }
 
 if (badgeFixtures.length > 0) {
-  describe('in-duel badge fixture image classification', () => {
+  describe.skipIf(SKIP_DVC_TESTS)('in-duel badge fixture image classification', () => {
     for (const { filename, badgeExpected } of badgeFixtures) {
       const filepath = path.join(FIXTURES, filename);
 

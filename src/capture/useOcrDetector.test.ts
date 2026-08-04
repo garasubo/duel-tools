@@ -15,6 +15,8 @@ import { DEFAULT_RESULT_ROI } from './types';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
+const SKIP_DVC_TESTS = process.env.SKIP_DVC_TESTS === 'true';
+const dvcTest = it.skipIf(SKIP_DVC_TESTS);
 
 interface OcrFixtureRow {
   filename: string;
@@ -142,7 +144,7 @@ describe('roiToRectangle', () => {
 // ---------------------------------------------------------------------------
 
 describe('classifyResultScreenByImageFeatures', () => {
-  it('結果画面は OCR 前に画像特徴量で分類できる', async () => {
+  dvcTest('結果画面は OCR 前に画像特徴量で分類できる', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0007.png')),
     ).resolves.toEqual({
@@ -158,13 +160,13 @@ describe('classifyResultScreenByImageFeatures', () => {
     });
   });
 
-  it('明らかに結果画面ではない画像は OCR 前に none に分類する', async () => {
+  dvcTest('明らかに結果画面ではない画像は OCR 前に none に分類する', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0017.png')),
     ).resolves.toEqual({ kind: 'none' });
   });
 
-  it('明るい背景で膨張した LOSE（救済パス）は信頼度を一段下げて loss にする', async () => {
+  dvcTest('明るい背景で膨張した LOSE（救済パス）は信頼度を一段下げて loss にする', async () => {
     // 救済パスで確定する loss は信頼度 88（getRequiredConsecutive=2）で、1 フレーム即確定にしない。
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0085.png')),
@@ -174,24 +176,24 @@ describe('classifyResultScreenByImageFeatures', () => {
     });
   });
 
-  it('LOSE グリフ核が太く拡散したフレーム（0086）は loss として確定しない', async () => {
+  dvcTest('LOSE グリフ核が太く拡散したフレーム（0086）は loss として確定しない', async () => {
     const result = await classifyResultScreenByImageFeatures(path.join(FIXTURES, '0086.png'));
     expect(result.kind).not.toBe('result');
   });
 
-  it('RESOLVE 演出は VICTORY として画像特徴量で確定しない', async () => {
+  dvcTest('RESOLVE 演出は VICTORY として画像特徴量で確定しない', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0049.png')),
     ).resolves.toEqual({ kind: 'possible' });
   });
 
-  it('爆発エフェクトは下部領域が明るいため none に分類する', async () => {
+  dvcTest('爆発エフェクトは下部領域が明るいため none に分類する', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0050.png')),
     ).resolves.toEqual({ kind: 'none' });
   });
 
-  it('CHAiN アニメーションは下部領域が明るいため none に分類する', async () => {
+  dvcTest('CHAiN アニメーションは下部領域が明るいため none に分類する', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0053.png')),
     ).resolves.toEqual({ kind: 'none' });
@@ -208,7 +210,7 @@ describe('classifyResultScreenByImageFeatures', () => {
 // hasResultScreenBottomDark
 // ---------------------------------------------------------------------------
 
-describe('hasResultScreenBottomDark', () => {
+describe.skipIf(SKIP_DVC_TESTS)('hasResultScreenBottomDark', () => {
   it('VICTORY 確定画面は下部領域が暗い（オーバーレイあり）', async () => {
     const pixels = await readImagePixels(path.join(FIXTURES, '0007.png'));
     expect(pixels).not.toBeNull();
@@ -250,7 +252,7 @@ describe('hasResultScreenBottomDark', () => {
 const ocrFixtures = loadOcrFixtures();
 
 if (ocrFixtures.length > 0) {
-  describe('fixture image classification', () => {
+  describe.skipIf(SKIP_DVC_TESTS)('fixture image classification', () => {
     let worker: Worker;
 
     beforeAll(async () => {
