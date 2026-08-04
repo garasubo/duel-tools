@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useLatestRecord, useRecords } from "../../state/hooks/useRecords";
 import { useOpponentDecks } from "../../state/hooks/useOpponentDecks";
 import { getScoreBounds, getScoreLabel } from "../../utils/battleMode";
@@ -27,15 +27,9 @@ interface ScoreInputProps {
 }
 
 function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturingRating, captureRatingFailed }: ScoreInputProps) {
-  const [value, setValue] = useState(initialValue);
   const bounds = getScoreBounds(mode);
 
-  useEffect(() => {
-    setValue(initialValue);
-  }, [initialValue]);
-
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setValue(e.target.value);
     onChange(e.target.value);
   }
 
@@ -45,7 +39,7 @@ function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturing
       <div className="flex items-center gap-2">
         <input
           type="number"
-          value={value}
+          value={initialValue}
           onChange={handleChange}
           min={bounds.min}
           max={bounds.max}

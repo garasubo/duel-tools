@@ -22,6 +22,7 @@ import { brightTextDensityInRoi, type ImagePixels } from './ocrDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
+const SKIP_DVC_TESTS = process.env.SKIP_DVC_TESTS === 'true';
 
 interface DpFixtureRow {
   filename: string;
@@ -258,7 +259,7 @@ describe('dpRoiHasText / brightTextDensityInRoi（画像特徴ゲート）', () 
 const dpFixtures = loadDpFixtures();
 
 if (dpFixtures.length > 0) {
-  describe('fixture image dp detection', () => {
+  describe.skipIf(SKIP_DVC_TESTS)('fixture image dp detection', () => {
     let worker: Worker;
 
     beforeAll(async () => {

@@ -16,6 +16,7 @@ import {
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
+const SKIP_DVC_TESTS = process.env.SKIP_DVC_TESTS === 'true';
 
 interface RateFixtureRow {
   filename: string;
@@ -245,7 +246,7 @@ describe('isLobbyScreenText', () => {
 const rateFixtures = loadRateFixtures();
 
 if (rateFixtures.length > 0) {
-  describe('fixture image rate detection', () => {
+  describe.skipIf(SKIP_DVC_TESTS)('fixture image rate detection', () => {
     let worker: Worker;
 
     beforeAll(async () => {
