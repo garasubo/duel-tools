@@ -266,6 +266,32 @@ export default function ComboPage() {
                     {result.successHands.toLocaleString()} /{" "}
                     {result.totalHands.toLocaleString()} 通り
                   </p>
+
+                  {result.patternResults.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-2 border-t border-gray-100 pt-3">
+                      <p className="text-xs font-semibold text-gray-500">
+                        条件ごとの成立率
+                      </p>
+                      {result.patternResults.map((pr, i) => (
+                        <div key={i} className="flex flex-col gap-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-xs text-gray-600">
+                              条件 {i + 1}
+                            </span>
+                            <span className="text-sm font-medium tabular-nums text-gray-700">
+                              {(pr.rate * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="h-2 rounded-full bg-brand-action transition-all duration-300"
+                              style={{ width: `${pr.rate * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             )}

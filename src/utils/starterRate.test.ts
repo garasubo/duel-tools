@@ -276,6 +276,30 @@ describe("calculateStarterRate", () => {
     expect(result.successHands).toBe(expected);
   });
 
+  // patternResults: 各条件単体の成立率を返す
+  it("patternResults: 各条件単体の成立確率を返す", () => {
+    const deck = { A: 3, B: 3, C: 3, others: 31 };
+    const patterns: Patterns = [
+      [{ type: "card", name: "A", required: 1 }],
+      [
+        { type: "card", name: "B", required: 1 },
+        { type: "card", name: "C", required: 1 },
+      ],
+    ];
+    const result = calculateStarterRate(deck, patterns);
+    const c40_5 = combination(40, 5);
+    const c37_5 = combination(37, 5);
+    const c34_5 = combination(34, 5);
+    const withA = c40_5 - c37_5;
+    const withBC = c40_5 - 2 * c37_5 + c34_5;
+
+    expect(result.patternResults).toHaveLength(2);
+    expect(result.patternResults[0].successHands).toBe(withA);
+    expect(result.patternResults[0].rate).toBeCloseTo(withA / c40_5);
+    expect(result.patternResults[1].successHands).toBe(withBC);
+    expect(result.patternResults[1].rate).toBeCloseTo(withBC / c40_5);
+  });
+
   // 12.4 同名複数要求
   // デッキ: A:3, others:37
   // 条件: {A:2}
