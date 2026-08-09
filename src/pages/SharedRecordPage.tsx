@@ -24,6 +24,7 @@ import OpponentDeckStatsTable from '../components/stats/OpponentDeckStatsTable';
 import DeckStatsTable from '../components/stats/DeckStatsTable';
 import MatchupTable from '../components/stats/MatchupTable';
 import DPTransitionChart from '../components/stats/DPTransitionChart';
+import BrandLogo from '../components/BrandLogo';
 
 type LoadStatus = 'loading' | 'ready' | 'notfound' | 'error';
 
@@ -40,7 +41,7 @@ function createSnapshotStorage(appStorage: AppStorage): StorageLike {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-brand-canvas p-6">
       <div className="text-center text-gray-600">{children}</div>
     </div>
   );
@@ -54,7 +55,7 @@ export default function SharedRecordPage() {
     return (
       <Centered>
         <p className="mb-3">共有された戦績が見つかりませんでした。</p>
-        <Link to="/record" className="text-indigo-600 hover:underline">
+        <Link to="/record" className="text-brand-action hover:underline">
           duel-tools を開く
         </Link>
       </Centered>
@@ -124,7 +125,7 @@ function SharedRecordLoader({ shareId }: { shareId: string }) {
     return (
       <Centered>
         <p className="mb-3">共有された戦績が見つかりませんでした。</p>
-        <Link to="/record" className="text-indigo-600 hover:underline">
+        <Link to="/record" className="text-brand-action hover:underline">
           duel-tools を開く
         </Link>
       </Centered>
@@ -134,7 +135,7 @@ function SharedRecordLoader({ shareId }: { shareId: string }) {
     return (
       <Centered>
         <p className="mb-3">共有データの読み込みに失敗しました。</p>
-        <Link to="/record" className="text-indigo-600 hover:underline">
+        <Link to="/record" className="text-brand-action hover:underline">
           duel-tools を開く
         </Link>
       </Centered>
@@ -143,23 +144,28 @@ function SharedRecordLoader({ shareId }: { shareId: string }) {
 
   return (
     <BattlesStoreContext.Provider value={store}>
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">
-              {snapshot.title || '共有された戦績'}
-            </h1>
-            <p className="text-xs text-gray-500">
-              読み取り専用
-              {snapshot.createdAt && `・公開日時 ${formatDate(snapshot.createdAt)}`}
-            </p>
+      <div className="min-h-screen flex flex-col bg-brand-canvas text-brand-ink">
+        <header className="border-b border-brand-cyan/30 bg-brand-surface px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <BrandLogo />
+              <div className="mt-2">
+                <h1 className="truncate text-lg font-bold text-brand-ink">
+                  {snapshot.title || '共有された戦績'}
+                </h1>
+                <p className="text-xs text-gray-600">
+                  読み取り専用
+                  {snapshot.createdAt && `・公開日時 ${formatDate(snapshot.createdAt)}`}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/record"
+              className="shrink-0 rounded-lg border border-brand-action px-3 py-1.5 text-sm font-medium text-brand-action transition-colors hover:bg-brand-soft"
+            >
+              自分の記録を始める
+            </Link>
           </div>
-          <Link
-            to="/record"
-            className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
-          >
-            自分の記録を始める
-          </Link>
         </header>
         <main className="flex-1 overflow-y-auto">
           <SharedDashboard />
@@ -208,7 +214,7 @@ function SharedDashboard() {
           type="checkbox"
           checked={includeGrantedFirst}
           onChange={(e) => setIncludeGrantedFirst(e.target.checked)}
-          className="w-4 h-4 accent-blue-600"
+          className="w-4 h-4 accent-brand-action"
         />
         <label
           htmlFor="shared-include-granted-first"

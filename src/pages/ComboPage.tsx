@@ -118,7 +118,7 @@ export default function ComboPage() {
   const ratePercent = result ? (result.rate * 100).toFixed(1) : null;
   const rateColor =
     result === null
-      ? "text-indigo-600"
+      ? "text-brand-action"
       : result.rate >= 0.5
         ? "text-emerald-600"
         : result.rate >= 0.3
@@ -126,7 +126,7 @@ export default function ComboPage() {
           : "text-red-600";
   const barColor =
     result === null
-      ? "bg-indigo-500"
+      ? "bg-brand-action"
       : result.rate >= 0.5
         ? "bg-emerald-500"
         : result.rate >= 0.3

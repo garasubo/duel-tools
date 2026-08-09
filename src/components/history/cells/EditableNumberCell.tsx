@@ -56,7 +56,7 @@ function NumberInput({
       onKeyDown={handleKeyDown}
       min={min}
       max={max}
-      className="w-28 rounded border border-indigo-300 px-1 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      className="w-28 rounded border border-brand-cyan/50 px-1 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
     />
   );
 }
@@ -94,7 +94,7 @@ export default function EditableNumberCell({
     return (
       <div
         onClick={onActivate}
-        className="cursor-pointer rounded px-1 -mx-1 hover:bg-indigo-100 transition-colors min-h-[1.5rem]"
+        className="cursor-pointer rounded px-1 -mx-1 hover:bg-brand-soft transition-colors min-h-[1.5rem]"
         title="クリックして編集"
       >
         {value !== undefined ? value.toLocaleString() : ""}

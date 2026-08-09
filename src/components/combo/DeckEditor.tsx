@@ -137,7 +137,7 @@ export default function DeckEditor({
             min={1}
             value={deckSize}
             onChange={(e) => onDeckSizeChange(Math.max(1, Number(e.target.value)))}
-            className="w-16 rounded-lg border border-gray-300 px-2 py-0.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-16 rounded-lg border border-gray-300 px-2 py-0.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action"
           />
           <span
             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${totalColorClass}`}
@@ -192,7 +192,7 @@ export default function DeckEditor({
                     onChange={(e) =>
                       onCountChange(name, Math.max(1, Number(e.target.value)))
                     }
-                    className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action"
                   />
                   <span className="text-xs text-gray-400">枚</span>
                   <Button
@@ -249,7 +249,7 @@ export default function DeckEditor({
         ))}
 
         {adding && (
-          <div className="mt-2 border border-indigo-200 rounded-lg p-3 bg-indigo-50">
+          <div className="mt-2 border border-brand-cyan/30 rounded-lg p-3 bg-brand-soft">
             <div className="flex items-center gap-2">
               <input
                 ref={nameInputRef}
@@ -261,7 +261,7 @@ export default function DeckEditor({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="カード名"
-                className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action bg-white"
               />
               <input
                 type="number"
@@ -270,7 +270,7 @@ export default function DeckEditor({
                 value={newCount}
                 onChange={(e) => setNewCount(Math.max(1, Number(e.target.value)))}
                 onKeyDown={handleKeyDown}
-                className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action bg-white"
               />
               <span className="text-xs text-gray-500">枚</span>
               <Button variant="primary" size="sm" onClick={handleConfirmAdd}>
@@ -297,7 +297,7 @@ export default function DeckEditor({
           <button
             type="button"
             onClick={handleStartAdd}
-            className="mt-2 w-full border border-dashed border-gray-300 rounded-lg py-2 text-sm text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors duration-150 cursor-pointer"
+            className="mt-2 w-full border border-dashed border-gray-300 rounded-lg py-2 text-sm text-gray-400 hover:border-brand-cyan hover:text-brand-action transition-colors duration-150 cursor-pointer"
           >
             + カードを追加
           </button>

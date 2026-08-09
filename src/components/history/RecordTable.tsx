@@ -261,7 +261,7 @@ export default function RecordTable({
                           type="button"
                           onClick={() => onDetailClick(record)}
                           title="タグ・メモを編集"
-                          className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          className="p-1 rounded text-gray-400 hover:text-brand-action hover:bg-brand-soft transition-colors"
                           aria-label="詳細・タグ・メモを編集"
                         >
                           <svg

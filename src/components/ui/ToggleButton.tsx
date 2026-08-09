@@ -11,7 +11,7 @@ export interface ToggleButtonGroupProps {
 }
 
 const selectedClasses =
-  'border-indigo-600 bg-indigo-600 text-white shadow-sm';
+  'border-brand-action bg-brand-action text-white shadow-sm';
 const unselectedClasses =
   'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300';
 
@@ -19,7 +19,7 @@ const baseClasses =
   'inline-flex items-center justify-center px-4 py-2 text-sm font-medium ' +
   'rounded-lg border transition-colors duration-150 cursor-pointer ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ' +
-  'focus-visible:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed';
+  'focus-visible:ring-brand-action disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function ToggleButton({
   isSelected,

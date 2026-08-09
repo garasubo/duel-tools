@@ -65,8 +65,8 @@ export default function TagInput({
               onClick={() => toggleTag(tag)}
               className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border transition-colors cursor-pointer ${
                 selected
-                  ? "bg-indigo-600 text-white border-indigo-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:border-indigo-400 hover:text-indigo-600"
+                  ? "bg-brand-action text-white border-brand-action"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-brand-cyan hover:text-brand-action"
               }`}
             >
               {selected && <span>✓</span>}
@@ -83,12 +83,12 @@ export default function TagInput({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="タグ名"
-              className="border border-indigo-400 rounded-full px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-indigo-500 w-28"
+              className="border border-brand-cyan rounded-full px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-brand-action w-28"
             />
             <button
               type="button"
               onClick={handleConfirm}
-              className="px-2 py-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              className="px-2 py-1 text-sm text-brand-action hover:text-brand-action-hover font-medium"
             >
               追加
             </button>
@@ -107,7 +107,7 @@ export default function TagInput({
           <button
             type="button"
             onClick={handleAddStart}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border border-dashed border-gray-300 text-gray-500 hover:border-brand-cyan hover:text-brand-action transition-colors cursor-pointer"
           >
             <span>＋</span> タグを追加
           </button>

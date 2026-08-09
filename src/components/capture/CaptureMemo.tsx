@@ -29,7 +29,7 @@ export default function CaptureMemo({ shots, onAdd, onRemove, onClearAll }: Capt
           type="button"
           onClick={handleCapture}
           disabled={!isCapturing}
-          className="text-sm px-3 py-1.5 rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="text-sm px-3 py-1.5 rounded-lg border border-brand-cyan/50 text-brand-action hover:bg-brand-soft transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           スクリーンショットを撮る
         </button>
@@ -51,7 +51,7 @@ export default function CaptureMemo({ shots, onAdd, onRemove, onClearAll }: Capt
               <button
                 type="button"
                 onClick={() => setSelectedId(shot.id)}
-                className="block rounded-md overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
+                className="block rounded-md overflow-hidden border border-gray-200 hover:border-brand-cyan transition-colors"
               >
                 <img
                   src={shot.dataUrl}

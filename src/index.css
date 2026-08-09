@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand-cyan: #43cdd2;
+  --color-brand-action: #167b80;
+  --color-brand-action-hover: #105f63;
+  --color-brand-pink: #e052a0;
+  --color-brand-ink: #293444;
+  --color-brand-surface: #dce7ee;
+  --color-brand-canvas: #f4f8fa;
+  --color-brand-soft: #e3f7f8;
+}
+
+body {
+  background-color: var(--color-brand-canvas);
+  color: var(--color-brand-ink);
+}

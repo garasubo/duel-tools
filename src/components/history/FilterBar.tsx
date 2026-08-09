@@ -54,7 +54,7 @@ export default function FilterBar({
           <select
             value={filter.ownDeckId}
             onChange={(e) => onChange({ ownDeckId: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action focus:border-transparent"
           >
             <option value="">すべて</option>
             {ownDecks.map((d) => (
@@ -70,7 +70,7 @@ export default function FilterBar({
           <select
             value={filter.opponentDeckId}
             onChange={(e) => onChange({ opponentDeckId: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action focus:border-transparent"
           >
             <option value="">すべて</option>
             {opponentDecks.map((d) => (
@@ -123,7 +123,7 @@ export default function FilterBar({
             type="date"
             value={filter.dateFrom}
             onChange={(e) => onChange({ dateFrom: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action focus:border-transparent"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -132,7 +132,7 @@ export default function FilterBar({
             type="date"
             value={filter.dateTo}
             onChange={(e) => onChange({ dateTo: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action focus:border-transparent"
           />
         </div>
       </div>

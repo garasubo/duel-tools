@@ -10,7 +10,7 @@ export interface ButtonProps extends ComponentPropsWithoutRef<'button'> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-500',
+    'bg-brand-action text-white hover:bg-brand-action-hover focus-visible:ring-brand-action',
   secondary:
     'bg-gray-100 text-gray-800 hover:bg-gray-200 focus-visible:ring-gray-400',
   danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
