@@ -43,7 +43,7 @@ function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturing
           onChange={handleChange}
           min={bounds.min}
           max={bounds.max}
-          className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
         />
         {(mode === 'rated' || mode === 'duelists-cup') && onCaptureRating && (
           <>
@@ -66,7 +66,7 @@ function ScoreInput({ initialValue, mode, onChange, onCaptureRating, isCapturing
 }
 
 const selectClass =
-  "rounded border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500";
+  "rounded border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action";
 
 export default function LastBattleQuickEdit() {
   const [open, setOpen] = useState(false);

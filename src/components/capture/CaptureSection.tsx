@@ -76,7 +76,7 @@ export default function CaptureSection() {
           id="capture-fps"
           value={captureFps}
           onChange={(e) => setCaptureFps(Number(e.target.value))}
-          className="rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action focus:border-transparent"
         >
           {CAPTURE_FPS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -92,7 +92,7 @@ export default function CaptureSection() {
       {captureState === 'idle' && (
         <button
           onClick={start}
-          className="text-sm px-3 py-1.5 rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"
+          className="text-sm px-3 py-1.5 rounded-lg border border-brand-cyan/50 text-brand-action hover:bg-brand-soft transition-colors"
         >
           キャプチャ開始
         </button>
@@ -106,7 +106,7 @@ export default function CaptureSection() {
               type="checkbox"
               checked={autoConfirmEnabled}
               onChange={(e) => setAutoConfirmEnabled(e.target.checked)}
-              className="h-4 w-4 accent-blue-600"
+              className="h-4 w-4 accent-brand-action"
             />
             自動確定
           </label>

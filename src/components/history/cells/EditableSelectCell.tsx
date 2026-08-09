@@ -46,7 +46,7 @@ export default function EditableSelectCell({
     return (
       <div
         onClick={onActivate}
-        className="cursor-pointer rounded px-1 -mx-1 hover:bg-indigo-100 transition-colors"
+        className="cursor-pointer rounded px-1 -mx-1 hover:bg-brand-soft transition-colors"
         title="クリックして編集"
       >
         {renderDisplay ? renderDisplay() : displayLabel}
@@ -72,7 +72,7 @@ export default function EditableSelectCell({
       value={value}
       onChange={handleChange}
       onBlur={handleBlur}
-      className="rounded border border-indigo-300 px-1 py-0.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      className="rounded border border-brand-cyan/50 px-1 py-0.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-action"
     >
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>

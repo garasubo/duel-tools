@@ -12,7 +12,7 @@ export default function MemoInput({ value, onChange }: MemoInputProps) {
         onChange={(e) => onChange(e.target.value)}
         rows={3}
         placeholder="自由記入欄（省略可）"
-        className="rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        className="rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-action focus:border-transparent"
       />
     </div>
   );

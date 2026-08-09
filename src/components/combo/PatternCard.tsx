@@ -116,7 +116,7 @@ export default function PatternCard({
                   className={`flex-1 text-sm px-2 py-0.5 rounded-full border text-xs font-medium ${
                     isOverMax
                       ? 'bg-red-50 text-red-700 border-red-200'
-                      : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : 'bg-brand-soft text-brand-action-hover border-brand-cyan/30'
                   }`}
                 >
                   {entry.name}
@@ -132,7 +132,7 @@ export default function PatternCard({
                   max={maxCount}
                   value={entry.required}
                   onChange={(e) => handleRequiredCountChange(i, Number(e.target.value))}
-                  className="w-14 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-14 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action"
                 />
                 <span className="text-xs text-gray-400">枚以上</span>
                 <Button
@@ -209,7 +209,7 @@ export default function PatternCard({
                 }}
                 className={`flex-1 rounded-lg py-1 text-xs font-medium border transition-colors ${
                   conditionType === 'card'
-                    ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                    ? 'bg-brand-soft text-brand-action-hover border-brand-cyan/50'
                     : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
                 }`}
               >
@@ -241,7 +241,7 @@ export default function PatternCard({
                 <select
                   value={selectedCard}
                   onChange={(e) => setSelectedCard(e.target.value)}
-                  className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
                 >
                   {availableCards.length === 0 ? (
                     <option value="">カードがありません</option>
@@ -282,7 +282,7 @@ export default function PatternCard({
                 }
                 value={requiredCount}
                 onChange={(e) => setRequiredCount(Number(e.target.value))}
-                className="w-14 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-14 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action"
               />
               <span className="text-xs text-gray-400">枚以上</span>
               <Button
@@ -313,7 +313,7 @@ export default function PatternCard({
         <button
           type="button"
           onClick={handleStartAdd}
-          className="mt-2 w-full border border-dashed border-gray-300 rounded-lg py-1 text-xs text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors duration-150 cursor-pointer"
+          className="mt-2 w-full border border-dashed border-gray-300 rounded-lg py-1 text-xs text-gray-400 hover:border-brand-cyan hover:text-brand-action transition-colors duration-150 cursor-pointer"
         >
           + 条件を追加
         </button>

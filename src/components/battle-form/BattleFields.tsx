@@ -117,7 +117,7 @@ export default function BattleFields({
                 min={scoreBounds.min}
                 max={scoreBounds.max}
                 step="any"
-                className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-40 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
               />
               {(value.battleMode === 'rated' || value.battleMode === 'duelists-cup') &&
                 onCaptureRating && (

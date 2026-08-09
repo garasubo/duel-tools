@@ -63,7 +63,7 @@ export default function StatsPage() {
           type="checkbox"
           checked={includeGrantedFirst}
           onChange={(e) => setIncludeGrantedFirst(e.target.checked)}
-          className="w-4 h-4 accent-blue-600"
+          className="w-4 h-4 accent-brand-action"
         />
         <label
           htmlFor="include-granted-first"

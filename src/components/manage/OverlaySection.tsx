@@ -115,7 +115,7 @@ export default function OverlaySection({
       <div className="px-4 py-3 border-t border-gray-100 space-y-2">
         <p className="text-xs font-medium text-gray-600">日付フィルター</p>
         <select
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-action"
           value={panelDateFilter.type}
           onChange={(e) =>
             onUpdateDateFilter({
@@ -133,7 +133,7 @@ export default function OverlaySection({
         {panelDateFilter.type === 'since' && (
           <input
             type="date"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-action"
             value={panelDateFilter.sinceDate ?? ''}
             onChange={(e) =>
               onUpdateDateFilter({ type: 'since', sinceDate: e.target.value })

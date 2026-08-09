@@ -67,7 +67,7 @@ export default function TagSection({
                     if (e.key === "Enter") commitEdit();
                     if (e.key === "Escape") cancelEdit();
                   }}
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
                 />
                 <Button size="sm" variant="primary" onClick={commitEdit}>
                   保存
@@ -114,7 +114,7 @@ export default function TagSection({
                 if (e.key === "Enter") commitAdd();
                 if (e.key === "Escape") cancelAdd();
               }}
-              className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
             />
             <Button size="sm" variant="primary" onClick={commitAdd}>
               追加

@@ -11,7 +11,7 @@ const TABS: { id: TabId; label: string; to: string }[] = [
 
 export default function NavTabs() {
   return (
-    <nav role="tablist" className="flex border-b border-gray-200 bg-white">
+    <nav role="tablist" className="flex border-b border-brand-cyan/30 bg-white">
       {TABS.map((tab) => (
         <NavLink
           key={tab.id}
@@ -21,9 +21,9 @@ export default function NavTabs() {
           className={({ isActive }) =>
             [
               'flex-1 py-3 text-sm font-medium transition-colors duration-150 text-center',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-action',
               isActive
-                ? 'border-b-2 border-indigo-600 text-indigo-600'
+                ? 'border-b-2 border-brand-action text-brand-action'
                 : 'text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300',
             ].join(' ')
           }

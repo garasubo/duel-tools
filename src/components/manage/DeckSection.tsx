@@ -82,7 +82,7 @@ export default function DeckSection({
                     if (e.key === "Enter") commitEdit();
                     if (e.key === "Escape") cancelEdit();
                   }}
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
                 />
                 <Button size="sm" variant="primary" onClick={commitEdit}>
                   保存
@@ -142,7 +142,7 @@ export default function DeckSection({
                   if (e.key === "Escape") handleCancelAdd();
                 }}
                 aria-invalid={addError ? true : undefined}
-                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-action"
               />
               {addError && (
                 <p className="mt-1 text-xs text-red-600">{addError}</p>
