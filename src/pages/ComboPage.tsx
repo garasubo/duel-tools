@@ -7,8 +7,16 @@ import type {
   StarterRateResult,
 } from "../utils/starterRate";
 import { calculateStarterRate } from "../utils/starterRate";
+import type { SavedDeck } from "../utils/comboDeckStorage";
+import {
+  deleteSavedDeck,
+  readSavedDecks,
+  upsertSavedDeck,
+  writeSavedDecks,
+} from "../utils/comboDeckStorage";
 import DeckEditor from "../components/combo/DeckEditor";
 import PatternEditor from "../components/combo/PatternEditor";
+import SavedDecks from "../components/combo/SavedDecks";
 import Button from "../components/ui/Button";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -20,8 +28,39 @@ export default function ComboPage() {
   const [cardLabels, setCardLabels] = useState<CardLabels>({});
   const [result, setResult] = useState<StarterRateResult | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
+  const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(readSavedDecks);
 
   const deckTotal = Object.values(deckCounts).reduce((s, n) => s + n, 0);
+  const canSaveDeck = deckTotal > 0;
+
+  function handleSaveDeck(name: string) {
+    setSavedDecks((prev) => {
+      const next = upsertSavedDeck(prev, name, {
+        deckSize,
+        deckCounts,
+        patterns,
+        cardLabels,
+      });
+      writeSavedDecks(next);
+      return next;
+    });
+  }
+
+  function handleLoadDeck(deck: SavedDeck) {
+    setDeckSize(deck.deckSize);
+    setDeckCounts(deck.deckCounts);
+    setPatterns(deck.patterns);
+    setCardLabels(deck.cardLabels);
+    resetResult();
+  }
+
+  function handleDeleteDeck(id: string) {
+    setSavedDecks((prev) => {
+      const next = deleteSavedDeck(prev, id);
+      writeSavedDecks(next);
+      return next;
+    });
+  }
   const canCalculate =
     deckTotal > 0 && deckTotal <= deckSize && patterns.length > 0;
 
@@ -106,7 +145,12 @@ export default function ComboPage() {
 
   function handleCalculate() {
     try {
-      const res = calculateStarterRate(deckCounts, patterns, deckSize, cardLabels);
+      const res = calculateStarterRate(
+        deckCounts,
+        patterns,
+        deckSize,
+        cardLabels,
+      );
       setResult(res);
       setCalcError(null);
     } catch (e) {
@@ -134,88 +178,100 @@ export default function ComboPage() {
           : "bg-red-500";
 
   return (
-    <div className="p-4 max-w-3xl mx-auto flex flex-col gap-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <DeckEditor
-          deckCounts={deckCounts}
-          deckSize={deckSize}
-          cardLabels={cardLabels}
-          onDeckSizeChange={handleDeckSizeChange}
-          onAdd={handleAddCard}
-          onRemove={handleRemoveCard}
-          onCountChange={handleCardCountChange}
-          onLabelChange={handleLabelChange}
-        />
-        <PatternEditor
-          patterns={patterns}
-          deckCounts={deckCounts}
-          cardLabels={cardLabels}
-          onAddPattern={handleAddPattern}
-          onRemovePattern={handleRemovePattern}
-          onUpdatePattern={handleUpdatePattern}
-        />
-      </div>
+    <div className="p-4 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="lg:col-span-2 flex flex-col gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <DeckEditor
+            deckCounts={deckCounts}
+            deckSize={deckSize}
+            cardLabels={cardLabels}
+            onDeckSizeChange={handleDeckSizeChange}
+            onAdd={handleAddCard}
+            onRemove={handleRemoveCard}
+            onCountChange={handleCardCountChange}
+            onLabelChange={handleLabelChange}
+          />
+          <PatternEditor
+            patterns={patterns}
+            deckCounts={deckCounts}
+            cardLabels={cardLabels}
+            onAddPattern={handleAddPattern}
+            onRemovePattern={handleRemovePattern}
+            onUpdatePattern={handleUpdatePattern}
+          />
+        </div>
 
-      <div className="flex flex-col items-stretch gap-2">
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={handleCalculate}
-          disabled={!canCalculate}
-          className="w-full"
-        >
-          確率を計算する
-        </Button>
-        {!canCalculate && (
-          <p className="text-xs text-gray-400 text-center">
-            {deckTotal > deckSize
-              ? `デッキ枚数が ${deckTotal}/${deckSize} 枚です（${deckSize}枚を超えています）`
-              : patterns.length === 0
-                ? "カードと条件を追加してください"
-                : "カードを1枚以上追加してください"}
-          </p>
-        )}
-        {canCalculate && deckTotal < deckSize && (
-          <p className="text-xs text-gray-400 text-center">
-            残り {deckSize - deckTotal} 枚はダミーカードとして扱います
-          </p>
-        )}
-      </div>
-
-      {(result !== null || calcError !== null) && (
-        <div
-          className={`bg-white rounded-xl border shadow-sm p-6 ${calcError ? "border-red-300" : "border-gray-200"}`}
-        >
-          {calcError ? (
-            <p className="text-sm text-red-600">{calcError}</p>
-          ) : (
-            result && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-baseline gap-2">
-                  <span
-                    className={`text-5xl font-bold tabular-nums ${rateColor}`}
-                  >
-                    {ratePercent}%
-                  </span>
-                  <span className="text-sm text-gray-500">初動率</span>
-                </div>
-
-                <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                  <div
-                    className={`h-3 rounded-full transition-all duration-300 ${barColor}`}
-                    style={{ width: `${result.rate * 100}%` }}
-                  />
-                </div>
-
-                <p className="text-sm text-gray-500">
-                  {result.successHands.toLocaleString()} /{" "}
-                  {result.totalHands.toLocaleString()} 通り
-                </p>
-              </div>
-            )
+        <div className="flex flex-col items-stretch gap-2">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={handleCalculate}
+            disabled={!canCalculate}
+            className="w-full"
+          >
+            確率を計算する
+          </Button>
+          {!canCalculate && (
+            <p className="text-xs text-gray-400 text-center">
+              {deckTotal > deckSize
+                ? `デッキ枚数が ${deckTotal}/${deckSize} 枚です（${deckSize}枚を超えています）`
+                : patterns.length === 0
+                  ? "カードと条件を追加してください"
+                  : "カードを1枚以上追加してください"}
+            </p>
+          )}
+          {canCalculate && deckTotal < deckSize && (
+            <p className="text-xs text-gray-400 text-center">
+              残り {deckSize - deckTotal} 枚はダミーカードとして扱います
+            </p>
           )}
         </div>
-      )}
+      </div>
+
+      <div className="flex flex-col gap-6">
+        <SavedDecks
+          savedDecks={savedDecks}
+          canSave={canSaveDeck}
+          onSave={handleSaveDeck}
+          onLoad={handleLoadDeck}
+          onDelete={handleDeleteDeck}
+        />
+
+        {(result !== null || calcError !== null) && (
+          <div
+            className={`bg-white rounded-xl border shadow-sm p-6 ${calcError ? "border-red-300" : "border-gray-200"}`}
+          >
+            {calcError ? (
+              <p className="text-sm text-red-600">{calcError}</p>
+            ) : (
+              result && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className={`text-5xl font-bold tabular-nums ${rateColor}`}
+                    >
+                      {ratePercent}%
+                    </span>
+                    <span className="text-sm text-gray-500">初動率</span>
+                  </div>
+
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-300 ${barColor}`}
+                      style={{ width: `${result.rate * 100}%` }}
+                    />
+                  </div>
+
+                  <p className="text-sm text-gray-500">
+                    {result.successHands.toLocaleString()} /{" "}
+                    {result.totalHands.toLocaleString()} 通り
+                  </p>
+                </div>
+              )
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
