@@ -104,7 +104,10 @@ export default function SavedDecks({
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => onLoad(deck)}
+                      onClick={() => {
+                        onLoad(deck);
+                        setName(deck.name);
+                      }}
                     >
                       読み込む
                     </Button>
