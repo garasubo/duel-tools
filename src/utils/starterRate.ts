@@ -9,10 +9,17 @@ export type Patterns = Pattern[];
 
 export type CardLabels = Record<string, string[]>;
 
+export interface PatternRateResult {
+  successHands: number;
+  rate: number;
+}
+
 export interface StarterRateResult {
   successHands: number;
   totalHands: number;
   rate: number;
+  // 各パターン（条件）単体の成立確率
+  patternResults: PatternRateResult[];
 }
 
 export function combination(n: number, k: number): number {
@@ -137,6 +144,7 @@ export function calculateStarterRate(
 
   const totalHands = combination(deckSize, 5);
   let successHands = 0;
+  const patternSuccessHands = new Array<number>(patterns.length).fill(0);
 
   function buildHandCounts(): DeckCounts {
     const hand: DeckCounts = {};
@@ -149,8 +157,16 @@ export function calculateStarterRate(
   function dfs(index: number, remaining: number): void {
     if (remaining === 0) {
       const hand = buildHandCounts();
-      if (isPlayable(hand, patterns, deckCounts, cardLabels)) {
-        successHands += countWays(paddedDeck, hand);
+      const ways = countWays(paddedDeck, hand);
+      let anyMatch = false;
+      for (let p = 0; p < patterns.length; p++) {
+        if (matchesPattern(hand, patterns[p], deckCounts, cardLabels)) {
+          patternSuccessHands[p] += ways;
+          anyMatch = true;
+        }
+      }
+      if (anyMatch) {
+        successHands += ways;
       }
       return;
     }
@@ -173,5 +189,9 @@ export function calculateStarterRate(
     successHands,
     totalHands,
     rate: successHands / totalHands,
+    patternResults: patternSuccessHands.map((hands) => ({
+      successHands: hands,
+      rate: hands / totalHands,
+    })),
   };
 }
