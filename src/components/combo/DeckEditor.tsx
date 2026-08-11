@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import type { DeckCounts, CardLabels } from '../../utils/starterRate';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
+import { getLabelColor } from '../../utils/labelColor';
 
 export interface DeckEditorProps {
   deckCounts: DeckCounts;
@@ -206,22 +207,25 @@ export default function DeckEditor({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1 mt-1 min-h-[1.5rem]">
-                  {(cardLabels[name] ?? []).map((lbl) => (
-                    <span
-                      key={lbl}
-                      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200"
-                    >
-                      {lbl}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLabel(name, lbl)}
-                        className="ml-0.5 text-teal-400 hover:text-teal-700 leading-none"
-                        aria-label={`ラベル「${lbl}」を削除`}
+                  {(cardLabels[name] ?? []).map((lbl) => {
+                    const color = getLabelColor(lbl);
+                    return (
+                      <span
+                        key={lbl}
+                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        {lbl}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLabel(name, lbl)}
+                          className={`ml-0.5 leading-none ${color.removeText} ${color.removeHover}`}
+                          aria-label={`ラベル「${lbl}」を削除`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
                   {editingLabelFor === name ? (
                     <input
                       ref={labelInputRef}

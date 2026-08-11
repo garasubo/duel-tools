@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Pattern, PatternEntry, DeckCounts, CardLabels } from '../../utils/starterRate';
 import { getAllLabels, getCardsForLabel } from '../../utils/starterRate';
 import Button from '../ui/Button';
+import { getLabelColor } from '../../utils/labelColor';
 
 export interface PatternCardProps {
   pattern: Pattern;
@@ -160,7 +161,7 @@ export default function PatternCard({
                   className={`flex-1 text-sm px-2 py-0.5 rounded-full border text-xs font-medium ${
                     isEmpty
                       ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-teal-50 text-teal-700 border-teal-200'
+                      : `${getLabelColor(entry.label).bg} ${getLabelColor(entry.label).text} ${getLabelColor(entry.label).border}`
                   }`}
                 >
                   🏷 {entry.label}
