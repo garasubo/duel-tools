@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
-import type { DeckCounts, CardLabels } from '../../utils/starterRate';
-import Button from '../ui/Button';
-import EmptyState from '../ui/EmptyState';
-import { getLabelColor } from '../../utils/labelColor';
+import { useState, useRef } from "react";
+import type { DeckCounts, CardLabels } from "../../utils/starterRate";
+import { getAllLabels } from "../../utils/starterRate";
+import Button from "../ui/Button";
+import EmptyState from "../ui/EmptyState";
+import { getLabelColor } from "../../utils/labelColor";
 
 export interface DeckEditorProps {
   deckCounts: DeckCounts;
@@ -26,12 +27,12 @@ export default function DeckEditor({
   onLabelChange,
 }: DeckEditorProps) {
   const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState('');
+  const [newName, setNewName] = useState("");
   const [newCount, setNewCount] = useState(1);
   const [addError, setAddError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [editingLabelFor, setEditingLabelFor] = useState<string | null>(null);
-  const [newLabelText, setNewLabelText] = useState('');
+  const [newLabelText, setNewLabelText] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,13 +40,13 @@ export default function DeckEditor({
 
   const totalColorClass =
     deckTotal === deckSize
-      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
       : deckTotal > deckSize
-        ? 'bg-red-100 text-red-800 border-red-200'
-        : 'bg-amber-100 text-amber-800 border-amber-200';
+        ? "bg-red-100 text-red-800 border-red-200"
+        : "bg-amber-100 text-amber-800 border-amber-200";
 
   function handleStartAdd() {
-    setNewName('');
+    setNewName("");
     setNewCount(1);
     setAddError(null);
     setAdding(true);
@@ -55,27 +56,27 @@ export default function DeckEditor({
   function handleConfirmAdd() {
     const trimmed = newName.trim();
     if (!trimmed) {
-      setAddError('カード名を入力してください');
+      setAddError("カード名を入力してください");
       return;
     }
     if (trimmed in deckCounts) {
-      setAddError('このカード名はすでに追加されています');
+      setAddError("このカード名はすでに追加されています");
       return;
     }
     if (newCount < 1) {
-      setAddError('枚数は1以上にしてください');
+      setAddError("枚数は1以上にしてください");
       return;
     }
     onAdd(trimmed, newCount);
     setAdding(false);
-    setNewName('');
+    setNewName("");
     setNewCount(1);
     setAddError(null);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') handleConfirmAdd();
-    if (e.key === 'Escape') {
+    if (e.key === "Enter") handleConfirmAdd();
+    if (e.key === "Escape") {
       setAdding(false);
       setAddError(null);
     }
@@ -94,7 +95,7 @@ export default function DeckEditor({
 
   function handleStartLabelEdit(cardName: string) {
     setEditingLabelFor(cardName);
-    setNewLabelText('');
+    setNewLabelText("");
     setTimeout(() => labelInputRef.current?.focus(), 0);
   }
 
@@ -108,21 +109,33 @@ export default function DeckEditor({
     if (!existing.includes(trimmed)) {
       onLabelChange(cardName, [...existing, trimmed]);
     }
-    setNewLabelText('');
+    setNewLabelText("");
     setEditingLabelFor(null);
   }
 
   function handleLabelKeyDown(e: React.KeyboardEvent, cardName: string) {
-    if (e.key === 'Enter') handleConfirmAddLabel(cardName);
-    if (e.key === 'Escape') {
-      setNewLabelText('');
+    if (e.key === "Enter") handleConfirmAddLabel(cardName);
+    if (e.key === "Escape") {
+      setNewLabelText("");
       setEditingLabelFor(null);
     }
   }
 
+  function handleSelectExistingLabel(cardName: string, label: string) {
+    const existing = cardLabels[cardName] ?? [];
+    if (!existing.includes(label)) {
+      onLabelChange(cardName, [...existing, label]);
+    }
+    setNewLabelText("");
+    setEditingLabelFor(null);
+  }
+
   function handleRemoveLabel(cardName: string, label: string) {
     const existing = cardLabels[cardName] ?? [];
-    onLabelChange(cardName, existing.filter((l) => l !== label));
+    onLabelChange(
+      cardName,
+      existing.filter((l) => l !== label),
+    );
   }
 
   const entries = Object.entries(deckCounts);
@@ -137,7 +150,9 @@ export default function DeckEditor({
             type="number"
             min={1}
             value={deckSize}
-            onChange={(e) => onDeckSizeChange(Math.max(1, Number(e.target.value)))}
+            onChange={(e) =>
+              onDeckSizeChange(Math.max(1, Number(e.target.value)))
+            }
             className="w-16 rounded-lg border border-gray-300 px-2 py-0.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action"
           />
           <span
@@ -227,16 +242,50 @@ export default function DeckEditor({
                     );
                   })}
                   {editingLabelFor === name ? (
-                    <input
-                      ref={labelInputRef}
-                      type="text"
-                      value={newLabelText}
-                      onChange={(e) => setNewLabelText(e.target.value)}
-                      onKeyDown={(e) => handleLabelKeyDown(e, name)}
-                      onBlur={() => handleConfirmAddLabel(name)}
-                      placeholder="ラベル名"
-                      className="w-24 rounded-md border border-teal-300 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
+                    (() => {
+                      const suggestions = getAllLabels(cardLabels)
+                        .filter((l) => !(cardLabels[name] ?? []).includes(l))
+                        .filter((l) =>
+                          l
+                            .toLowerCase()
+                            .includes(newLabelText.trim().toLowerCase()),
+                        );
+                      return (
+                        <div className="flex flex-col gap-1">
+                          <input
+                            ref={labelInputRef}
+                            type="text"
+                            value={newLabelText}
+                            onChange={(e) => setNewLabelText(e.target.value)}
+                            onKeyDown={(e) => handleLabelKeyDown(e, name)}
+                            onBlur={() => handleConfirmAddLabel(name)}
+                            placeholder="ラベル名"
+                            className="w-24 rounded-md border border-teal-300 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                          {suggestions.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {suggestions.map((lbl) => {
+                                const color = getLabelColor(lbl);
+                                return (
+                                  <button
+                                    key={lbl}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      handleSelectExistingLabel(name, lbl);
+                                    }}
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border} ${color.removeHover}`}
+                                    aria-label={`ラベル「${lbl}」を付与`}
+                                  >
+                                    {lbl}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
                   ) : (
                     <button
                       type="button"
@@ -272,7 +321,9 @@ export default function DeckEditor({
                 min={1}
                 max={99}
                 value={newCount}
-                onChange={(e) => setNewCount(Math.max(1, Number(e.target.value)))}
+                onChange={(e) =>
+                  setNewCount(Math.max(1, Number(e.target.value)))
+                }
                 onKeyDown={handleKeyDown}
                 className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-action bg-white"
               />
