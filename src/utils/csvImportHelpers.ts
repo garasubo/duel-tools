@@ -1,5 +1,6 @@
 import type { BattleMode, BattleResult, TurnOrder } from "../types";
 import { battleModeFromLabel } from "./battleMode";
+import { resultFromLabel } from "./result";
 import { turnOrderFromLabel } from "./turnOrder";
 
 export interface CsvImportRow {
@@ -24,10 +25,7 @@ export interface CsvImportResult {
   errors: CsvImportError[];
 }
 
-const RESULT_MAP: Record<string, BattleResult> = {
-  "○": "win",
-  "×": "loss",
-};
+const RESULT_MAP: Record<string, BattleResult> = resultFromLabel;
 
 const TURN_ORDER_MAP: Record<string, TurnOrder> = turnOrderFromLabel;
 const BATTLE_MODE_MAP: Record<string, BattleMode> = battleModeFromLabel;
