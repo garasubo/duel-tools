@@ -50,7 +50,7 @@ export interface ResultCaptureLoop {
   hasFirstCandidateFrame: boolean;
   firstCandidateFrameDataUrl: string | null;
   runOnce: (mode: ResultScanMode) => Promise<{ hasCandidate: boolean }>;
-  reset: () => void;
+  reset: (options?: { clearConfirmedFrame?: boolean }) => void;
   dispose: () => void;
 }
 
@@ -149,6 +149,40 @@ export function isTentativeExpired(
   return now - tentative.lastSeenAt > windowMs;
 }
 
+// 判定中の最初の候補と、直近に確定した判定の最初の候補を分けて管理する。
+// 画面終了ゲートや記録保存では active だけを破棄し、confirmed はデバッグ保存用に残す。
+export interface ResultCandidateFrameState {
+  active: string | null;
+  confirmed: string | null;
+}
+
+export const EMPTY_RESULT_CANDIDATE_FRAME_STATE: ResultCandidateFrameState = {
+  active: null,
+  confirmed: null,
+};
+
+export function rememberFirstCandidateFrame(
+  state: ResultCandidateFrameState,
+  dataUrl: string | null,
+): ResultCandidateFrameState {
+  if (state.active !== null || dataUrl === null) return state;
+  return { ...state, active: dataUrl };
+}
+
+export function confirmFirstCandidateFrame(
+  state: ResultCandidateFrameState,
+): ResultCandidateFrameState {
+  if (state.active === null) return state;
+  return { ...state, confirmed: state.active };
+}
+
+export function resetActiveCandidateFrame(
+  state: ResultCandidateFrameState,
+): ResultCandidateFrameState {
+  if (state.active === null) return state;
+  return { ...state, active: null };
+}
+
 export function useResultCaptureLoop({
   canvasRef,
   detect,
@@ -164,6 +198,9 @@ export function useResultCaptureLoop({
   const [firstCandidateFrameDataUrl, setFirstCandidateFrameDataUrl] = useState<string | null>(null);
 
   const streakRef = useRef<ResultStreakState>(EMPTY_STREAK);
+  const candidateFrameStateRef = useRef<ResultCandidateFrameState>(
+    EMPTY_RESULT_CANDIDATE_FRAME_STATE,
+  );
   // 連続確定に届かなかった検出を保持し、暗転救済の対象にする。streak とは独立に生き残る。
   const tentativeRef = useRef<TentativeCandidate | null>(null);
   const clearFrameCountRef = useRef(0);
@@ -194,14 +231,29 @@ export function useResultCaptureLoop({
     setRequiredConsecutiveCount(REQUIRED_CONSECUTIVE);
   }, []);
 
-  const resetCandidateFrame = useCallback(() => {
-    setFirstCandidateFrameDataUrl(null);
+  const rememberCandidateFrame = useCallback((canvas: HTMLCanvasElement) => {
+    candidateFrameStateRef.current = rememberFirstCandidateFrame(
+      candidateFrameStateRef.current,
+      canvasToDataUrl(canvas),
+    );
   }, []);
 
-  const reset = useCallback(() => {
+  const confirmCandidateFrame = useCallback(() => {
+    candidateFrameStateRef.current = confirmFirstCandidateFrame(candidateFrameStateRef.current);
+    setFirstCandidateFrameDataUrl(candidateFrameStateRef.current.confirmed);
+  }, []);
+
+  const resetCandidateFrame = useCallback((clearConfirmedFrame: boolean) => {
+    candidateFrameStateRef.current = clearConfirmedFrame
+      ? EMPTY_RESULT_CANDIDATE_FRAME_STATE
+      : resetActiveCandidateFrame(candidateFrameStateRef.current);
+    if (clearConfirmedFrame) setFirstCandidateFrameDataUrl(null);
+  }, []);
+
+  const reset = useCallback((options?: { clearConfirmedFrame?: boolean }) => {
     setPendingResult(null);
     resetStreak();
-    resetCandidateFrame();
+    resetCandidateFrame(options?.clearConfirmedFrame === true);
   }, [resetCandidateFrame, resetStreak]);
 
   const runOnce = useCallback(
@@ -219,7 +271,7 @@ export function useResultCaptureLoop({
           onResultScreenClearedRef.current?.();
           setPendingResult(null);
           resetStreak();
-          resetCandidateFrame();
+          resetCandidateFrame(false);
         };
 
         // gate 中に結果テキストが見えている = 「画面がまだクリアされていない」と解釈され、
@@ -260,6 +312,7 @@ export function useResultCaptureLoop({
             captureLog('result-loop', 'detect: tentative rescue (dark) → onResultPreview', {
               result: tentative.result.result,
             });
+            confirmCandidateFrame();
             resetStreak();
             // 確定（フォーム反映・レート待ち分岐）は gate と同じくワークフローに委譲する。
             onResultPreviewRef.current?.(tentative.result.result);
@@ -282,7 +335,7 @@ export function useResultCaptureLoop({
       }
 
       hasCandidateRef.current = true;
-      setFirstCandidateFrameDataUrl((current) => current ?? canvasToDataUrl(canvas));
+      rememberCandidateFrame(canvas);
 
       const now = Date.now();
       const update = advanceResultStreak(streakRef.current, result, now);
@@ -301,6 +354,7 @@ export function useResultCaptureLoop({
       if (update.pendingResult) {
         // 通常確定したので保持中の暫定候補は破棄する。
         tentativeRef.current = null;
+        confirmCandidateFrame();
         captureLog('result-loop', 'detect: pendingResult reached → onResultPreview', {
           result: update.pendingResult.result,
         });
@@ -312,7 +366,14 @@ export function useResultCaptureLoop({
       }
       return { hasCandidate: hasCandidateRef.current };
     },
-    [canvasRef, detect, resetCandidateFrame, resetStreak],
+    [
+      canvasRef,
+      confirmCandidateFrame,
+      detect,
+      rememberCandidateFrame,
+      resetCandidateFrame,
+      resetStreak,
+    ],
   );
 
   return {

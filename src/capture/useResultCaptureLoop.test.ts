@@ -5,9 +5,13 @@ import {
   TENTATIVE_RESCUE_WINDOW_MS,
 } from './captureTiming';
 import {
+  EMPTY_RESULT_CANDIDATE_FRAME_STATE,
   advanceResultStreak,
   applyMissToStreak,
+  confirmFirstCandidateFrame,
   isTentativeExpired,
+  rememberFirstCandidateFrame,
+  resetActiveCandidateFrame,
   trackTentativeCandidate,
 } from './useResultCaptureLoop';
 import type { ResultStreakState, TentativeCandidate } from './useResultCaptureLoop';
@@ -148,5 +152,55 @@ describe('isTentativeExpired', () => {
 
   it('救済窓を過ぎたら期限切れにする', () => {
     expect(isTentativeExpired(tentative, 1000 + TENTATIVE_RESCUE_WINDOW_MS + 1)).toBe(true);
+  });
+});
+
+describe('result candidate frame lifecycle', () => {
+  it('判定中は最初の候補だけを保持し、確定時に保存対象にする', () => {
+    let state = rememberFirstCandidateFrame(
+      EMPTY_RESULT_CANDIDATE_FRAME_STATE,
+      'data:image/png;base64,first',
+    );
+    state = rememberFirstCandidateFrame(state, 'data:image/png;base64,second');
+
+    expect(state).toEqual({
+      active: 'data:image/png;base64,first',
+      confirmed: null,
+    });
+
+    state = confirmFirstCandidateFrame(state);
+    expect(state.confirmed).toBe('data:image/png;base64,first');
+  });
+
+  it('画面終了や次デュエル準備では確定済み画像を保持する', () => {
+    const confirmed = confirmFirstCandidateFrame(
+      rememberFirstCandidateFrame(
+        EMPTY_RESULT_CANDIDATE_FRAME_STATE,
+        'data:image/png;base64,confirmed',
+      ),
+    );
+
+    expect(resetActiveCandidateFrame(confirmed)).toEqual({
+      active: null,
+      confirmed: 'data:image/png;base64,confirmed',
+    });
+  });
+
+  it('次の勝敗確定で保存対象を差し替える', () => {
+    const previous = {
+      active: null,
+      confirmed: 'data:image/png;base64,previous',
+    };
+    const next = confirmFirstCandidateFrame(
+      rememberFirstCandidateFrame(previous, 'data:image/png;base64,next'),
+    );
+
+    expect(next.confirmed).toBe('data:image/png;base64,next');
+  });
+
+  it('無効な canvas の候補で保持状態を上書きしない', () => {
+    expect(rememberFirstCandidateFrame(EMPTY_RESULT_CANDIDATE_FRAME_STATE, null)).toBe(
+      EMPTY_RESULT_CANDIDATE_FRAME_STATE,
+    );
   });
 });

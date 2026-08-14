@@ -196,8 +196,9 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
   });
 
   const start = useCallback(async () => {
+    resultCapture.reset({ clearConfirmedFrame: true });
     await startCapture();
-  }, [startCapture]);
+  }, [resultCapture, startCapture]);
 
   const resetDetectionState = useCallback(
     (options: { resetResult: boolean; restartTurnOrder: boolean }) => {
@@ -222,7 +223,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
     }
     hasResultCandidateRef.current = false;
     dispatchWorkflow({ type: 'stop' });
-    resultCapture.reset();
+    resultCapture.reset({ clearConfirmedFrame: true });
     resultCapture.dispose();
     turnOrderCapture.reset();
     ratingCapture.reset();
@@ -296,6 +297,7 @@ export function useDuelCapture(emit: (event: CaptureEvent) => void) {
 
   useEffect(() => {
     if (!isCapturing) {
+      resultCapture.reset({ clearConfirmedFrame: true });
       dispatchWorkflow({ type: 'stop' });
       return;
     }
