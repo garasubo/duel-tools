@@ -11,6 +11,8 @@ import { recordSample } from './captureProfiler';
 import type { ROI } from './types';
 
 type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
+type OcrPage = Awaited<ReturnType<Worker['recognize']>>['data'];
+type OcrBbox = NonNullable<OcrPage['blocks']>[number]['bbox'];
 
 // DP（デュエルポイント）表示エリアの ROI。
 // DCモードのデュエルリザルト画面（中央: "DP ▶ 旧 ±変化量 ▶ 新"）と
@@ -29,6 +31,13 @@ const DP_OCR_TARGET_WIDTH = 960;
 // "+"/"-" も残し、ホワイトリストパスでも変化量（"+1000" 等）を読んで
 // validatedTransition で 旧±変化量==新 を検証できるようにする。
 const DP_WHITELIST = '0123456789)>+-';
+const DP_DIGIT_WHITELIST = '0123456789';
+
+// 通常の数字グリフは横方向にほぼ重ならない。Tesseract が装飾と数字をまとめて誤分割した場合は
+// 隣接グリフが大きく重なることがある（0120.png の "51865" 内の 8/6 は短い方の 67% が重なる）。
+// 既存の値あり fixture の最大値は 0%（周辺ノイズ数字を含めても 29%）なので、中間の 50% を使う。
+const SUSPICIOUS_DIGIT_OVERLAP_RATIO = 0.5;
+const FOCUSED_DP_PADDING_RATIO = 0.1;
 
 // DP の妥当範囲。2桁以下のノイズ（"勝利数 2" など）を除外しつつ、
 // 大会後半の高 DP（数万）まで拾えるよう上限は広めに取る。
@@ -91,6 +100,56 @@ function dpMatches(text: string): number[] {
 function firstDpInRange(text: string): number | null {
   const all = dpMatches(text);
   return all.length > 0 ? all[0] : null;
+}
+
+function singleDpInRange(text: string): number | null {
+  const all = dpMatches(collapseDigitSpaces(text));
+  return all.length === 1 ? all[0] : null;
+}
+
+function hasSuspiciousDigitOverlap(symbols: Array<{ bbox: OcrBbox }>): boolean {
+  for (let i = 1; i < symbols.length; i += 1) {
+    const previous = symbols[i - 1].bbox;
+    const current = symbols[i].bbox;
+    const overlap = Math.max(0, Math.min(previous.x1, current.x1) - Math.max(previous.x0, current.x0));
+    const narrowerWidth = Math.min(previous.x1 - previous.x0, current.x1 - current.x0);
+    if (narrowerWidth > 0 && overlap / narrowerWidth >= SUSPICIOUS_DIGIT_OVERLAP_RATIO) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 矢印と同じ行にある候補数字のうち、グリフが不自然に重なった単語の bbox を返す。
+// 文字列だけでは "51865" が妥当な5桁DPに見えてしまうため、Tesseract のレイアウト情報を
+// 誤分割の検出にだけ利用する。通常の候補は null となり、追加 OCR を発生させない。
+function suspiciousArrowDpBbox(page: OcrPage, candidate: number): OcrBbox | null {
+  for (const block of page.blocks ?? []) {
+    for (const paragraph of block.paragraphs) {
+      for (const line of paragraph.lines) {
+        if (dpAfterArrow(collapseDigitSpaces(line.text)) !== candidate) continue;
+        for (const word of line.words) {
+          if (!/^\d{3,6}$/.test(word.text) || parseInt(word.text, 10) !== candidate) continue;
+          if (hasSuspiciousDigitOverlap(word.symbols)) return word.bbox;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function paddedBbox(
+  bbox: OcrBbox,
+  bounds: { left: number; top: number; width: number; height: number },
+): { left: number; top: number; width: number; height: number } {
+  const padding = Math.max(3, Math.round((bbox.y1 - bbox.y0) * FOCUSED_DP_PADDING_RATIO));
+  const rightBound = bounds.left + bounds.width;
+  const bottomBound = bounds.top + bounds.height;
+  const left = Math.max(bounds.left, bbox.x0 - padding);
+  const top = Math.max(bounds.top, bbox.y0 - padding);
+  const right = Math.min(rightBound, bbox.x1 + padding);
+  const bottom = Math.min(bottomBound, bbox.y1 + padding);
+  return { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
 }
 
 // 矢印（▶ → Tesseract 出力 "))"/">>"。ロビー画面では単一の ")"/">" に劣化することもある）の
@@ -203,15 +262,23 @@ async function runDpOcr(
   ocrInput: ImageLike,
   recognizeOpts: { rectangle?: { left: number; top: number; width: number; height: number } } | undefined,
 ): Promise<number | null> {
-  const recognize = (w: Worker) =>
-    recognizeOpts ? w.recognize(ocrInput, recognizeOpts) : w.recognize(ocrInput);
+  const recognize = (
+    w: Worker,
+    opts = recognizeOpts,
+    output?: Parameters<Worker['recognize']>[2],
+  ) => w.recognize(ocrInput, opts, output);
 
   let passes = 0;
-  const runPass = async (psm: PageSegmentationMode, whitelist: string): Promise<string> => {
+  const runPass = async (
+    psm: PageSegmentationMode,
+    whitelist: string,
+    opts = recognizeOpts,
+    includeBlocks = false,
+  ): Promise<OcrPage> => {
     await worker.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: whitelist });
     passes += 1;
-    const { data } = await recognize(worker);
-    return data.text;
+    const { data } = await recognize(worker, opts, includeBlocks ? { blocks: true } : undefined);
+    return data;
   };
   const finish = (value: number | null): number | null => {
     lastDpOcrPassCount = passes;
@@ -229,32 +296,61 @@ async function runDpOcr(
 
   // パスA（先頭）: PSM 11 — 結果画面の遷移（confirmedDp）もロビーの単一矢印（dpAfterArrow）も
   // 単独で読める常用パス。値ありフレームはここで確定し 1 パスで終わる。
-  const tA = await runPass('11' as PageSegmentationMode, '');
-  const cA = confirmedDp(tA);
-  if (cA !== null) return finish(cA);
+  const tA = await runPass('11' as PageSegmentationMode, '', recognizeOpts, true);
+
+  // 装飾と数字が一つの数字列へ誤分割された場合だけ、候補 bbox を少し広げた数字専用 OCR で
+  // 再確認する。通常 fixture は重なりが無いため、従来どおり PSM11 の1パスで確定する。
+  const verifySuspiciousCandidate = async (candidate: number): Promise<number | null | undefined> => {
+    const bbox = suspiciousArrowDpBbox(tA, candidate);
+    if (!bbox) return undefined;
+
+    const sourceBounds = recognizeOpts?.rectangle ?? (
+      typeof ocrInput === 'object' && ocrInput !== null && 'width' in ocrInput && 'height' in ocrInput
+        ? { left: 0, top: 0, width: Number(ocrInput.width), height: Number(ocrInput.height) }
+        : { left: 0, top: 0, width: bbox.x1, height: bbox.y1 }
+    );
+    const focusedRect = paddedBbox(bbox, sourceBounds);
+    const focused = await runPass(
+      '7' as PageSegmentationMode,
+      DP_DIGIT_WHITELIST,
+      { rectangle: focusedRect },
+    );
+    return singleDpInRange(focused.text);
+  };
+
+  const cA = confirmedDp(tA.text);
+  if (cA !== null) {
+    const verified = await verifySuspiciousCandidate(cA);
+    if (verified !== null && verified !== undefined) return finish(verified);
+    if (verified === undefined) return finish(cA);
+  }
   // 結果画面（VICTORY/LOSE）判定。結果画面では旧DP単独の矢印値を確定しない（遷移アニメ途中の
   // 誤確定防止）。ロビー画面は現在DPの単独表示が正なので矢印アンカー値を採用する。
-  let isResultScreen = hasResultScreenText(tA);
+  let isResultScreen = hasResultScreenText(tA.text);
   if (!isResultScreen) {
-    const aA = dpAfterArrow(collapseDigitSpaces(tA));
-    if (aA !== null) return finish(aA);
+    const aA = dpAfterArrow(collapseDigitSpaces(tA.text));
+    if (aA !== null) {
+      const verified = await verifySuspiciousCandidate(aA);
+      if (verified !== null && verified !== undefined) return finish(verified);
+      if (verified === undefined) return finish(aA);
+    }
   }
 
   // パスB（フォールバック）: PSM 6 — 大フォントのリザルト画面で PSM11 が取りこぼした遷移を救済。
   const tB = await runPass('6' as PageSegmentationMode, '');
-  const cB = confirmedDp(tB);
+  const cB = confirmedDp(tB.text);
   if (cB !== null) return finish(cB);
-  isResultScreen = isResultScreen || hasResultScreenText(tB);
+  isResultScreen = isResultScreen || hasResultScreenText(tB.text);
 
   // パスC（フォールバック）: 数字＋矢印記号ホワイトリスト + PSM 11 の最終手段。
   // 小フォントの数字認識を安定させる（"DP" は消えるが矢印・符号アンカーは残す）。
   const tC = await runPass('11' as PageSegmentationMode, DP_WHITELIST);
-  const vC = validatedTransition(collapseDigitSpaces(tC));
+  const vC = validatedTransition(collapseDigitSpaces(tC.text));
   if (vC !== null) return finish(vC);
   if (!isResultScreen) {
-    const aC = dpAfterArrow(collapseDigitSpaces(tC));
+    const aC = dpAfterArrow(collapseDigitSpaces(tC.text));
     if (aC !== null) return finish(aC);
-    const aB = dpAfterArrow(collapseDigitSpaces(tB));
+    const aB = dpAfterArrow(collapseDigitSpaces(tB.text));
     if (aB !== null) return finish(aB);
   }
 

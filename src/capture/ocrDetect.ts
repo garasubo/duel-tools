@@ -50,6 +50,9 @@ const MAX_VICTORY_TOP_THIRD_RATIO = 0.2;
 const MIN_VICTORY_LOWDENSITY_TOP_THIRD_RATIO = 1.0;
 const MIN_POSSIBLE_RESULT_BBOX_DENSITY = 0.28;
 const MIN_VICTORY_BANNER_WIDTH_RATIO = 0.75;
+// VICTORY は横幅だけでなく一定の文字高を持つ（true win fixture はすべて >= 0.197）。
+// DIRECT ATTACK のような横長かつ背の低い対戦中テキスト（0119=0.103）を除外する。
+const MIN_VICTORY_BANNER_HEIGHT_RATIO = 0.15;
 const MIN_LOSS_BANNER_WIDTH_RATIO = 0.23;
 const MAX_LOSS_BANNER_HEIGHT_RATIO = 0.20;
 const MIN_LOSS_BANNER_HEIGHT_RATIO = 0.12;
@@ -597,7 +600,11 @@ export async function classifyResultScreenByImageFeatures(
   const tightColThreshold = Math.max(colThreshold, Math.floor(peakCol * LOSS_CORE_THRESHOLD_RATIO));
   const tightRowThreshold = Math.max(rowThreshold, Math.floor(peakRow * LOSS_CORE_THRESHOLD_RATIO));
 
-  if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO && density >= MIN_VICTORY_DENSITY) {
+  if (
+    bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO &&
+    bannerHeightRatio >= MIN_VICTORY_BANNER_HEIGHT_RATIO &&
+    density >= MIN_VICTORY_DENSITY
+  ) {
     // VICTORY text appears in the lower portion of the ROI; if the top third of the
     // bounding box has as many bright pixels as the middle third, the signal is from
     // background content (e.g. ceiling/sky pattern), not text.
@@ -659,7 +666,10 @@ export async function classifyResultScreenByImageFeatures(
     return { kind: 'none' };
   }
 
-  if (bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO) {
+  if (
+    bannerWidthRatio >= MIN_VICTORY_BANNER_WIDTH_RATIO &&
+    bannerHeightRatio >= MIN_VICTORY_BANNER_HEIGHT_RATIO
+  ) {
     // 低密度のワイドバナー。本物 VICTORY 文字は上部 1/3 が密（top-heavy, t3/m3 ≥ 1.43）。
     // 0094.png のような背景の横ストリーク（t3/m3 ≈ 0.61）はこれを満たさないので棄却する。
     // 下部輝度は判定に使わない（明るい下部の本物 VICTORY 0096 を取りこぼすため）。

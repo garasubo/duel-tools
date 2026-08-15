@@ -187,6 +187,12 @@ describe('classifyResultScreenByImageFeatures', () => {
     ).resolves.toEqual({ kind: 'possible' });
   });
 
+  dvcTest('DIRECT ATTACK 演出は VICTORY として画像特徴量で確定しない', async () => {
+    await expect(
+      classifyResultScreenByImageFeatures(path.join(FIXTURES, '0119.png')),
+    ).resolves.toEqual({ kind: 'none' });
+  });
+
   dvcTest('爆発エフェクトは下部領域が明るいため none に分類する', async () => {
     await expect(
       classifyResultScreenByImageFeatures(path.join(FIXTURES, '0050.png')),
