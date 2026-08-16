@@ -84,7 +84,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-4 p-4 max-w-7xl mx-auto">
       <FilterBar
         filter={filter}
         onChange={updateFilter}

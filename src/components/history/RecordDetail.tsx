@@ -17,19 +17,21 @@ export interface RecordDetailProps {
   record: BattleRecord;
   isOpen: boolean;
   onClose: () => void;
+  initialEditing?: boolean;
 }
 
 export default function RecordDetail({
   record,
   isOpen,
   onClose,
+  initialEditing = false,
 }: RecordDetailProps) {
   const { items: ownDecks, add: addOwnDeck } = useOwnDecks();
   const { items: opponentDecks, add: addOpponentDeck } = useOpponentDecks();
   const { items: knownTags, add: addKnownTag } = useTags();
   const { update: updateRecord, remove: deleteRecord } = useRecords();
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const ownDeckName =

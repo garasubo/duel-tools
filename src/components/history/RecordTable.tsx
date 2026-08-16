@@ -134,7 +134,12 @@ export default function RecordTable({
             <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap min-w-0">
               メモ
             </th>
-            {!readOnly && <th className="px-3 py-2 w-8" />}
+            {!readOnly && (
+              <th
+                className="sticky right-0 z-20 w-10 border-l border-gray-100 bg-white px-3 py-2"
+                aria-label="編集"
+              />
+            )}
           </tr>
         </thead>
         <tbody>
@@ -159,7 +164,7 @@ export default function RecordTable({
                 return (
                   <tr
                     key={record.id}
-                    className={`${recordIndex === 0 ? "border-t-2 border-gray-300" : "border-t border-gray-100"} hover:bg-gray-50 transition-colors duration-100`}
+                    className={`group ${recordIndex === 0 ? "border-t-2 border-gray-300" : "border-t border-gray-100"} hover:bg-gray-50 transition-colors duration-100`}
                   >
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
                       {formatDate(record.createdAt)}
@@ -256,13 +261,13 @@ export default function RecordTable({
                       {record.memo}
                     </td>
                     {!readOnly && (
-                      <td className="px-3 py-2">
+                      <td className="sticky right-0 z-[1] border-l border-gray-100 bg-white px-3 py-2 transition-colors group-hover:bg-gray-50">
                         <button
                           type="button"
                           onClick={() => onDetailClick(record)}
-                          title="タグ・メモを編集"
+                          title="戦績を編集"
                           className="p-1 rounded text-gray-400 hover:text-brand-action hover:bg-brand-soft transition-colors"
-                          aria-label="詳細・タグ・メモを編集"
+                          aria-label="戦績を編集"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"

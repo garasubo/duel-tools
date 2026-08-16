@@ -41,6 +41,7 @@ export default function RecordList({ records }: RecordListProps) {
           record={selectedRecord}
           isOpen={true}
           onClose={() => navigate("/record/history")}
+          initialEditing
         />
       )}
     </>
