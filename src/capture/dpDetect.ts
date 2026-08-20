@@ -138,6 +138,42 @@ function suspiciousArrowDpBbox(page: OcrPage, candidate: number): OcrBbox | null
   return null;
 }
 
+const TRANSITION_LIKE_PATTERN =
+  /^\d{3,6}\s*[+−–—-]\s*\d{1,6}\D{0,8}?\d{3,6}(?!\d)/;
+
+function mergeBboxes(bboxes: OcrBbox[]): OcrBbox {
+  return {
+    x0: Math.min(...bboxes.map((bbox) => bbox.x0)),
+    y0: Math.min(...bboxes.map((bbox) => bbox.y0)),
+    x1: Math.max(...bboxes.map((bbox) => bbox.x1)),
+    y1: Math.max(...bboxes.map((bbox) => bbox.y1)),
+  };
+}
+
+// 旧DP・変化量・新DPまで読めているのに算術が一致しない遷移行から、数値部分だけの bbox を返す。
+// 0121.png では広い ROI の PSM11 が旧DP 6539 を 6639 と誤読する一方、数値部分だけなら正しく読める。
+// DP ロゴ等を再OCR範囲に含めないよう、遷移パターンを構成する最小の連続 word 群を選ぶ。
+function mismatchedTransitionBbox(page: OcrPage): OcrBbox | null {
+  for (const block of page.blocks ?? []) {
+    for (const paragraph of block.paragraphs) {
+      for (const line of paragraph.lines) {
+        if (validatedTransition(collapseDigitSpaces(line.text)) !== null) continue;
+
+        for (let start = 0; start < line.words.length; start += 1) {
+          for (let end = start; end < line.words.length; end += 1) {
+            const words = line.words.slice(start, end + 1);
+            const text = collapseDigitSpaces(words.map((word) => word.text).join(' '));
+            if (TRANSITION_LIKE_PATTERN.test(text)) {
+              return mergeBboxes(words.map((word) => word.bbox));
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function paddedBbox(
   bbox: OcrBbox,
   bounds: { left: number; top: number; width: number; height: number },
@@ -327,6 +363,23 @@ async function runDpOcr(
   // 結果画面（VICTORY/LOSE）判定。結果画面では旧DP単独の矢印値を確定しない（遷移アニメ途中の
   // 誤確定防止）。ロビー画面は現在DPの単独表示が正なので矢印アンカー値を採用する。
   let isResultScreen = hasResultScreenText(tA.text);
+  if (isResultScreen && cA === null) {
+    const bbox = mismatchedTransitionBbox(tA);
+    if (bbox) {
+      const sourceBounds = recognizeOpts?.rectangle ?? (
+        typeof ocrInput === 'object' && ocrInput !== null && 'width' in ocrInput && 'height' in ocrInput
+          ? { left: 0, top: 0, width: Number(ocrInput.width), height: Number(ocrInput.height) }
+          : { left: 0, top: 0, width: bbox.x1, height: bbox.y1 }
+      );
+      const focused = await runPass(
+        '7' as PageSegmentationMode,
+        DP_WHITELIST,
+        { rectangle: paddedBbox(bbox, sourceBounds) },
+      );
+      const verified = confirmedDp(focused.text);
+      if (verified !== null) return finish(verified);
+    }
+  }
   if (!isResultScreen) {
     const aA = dpAfterArrow(collapseDigitSpaces(tA.text));
     if (aA !== null) {

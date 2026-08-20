@@ -282,8 +282,8 @@ if (dpFixtures.length > 0) {
           } else {
             expect(result).toBe(dpExpected);
             // 通常の値ありフレームは PSM11 先頭ラダーで 1 パス確定を維持する。
-            // 0120 は装飾と数字の重複分割を検出し、数字領域の再確認を1回だけ行う。
-            const maxPasses = filename === '0120.png' ? 2 : 1;
+            // 0120 は装飾との重複、0121 は遷移元DPの誤読を検出し、数字領域を1回だけ再確認する。
+            const maxPasses = filename === '0120.png' || filename === '0121.png' ? 2 : 1;
             expect(getLastDpOcrPassCount()).toBeLessThanOrEqual(maxPasses);
           }
         },
