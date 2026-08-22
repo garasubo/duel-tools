@@ -134,17 +134,17 @@ export function calculateStarterRate(
 
   const cards = Object.keys(paddedDeck);
   const deck = cards.map((c) => paddedDeck[c]);
-  const handArr = new Array<number>(cards.length).fill(0);
+  const handArr = Array.from({ length: cards.length }, () => 0);
 
   // 枝刈り用: index以降のデッキ採用枚数の累計
-  const suffixSum = new Array<number>(cards.length + 1).fill(0);
+  const suffixSum = Array.from({ length: cards.length + 1 }, () => 0);
   for (let i = cards.length - 1; i >= 0; i--) {
     suffixSum[i] = suffixSum[i + 1] + deck[i];
   }
 
   const totalHands = combination(deckSize, 5);
   let successHands = 0;
-  const patternSuccessHands = new Array<number>(patterns.length).fill(0);
+  const patternSuccessHands = Array.from({ length: patterns.length }, () => 0);
 
   function buildHandCounts(): DeckCounts {
     const hand: DeckCounts = {};
