@@ -18,7 +18,8 @@
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
     "recharts": "^3.10.1",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "wasm-xlsxwriter": "^0.13.1"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",
