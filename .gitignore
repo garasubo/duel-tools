@@ -23,6 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
+.air
+.junie
 .claude
 .codex
 .docs
@@ -32,4 +34,6 @@ PLAN.md
 
 # Tesseract data / capture fixtures (local only)
 eng.traineddata
+jpn.traineddata
 src/capture/fixtures/
+
