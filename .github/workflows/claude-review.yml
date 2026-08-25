@@ -1,0 +1,72 @@
+name: Claude Code Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "レビュー対象のPR番号"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Checkout PR head
+        run: gh pr checkout ${{ inputs.pr_number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: anthropics/claude-code-action@16b3b310c3d7b5279df73130324d5205aeea8eac # v1.0.205
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          display_report: "true"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ inputs.pr_number }}
+
+            あなたはduel-toolsリポジトリの軽量コードレビュー担当です。
+            このPRの差分を `gh pr diff` で確認し、以下の観点で簡潔にレビュー
+            してください。PRブランチは既にカレントディレクトリにチェックアウト
+            済みです。
+
+            ## プロジェクト概要
+            - React 19 + TypeScript (strict) / Vite 8 + Tailwind CSS v4
+            - 一部Cloudflare Worker (Rust/workers-rs) をバックエンドに使用
+            - パッケージマネージャ: npm / lint・format: oxlint
+            - 複雑な計算やロジックにはテスト(vitest)を書く方針
+
+            ## レビュー観点（軽量・簡潔に）
+            - 明らかなバグ・ロジック誤り
+            - 型安全性やnullチェック漏れなど基本的な問題
+            - 複雑な計算/条件分岐に対してテストが不足していないか
+            - 不要に複雑な実装・過剰な抽象化がないか
+            - セキュリティ上の懸念（XSS、機密情報の露出等）
+
+            深い設計論やスタイルの好みには踏み込まず、要点のみを指摘して
+            ください。問題が見当たらない場合は、その旨を短く伝えてください。
+
+            ## 出力方法
+            - 全体的なコメントは `gh pr comment` で投稿してください。
+            - 特定の行への指摘は
+              `mcp__github_inline_comment__create_inline_comment`
+              （`confirmed: true`）を使ってください。
+            - レビュー結果は必ずGitHub上のコメントとして投稿し、
+              メッセージとして返すだけで終わらせないでください。
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
