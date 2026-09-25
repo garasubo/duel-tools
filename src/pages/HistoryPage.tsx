@@ -5,6 +5,7 @@ import { useOpponentDecks } from '../state/hooks/useOpponentDecks';
 import { useFilter } from '../hooks/useFilter';
 import { useCsvExport } from '../hooks/useCsvExport';
 import { useCsvImport } from '../hooks/useCsvImport';
+import { useXlsxExport } from '../hooks/useXlsxExport';
 import { usePublishShare } from '../hooks/usePublishShare';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -22,14 +23,44 @@ export default function HistoryPage() {
   const { exportCsv } = useCsvExport();
   const { importCsv, status: importStatus, result: importResult, reset: resetImport } = useCsvImport();
   const { publish, status: publishStatus, shareUrl, reset: resetPublish } = usePublishShare();
+  const { exportXlsx, status: xlsxStatus, reset: resetXlsx } = useXlsxExport();
+  const [xlsxModalOpen, setXlsxModalOpen] = useState(false);
+  const [xlsxRange, setXlsxRange] = useState<'filtered' | 'all'>('filtered');
+  const [xlsxIncludeGrantedFirst, setXlsxIncludeGrantedFirst] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareTitle, setShareTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const xlsxRecords = xlsxRange === 'all' ? records : filtered;
+
   function handleExport() {
     exportCsv(filtered, ownDecks, opponentDecks);
+  }
+
+  function handleOpenXlsx() {
+    resetXlsx();
+    // 絞り込み結果が0件なら全記録を初期選択にする。
+    setXlsxRange(filtered.length > 0 ? 'filtered' : 'all');
+    setXlsxModalOpen(true);
+  }
+
+  function handleCloseXlsx() {
+    if (xlsxStatus === 'loading') return;
+    setXlsxModalOpen(false);
+    resetXlsx();
+  }
+
+  async function handleXlsxExport() {
+    const ok = await exportXlsx(xlsxRecords, ownDecks, opponentDecks, {
+      rangeLabel:
+        xlsxRange === 'all'
+          ? `全記録（${records.length}件）`
+          : `絞り込み結果（${filtered.length}件）`,
+      includeGrantedFirst: xlsxIncludeGrantedFirst,
+    });
+    if (ok) setXlsxModalOpen(false);
   }
 
   function handleDeleteAll() {
@@ -131,6 +162,14 @@ export default function HistoryPage() {
           <Button
             variant="secondary"
             size="sm"
+            onClick={handleOpenXlsx}
+            disabled={records.length === 0}
+          >
+            Excelエクスポート
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleImportClick}
           >
             CSVインポート
@@ -152,6 +191,89 @@ export default function HistoryPage() {
           />
         </div>
       </div>
+
+      <Modal
+        isOpen={xlsxModalOpen}
+        onClose={handleCloseXlsx}
+        title="Excelエクスポート"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-gray-600">
+            戦績と統計をまとめた Excel ファイル（.xlsx）を書き出します。
+          </p>
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium text-gray-700 mb-1">
+              出力範囲
+            </legend>
+            <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
+              <input
+                type="radio"
+                name="xlsx-range"
+                checked={xlsxRange === 'filtered'}
+                disabled={filtered.length === 0 || xlsxStatus === 'loading'}
+                onChange={() => setXlsxRange('filtered')}
+                className="w-4 h-4 accent-brand-action"
+              />
+              絞り込み結果（{filtered.length}件）
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
+              <input
+                type="radio"
+                name="xlsx-range"
+                checked={xlsxRange === 'all'}
+                disabled={xlsxStatus === 'loading'}
+                onChange={() => setXlsxRange('all')}
+                className="w-4 h-4 accent-brand-action"
+              />
+              全記録（{records.length}件）
+            </label>
+          </fieldset>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={xlsxIncludeGrantedFirst}
+              disabled={xlsxStatus === 'loading'}
+              onChange={(e) => setXlsxIncludeGrantedFirst(e.target.checked)}
+              className="w-4 h-4 accent-brand-action"
+            />
+            ゆずられ先攻を先攻に含める（統計シート）
+          </label>
+
+          {xlsxStatus === 'loading' && (
+            <p className="text-sm text-gray-600">
+              Excel ファイルを作成しています...
+            </p>
+          )}
+          {xlsxStatus === 'error' && (
+            <p className="text-sm text-red-700">
+              Excel ファイルの作成に失敗しました。時間をおいて再度お試しください。
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCloseXlsx}
+              disabled={xlsxStatus === 'loading'}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                void handleXlsxExport();
+              }}
+              disabled={xlsxStatus === 'loading' || xlsxRecords.length === 0}
+            >
+              {xlsxStatus === 'loading' ? '作成中...' : 'ダウンロード'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={shareModalOpen}

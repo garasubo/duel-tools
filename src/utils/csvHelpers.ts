@@ -1,12 +1,8 @@
 import type { BattleRecord, Deck } from "../types";
 import { formatDate } from "./formatDate";
 import { battleModeLabel } from "./battleMode";
+import { resultLabel } from "./result";
 import { turnOrderLabel } from "./turnOrder";
-
-const RESULT_LABELS: Record<string, string> = {
-  win: "○",
-  loss: "×",
-};
 
 function escape(s: string): string {
   return `"${s.replace(/"/g, '""')}"`;
@@ -38,7 +34,7 @@ export function buildCsvString(
       ? "不明"
       : (opponentDeckMap.get(r.opponentDeckId) ?? r.opponentDeckId),
     turnOrderLabel[r.turnOrder] ?? r.turnOrder,
-    RESULT_LABELS[r.result] ?? r.result,
+    resultLabel[r.result] ?? r.result,
     r.battleMode !== undefined ? (battleModeLabel[r.battleMode] ?? r.battleMode) : "",
     r.score !== undefined ? String(r.score) : "",
     r.reasonTags.join(" "),

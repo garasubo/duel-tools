@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { applyDraftToOverlayStats, calcWLD, computeOpponentDeckStats } from './useStats';
+import {
+  applyDraftToOverlayStats,
+  calcWLD,
+  computeCoinToss,
+  computeDeckStats,
+  computeMatchupCells,
+  computeOpponentDeckStats,
+} from './useStats';
 import type { WinLoss } from './useStats';
 import type { BattleRecord, Deck } from '../types';
 
@@ -224,5 +231,84 @@ describe('applyDraftToOverlayStats', () => {
     expect(result.asFirst.total).toBe(3);
     expect(result.coinToss.loss).toBe(3);
     expect(result.asSecond).toEqual(baseStats.asSecond);
+  });
+});
+
+describe('computeCoinToss', () => {
+  it('先攻のみ勝ち、ゆずられ先攻は負け扱い', () => {
+    const records = [
+      makeRecord({ result: 'win', turnOrder: 'first' }),
+      makeRecord({ result: 'win', turnOrder: 'second' }),
+      makeRecord({ result: 'loss', turnOrder: 'third' }),
+    ];
+    expect(computeCoinToss(records)).toEqual({
+      win: 1,
+      loss: 2,
+      total: 3,
+      winRate: 1 / 3,
+    });
+  });
+
+  it('空配列のとき全て0でwinRate=0', () => {
+    expect(computeCoinToss([])).toEqual({ win: 0, loss: 0, total: 0, winRate: 0 });
+  });
+});
+
+describe('computeDeckStats', () => {
+  const ownDecks: Deck[] = [
+    { id: 'deck-a', name: 'デッキA' },
+    { id: 'deck-b', name: 'デッキB' },
+  ];
+
+  it('ownDecksの順序を保ち、0件のデッキも含める', () => {
+    const records = [makeRecord({ result: 'win', turnOrder: 'first', ownDeckId: 'deck-a' })];
+    const stats = computeDeckStats(records, ownDecks);
+    expect(stats.map((s) => s.deckName)).toEqual(['デッキA', 'デッキB']);
+    expect(stats[1].overall).toEqual({ win: 0, loss: 0, total: 0, winRate: 0 });
+  });
+
+  it('includeGrantedFirst=trueでゆずられ先攻が先攻に含まれる', () => {
+    const records = [
+      makeRecord({ result: 'win', turnOrder: 'first', ownDeckId: 'deck-a' }),
+      makeRecord({ result: 'loss', turnOrder: 'third', ownDeckId: 'deck-a' }),
+    ];
+    expect(computeDeckStats(records, ownDecks)[0].asFirst.total).toBe(1);
+    expect(computeDeckStats(records, ownDecks, true)[0].asFirst.total).toBe(2);
+  });
+
+  it('asSecondはincludeGrantedFirstの影響を受けない', () => {
+    const records = [
+      makeRecord({ result: 'win', turnOrder: 'second', ownDeckId: 'deck-a' }),
+      makeRecord({ result: 'loss', turnOrder: 'third', ownDeckId: 'deck-a' }),
+    ];
+    const without = computeDeckStats(records, ownDecks)[0].asSecond;
+    const withGranted = computeDeckStats(records, ownDecks, true)[0].asSecond;
+    expect(withGranted).toEqual(without);
+    expect(without.total).toBe(1);
+  });
+});
+
+describe('computeMatchupCells', () => {
+  const ownDecks: Deck[] = [{ id: 'deck-own', name: '自分' }];
+  const opponentDecks: Deck[] = [
+    { id: 'deck-opp', name: '相手' },
+    { id: 'deck-opp2', name: '未対戦' },
+  ];
+
+  it('対戦実績のある組み合わせだけを返す', () => {
+    const records = [
+      makeRecord({ result: 'win', turnOrder: 'first' }),
+      makeRecord({ result: 'loss', turnOrder: 'second' }),
+    ];
+    const cells = computeMatchupCells(records, ownDecks, opponentDecks);
+    expect(cells).toHaveLength(1);
+    expect(cells[0].ownDeckId).toBe('deck-own');
+    expect(cells[0].opponentDeckId).toBe('deck-opp');
+    expect(cells[0].stats).toEqual(calcWLD(records));
+  });
+
+  it('未登録の相手デッキIDは含まれない', () => {
+    const records = [makeRecord({ result: 'win', turnOrder: 'first', opponentDeckId: '' })];
+    expect(computeMatchupCells(records, ownDecks, opponentDecks)).toEqual([]);
   });
 });
