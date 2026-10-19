@@ -90,6 +90,61 @@ export function isCoinTossWin(turnOrder: TurnOrder): boolean {
   return turnOrder === 'first';
 }
 
+// コイントス（先攻を取れた割合）の集計。
+export function computeCoinToss(records: BattleRecord[]): WinLoss {
+  const win = records.filter((r) => isCoinTossWin(r.turnOrder)).length;
+  const loss = records.length - win;
+  const total = records.length;
+  return { win, loss, total, winRate: total > 0 ? win / total : 0 };
+}
+
+// 自分のデッキ単位の勝率。ownDecks の並び順を保ち、0件のデッキも0として含める。
+export function computeDeckStats(
+  records: BattleRecord[],
+  ownDecks: Deck[],
+  includeGrantedFirst = false,
+): DeckStat[] {
+  return ownDecks.map((deck) => {
+    const deckRecords = records.filter((r) => r.ownDeckId === deck.id);
+    return {
+      deckId: deck.id,
+      deckName: deck.name,
+      overall: calcWLD(deckRecords),
+      asFirst: calcWLD(
+        deckRecords.filter(
+          (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
+        ),
+      ),
+      asSecond: calcWLD(deckRecords.filter((r) => r.turnOrder === 'second')),
+    };
+  });
+}
+
+// 登録済みデッキ同士の組み合わせのうち、対戦実績のあるものだけを返す。
+// 相手デッキが未登録（'' を含む）の記録はここには現れない（MatchupTable の表示と同じ）。
+export function computeMatchupCells(
+  records: BattleRecord[],
+  ownDecks: Deck[],
+  opponentDecks: Deck[],
+): MatchupCell[] {
+  const cells: MatchupCell[] = [];
+  for (const own of ownDecks) {
+    for (const opp of opponentDecks) {
+      const matchRecords = records.filter(
+        (r) => r.ownDeckId === own.id && r.opponentDeckId === opp.id,
+      );
+      if (matchRecords.length > 0) {
+        cells.push({
+          ownDeckId: own.id,
+          opponentDeckId: opp.id,
+          stats: calcWLD(matchRecords),
+        });
+      }
+    }
+  }
+  return cells;
+}
+
 // 集計値に1件（win または loss）を加えて再計算する。
 function addToWinLoss(base: WinLoss, isWin: boolean): WinLoss {
   const win = base.win + (isWin ? 1 : 0);
@@ -166,53 +221,22 @@ export function useStats(
     [records],
   );
 
-  const coinToss = useMemo((): WinLoss => {
-    const win = records.filter((r) => isCoinTossWin(r.turnOrder)).length;
-    const loss = records.length - win;
-    const total = records.length;
-    return { win, loss, total, winRate: total > 0 ? win / total : 0 };
-  }, [records]);
+  const coinToss = useMemo(() => computeCoinToss(records), [records]);
 
-  const deckStats = useMemo((): DeckStat[] => {
-    return ownDecks.map((deck) => {
-      const deckRecords = records.filter((r) => r.ownDeckId === deck.id);
-      return {
-        deckId: deck.id,
-        deckName: deck.name,
-        overall: calcWLD(deckRecords),
-        asFirst: calcWLD(
-          deckRecords.filter(
-            (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
-          ),
-        ),
-        asSecond: calcWLD(deckRecords.filter((r) => r.turnOrder === 'second')),
-      };
-    });
-  }, [records, ownDecks, includeGrantedFirst]);
+  const deckStats = useMemo(
+    () => computeDeckStats(records, ownDecks, includeGrantedFirst),
+    [records, ownDecks, includeGrantedFirst],
+  );
 
   const opponentDeckStats = useMemo(
     () => computeOpponentDeckStats(records, opponentDecks, includeGrantedFirst),
     [records, opponentDecks, includeGrantedFirst],
   );
 
-  const matchupCells = useMemo((): MatchupCell[] => {
-    const cells: MatchupCell[] = [];
-    for (const own of ownDecks) {
-      for (const opp of opponentDecks) {
-        const matchRecords = records.filter(
-          (r) => r.ownDeckId === own.id && r.opponentDeckId === opp.id,
-        );
-        if (matchRecords.length > 0) {
-          cells.push({
-            ownDeckId: own.id,
-            opponentDeckId: opp.id,
-            stats: calcWLD(matchRecords),
-          });
-        }
-      }
-    }
-    return cells;
-  }, [records, ownDecks, opponentDecks]);
+  const matchupCells = useMemo(
+    () => computeMatchupCells(records, ownDecks, opponentDecks),
+    [records, ownDecks, opponentDecks],
+  );
 
   return { overall, asFirst, asSecond, coinToss, deckStats, opponentDeckStats, matchupCells };
 }
