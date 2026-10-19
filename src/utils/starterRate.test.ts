@@ -8,6 +8,7 @@ import {
   calculateStarterRate,
   type Patterns,
   type CardLabels,
+  type PatternEntry,
 } from "./starterRate";
 
 describe("combination", () => {
@@ -158,7 +159,7 @@ describe("matchesPattern", () => {
       ).toBe(false);
     });
 
-    it("カード条件とラベル条件の混在", () => {
+    it("カード条件とラベル条件の混在: カード条件で使った A はラベル条件に数えない", () => {
       expect(
         matchesPattern(
           { A: 2, B: 0, others: 3 },
@@ -169,7 +170,79 @@ describe("matchesPattern", () => {
           deck,
           cardLabels,
         ),
+      ).toBe(false);
+    });
+
+    it("カード条件とラベル条件の混在: A2枚+B1枚で成立", () => {
+      expect(
+        matchesPattern(
+          { A: 2, B: 1, others: 2 },
+          [
+            { type: "card", name: "A", required: 1 },
+            { type: "label", label: "初動", required: 2 },
+          ],
+          deck,
+          cardLabels,
+        ),
       ).toBe(true);
+    });
+  });
+
+  describe("同じ条件内でカードを重複利用しない", () => {
+    const deckXY = { x: 3, y: 3, others: 34 };
+    const labels: CardLabels = { x: ["A"], y: ["A"] };
+    const cardThenLabel: PatternEntry[] = [
+      { type: "card", name: "x", required: 1 },
+      { type: "label", label: "A", required: 1 },
+    ];
+    const labelThenCard: PatternEntry[] = [...cardThenLabel].reverse();
+
+    it.each([
+      ["カード→ラベル", cardThenLabel],
+      ["ラベル→カード", labelThenCard],
+    ])("%s: x1枚だけでは不成立", (_, pattern) => {
+      expect(
+        matchesPattern({ x: 1, y: 0, others: 4 }, pattern, deckXY, labels),
+      ).toBe(false);
+    });
+
+    it.each([
+      ["カード→ラベル", cardThenLabel],
+      ["ラベル→カード", labelThenCard],
+    ])("%s: x2枚なら成立", (_, pattern) => {
+      expect(
+        matchesPattern({ x: 2, y: 0, others: 3 }, pattern, deckXY, labels),
+      ).toBe(true);
+    });
+
+    it.each([
+      ["カード→ラベル", cardThenLabel],
+      ["ラベル→カード", labelThenCard],
+    ])("%s: x1枚+y1枚なら成立", (_, pattern) => {
+      expect(
+        matchesPattern({ x: 1, y: 1, others: 3 }, pattern, deckXY, labels),
+      ).toBe(true);
+    });
+
+    describe("ラベルが重なる場合", () => {
+      // ラベルA = {x, y}, ラベルB = {x}
+      const overlap: CardLabels = { x: ["A", "B"], y: ["A"] };
+      const pattern: PatternEntry[] = [
+        { type: "label", label: "A", required: 1 },
+        { type: "label", label: "B", required: 1 },
+      ];
+
+      it("x1枚+y1枚なら A に y、B に x を割り当てて成立", () => {
+        expect(
+          matchesPattern({ x: 1, y: 1, others: 3 }, pattern, deckXY, overlap),
+        ).toBe(true);
+      });
+
+      it("x1枚のみでは不成立", () => {
+        expect(
+          matchesPattern({ x: 1, y: 0, others: 4 }, pattern, deckXY, overlap),
+        ).toBe(false);
+      });
     });
   });
 });
@@ -392,6 +465,32 @@ describe("calculateStarterRate", () => {
         {},
       );
       expect(result.successHands).toBe(0);
+    });
+
+    it("カード x とラベル A(x,y) 2枚の条件で x を重複して数えない", () => {
+      // 条件は「x >= 1 かつ x+y >= 3」と同値
+      const deck = { x: 3, y: 3, others: 34 };
+      const cardLabels: CardLabels = { x: ["A"], y: ["A"] };
+      const result = calculateStarterRate(
+        deck,
+        [
+          [
+            { type: "card", name: "x", required: 1 },
+            { type: "label", label: "A", required: 2 },
+          ],
+        ],
+        40,
+        cardLabels,
+      );
+      let expected = 0;
+      for (let x = 1; x <= 3; x++) {
+        for (let y = 0; y <= 3; y++) {
+          if (x + y < 3 || x + y > 5) continue;
+          expected +=
+            combination(3, x) * combination(3, y) * combination(34, 5 - x - y);
+        }
+      }
+      expect(result.successHands).toBe(expected);
     });
   });
 });

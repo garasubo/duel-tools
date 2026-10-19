@@ -60,12 +60,44 @@ export function getCardsForLabel(label: string, cardLabels: CardLabels): string[
     .map(([name]) => name);
 }
 
+// 残りの手札から、ラベルエントリ entries[index] 以降に重複なくカードを割り当てられるか
+function allocateLabels(
+  entries: { members: string[]; required: number }[],
+  index: number,
+  remaining: DeckCounts,
+): boolean {
+  if (index === entries.length) return true;
+  const { members, required } = entries[index];
+
+  // members[memberIndex] 以降から合計 need 枚を取る組み合わせを列挙する
+  function take(memberIndex: number, need: number): boolean {
+    if (need === 0) return allocateLabels(entries, index + 1, remaining);
+    if (memberIndex === members.length) return false;
+    const card = members[memberIndex];
+    const available = remaining[card] ?? 0;
+    for (let n = Math.min(available, need); n >= 0; n--) {
+      remaining[card] = available - n;
+      const ok = take(memberIndex + 1, need - n);
+      remaining[card] = available;
+      if (ok) return true;
+    }
+    return false;
+  }
+
+  return take(0, required);
+}
+
+// 同じ条件内では、1枚のカードを複数のエントリに重複して数えない。
+// カード指定エントリは割り当て先が固定なので先に消費し、
+// ラベルエントリは残りの手札で割り当て可能な組み合わせが存在すれば成立とする。
 export function matchesPattern(
   handCounts: DeckCounts,
   pattern: Pattern,
   deckCounts: DeckCounts,
   cardLabels: CardLabels = {},
 ): boolean {
+  const remaining: DeckCounts = { ...handCounts };
+  const labelEntries: { members: string[]; required: number }[] = [];
   for (const entry of pattern) {
     if (entry.type === 'card') {
       if (!(entry.name in deckCounts)) {
@@ -73,15 +105,17 @@ export function matchesPattern(
           `条件にデッキに存在しないカードが含まれています: "${entry.name}"`,
         );
       }
-      const inHand = handCounts[entry.name] ?? 0;
+      const inHand = remaining[entry.name] ?? 0;
       if (inHand < entry.required) return false;
+      remaining[entry.name] = inHand - entry.required;
     } else {
-      const members = getCardsForLabel(entry.label, cardLabels);
-      const inHand = members.reduce((sum, card) => sum + (handCounts[card] ?? 0), 0);
-      if (inHand < entry.required) return false;
+      labelEntries.push({
+        members: getCardsForLabel(entry.label, cardLabels),
+        required: entry.required,
+      });
     }
   }
-  return true;
+  return allocateLabels(labelEntries, 0, remaining);
 }
 
 export function isPlayable(
