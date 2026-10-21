@@ -1,5 +1,12 @@
 import type { ImageLike, Worker } from 'tesseract.js';
-import { buildOcrInput, roiToRectangle } from './ocrDetect';
+import {
+  brightTextDensityInRoi,
+  buildOcrInput,
+  type ImagePixels,
+  readImagePixels,
+  roiToRectangle,
+} from './ocrDetect';
+import { recordSample } from './captureProfiler';
 import type { ROI } from './types';
 
 type PageSegmentationMode = Parameters<Worker['setParameters']>[0]['tessedit_pageseg_mode'];
@@ -13,6 +20,30 @@ export const RATING_ROI: ROI = {
 };
 
 const RATING_OCR_TARGET_WIDTH = 960;
+
+// DP と同じ明文字密度ゲート。既存の値あり画像の最小密度（約0.0086）より低く保つ。
+export const RATING_MIN_TEXT_DENSITY = 0.005;
+
+export function ratingRoiHasText(pixels: ImagePixels): boolean {
+  return brightTextDensityInRoi(pixels, RATING_ROI) >= RATING_MIN_TEXT_DENSITY;
+}
+
+let lastRatingOcrPassCount = 0;
+export function getLastRatingOcrPassCount(): number {
+  return lastRatingOcrPassCount;
+}
+
+function finishRatingOcr(value: number | null, passes: number): number | null {
+  lastRatingOcrPassCount = passes;
+  recordSample('rating-ocr-passes', passes);
+  return value;
+}
+
+async function shouldSkipRatingOcr(input: ImageLike): Promise<boolean> {
+  const pixels = await readImagePixels(input);
+  // 読み取り失敗時は OCR を続行する。
+  return pixels !== null && !ratingRoiHasText(pixels);
+}
 
 // レート戦で使う数字ホワイトリスト（小数点含む）。ロビー画面の装飾フォントは
 // 英字ノイズ（B/I/RATE など）が混入しやすいため、フォールバックパスで
@@ -35,7 +66,13 @@ export function parseRatingFromText(text: string): number | null {
 // OCR がロビー画面の数値間にスペースを挿入することがある（例: "1 51 7.77"）。
 // 数字-スペース-数字 のパターンを連結してパース精度を上げる。
 function collapseDigitSpaces(text: string): string {
-  return text.replace(/(\d) +(\d)/g, '$1$2');
+  return text.replace(/(\d) +(\d)/g, (match, left: string, right: string, offset: number) => {
+    // ゲーム内の小数部は2桁。すでに小数部の2桁目以降なら、後続数字は
+    // 別の表示や装飾の誤読として切り離す（"1 492.12 1 ." → "1492.12 1 ."）。
+    // 小数点直後の空白も考慮し、"1517.0 1" の2桁目の復元は許可する。
+    if (/\. *\d+$/.test(text.slice(0, offset))) return match;
+    return left + right;
+  });
 }
 
 // 小フォントの小数部により小数点が欠落・スペース化する OCR アーティファクトを修正する。
@@ -167,8 +204,12 @@ async function runRatingOcr(
   ocrInput: ImageLike,
   recognizeOpts: { rectangle?: { left: number; top: number; width: number; height: number } } | undefined,
 ): Promise<number | null> {
-  const recognize = (w: Worker) =>
-    recognizeOpts ? w.recognize(ocrInput, recognizeOpts) : w.recognize(ocrInput);
+  let passes = 0;
+  const recognize = (w: Worker) => {
+    passes += 1;
+    return recognizeOpts ? w.recognize(ocrInput, recognizeOpts) : w.recognize(ocrInput);
+  };
+  const finish = (value: number | null) => finishRatingOcr(value, passes);
 
   // パス1: PSM 6 — 大フォントのリザルト画面向け。
   // ホワイトリストは無効化し、RATE/TOP/">>" などの画面判定キーワードも読めるようにする。
@@ -181,7 +222,12 @@ async function runRatingOcr(
   // 旧レートのみ表示の遷移フレーム・検証不一致フレームでは null になる（誤確定防止）。
   if (isResultScreenText(d1.text)) {
     const r = parseResultScreenRating(d1.text);
-    if (r !== null) return r;
+    if (r !== null) return finish(r);
+  } else if (isLobbyScreenText(d1.text)) {
+    // ロビーも1パス目で確定する。PSM11 は既存画像で末尾桁を誤読するため、
+    // レートでは PSM6 を先頭に保ち、画面マーカーが読めた場合だけ早期終了する。
+    const r = parseForLobbyScreen(d1.text);
+    if (r !== null) return finish(r);
   }
 
   // パス2: PSM 11 — PSM 6 でノイズが多い場合のフォールバック（ロビー画面含む）
@@ -189,7 +235,7 @@ async function runRatingOcr(
   const { data: d2 } = await recognize(worker);
   if (isResultScreenText(d2.text)) {
     const r = parseResultScreenRating(d2.text);
-    if (r !== null) return r;
+    if (r !== null) return finish(r);
   }
 
   // パス3: ロビー画面専用の前処理（画面マーカーが確認できた場合のみ）
@@ -197,9 +243,9 @@ async function runRatingOcr(
   // 全前処理（スペース結合・カンマ変換・小数点復元・RATE キーワード抽出）を適用する。
   if (isLobbyScreenText(d1.text) || isLobbyScreenText(d2.text)) {
     const r3 = parseForLobbyScreen(d1.text);
-    if (r3 !== null) return r3;
+    if (r3 !== null) return finish(r3);
     const r4 = parseForLobbyScreen(d2.text);
-    if (r4 !== null) return r4;
+    if (r4 !== null) return finish(r4);
 
     // パス4: 数字ホワイトリスト + PSM 11 のフォールバック。
     // ロビーの装飾フォントは英字ノイズ（B/I/RATE 等）で数字が分断されやすい。
@@ -211,10 +257,10 @@ async function runRatingOcr(
     });
     const { data: d5 } = await recognize(worker);
     const r5 = parseForLobbyScreen(d5.text);
-    if (r5 !== null) return r5;
+    if (r5 !== null) return finish(r5);
   }
 
-  return null;
+  return finish(null);
 }
 
 export async function detectRatingFromImageLike(
@@ -223,6 +269,7 @@ export async function detectRatingFromImageLike(
   imageWidth: number,
   imageHeight: number,
 ): Promise<number | null> {
+  if (await shouldSkipRatingOcr(input)) return finishRatingOcr(null, 0);
   const rect = roiToRectangle(RATING_ROI, imageWidth, imageHeight);
   const built = buildOcrInput(
     input as unknown as Parameters<typeof buildOcrInput>[0],
@@ -239,6 +286,7 @@ export async function detectRatingFromScreen(
   canvas: HTMLCanvasElement,
   reusableCanvasRef?: { current: HTMLCanvasElement | null },
 ): Promise<number | null> {
+  if (await shouldSkipRatingOcr(canvas as unknown as ImageLike)) return finishRatingOcr(null, 0);
   const rect = roiToRectangle(RATING_ROI, canvas.width, canvas.height);
   const built = buildOcrInput(
     canvas as unknown as Parameters<typeof buildOcrInput>[0],

@@ -1,10 +1,12 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
 import type { Worker } from 'tesseract.js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   createRatingOcrWorker,
   detectRatingFromImageLike,
+  detectRatingFromScreen,
+  getLastRatingOcrPassCount,
   isLobbyScreenText,
   isResultScreenText,
   parseForLobbyScreen,
@@ -12,7 +14,11 @@ import {
   parseResultScreenRating,
   reconstructDelta,
   reconstructRate,
+  ratingRoiHasText,
+  RATING_MIN_TEXT_DENSITY,
+  RATING_ROI,
 } from './ratingDetect';
+import { brightTextDensityInRoi, readImagePixels, type ImagePixels } from './ocrDetect';
 
 const FIXTURES = path.resolve(import.meta.dirname, 'fixtures');
 const FIXTURES_CSV = path.resolve(import.meta.dirname, 'fixtures.csv');
@@ -189,6 +195,19 @@ describe('parseForLobbyScreen（数字分断 + 小数点スペース化の復元
   it('数字が無ければ null', () => {
     expect(parseForLobbyScreen('RATE: TOP 50%')).toBe(null);
   });
+
+  it.each([
+    'RATE: 1 492.12 1 . |',
+    'RATE: 1 492 .12 1 . |',
+    'RATE: 1 492. 12 1 . |',
+    'RATE: 1492.12 123 TOP 50%',
+  ])('小数部2桁の後の数字ノイズを結合しない: %s', (text) => {
+    expect(parseForLobbyScreen(text)).toBe(1492.12);
+  });
+
+  it('小数部の1桁目と2桁目の空白は結合して復元する', () => {
+    expect(parseForLobbyScreen('RATE: 1 517.0 1 TOP 50%')).toBe(1517.01);
+  });
 });
 
 describe('isResultScreenText', () => {
@@ -237,6 +256,120 @@ describe('isLobbyScreenText', () => {
   });
 });
 
+function mockWorker(...texts: string[]): Worker {
+  const recognize = vi.fn();
+  for (const text of texts) recognize.mockResolvedValueOnce({ data: { text } });
+  return { setParameters: vi.fn().mockResolvedValue({}), recognize } as unknown as Worker;
+}
+
+function pixelCanvas(whitePixels = 0, top = 40): HTMLCanvasElement {
+  const data = new Uint8ClampedArray(100 * 100 * 4);
+  for (let i = 0; i < 100 * 100; i++) data[i * 4 + 3] = 255;
+  for (let i = 0; i < whitePixels; i++) {
+    const offset = ((top + Math.floor(i / 90)) * 100 + 5 + i % 90) * 4;
+    data.fill(255, offset, offset + 4);
+  }
+  return {
+    width: 100,
+    height: 100,
+    getContext: () => ({ getImageData: () => ({ data }) }),
+  } as unknown as HTMLCanvasElement;
+}
+
+describe('レートOCRの省略と早期終了', () => {
+  const detect = (worker: Worker) => detectRatingFromImageLike(worker, Buffer.alloc(0), 100, 100);
+
+  it.each([0, 22])('明文字が%dピクセルなら両入口でOCRを省略する', async (whitePixels) => {
+    const worker = mockWorker('RATE: 1516.29');
+    const canvas = pixelCanvas(whitePixels);
+    await expect(detectRatingFromImageLike(worker, canvas, 100, 100)).resolves.toBeNull();
+    await expect(detectRatingFromScreen(worker, canvas)).resolves.toBeNull();
+    expect(worker.recognize).not.toHaveBeenCalled();
+    expect(worker.setParameters).not.toHaveBeenCalled();
+    expect(getLastRatingOcrPassCount()).toBe(0);
+  });
+
+  it('ROI内の十分な明文字は通し、ROI外の明文字は無視する', async () => {
+    const inside = await readImagePixels(pixelCanvas(23));
+    const outside = await readImagePixels(pixelCanvas(90, 0));
+    expect(ratingRoiHasText(inside!)).toBe(true);
+    expect(ratingRoiHasText(outside!)).toBe(false);
+    const worker = mockWorker('RATE: 1516.29');
+    await expect(detectRatingFromScreen(worker, pixelCanvas(23))).resolves.toBe(1516.29);
+    expect(getLastRatingOcrPassCount()).toBe(1);
+  });
+
+  it.each([
+    '1508.94 - 751 )) 1501.43',
+    'RATE: 1501.43 TOP 50%',
+  ])('PSM6で確定できれば1回で終了する: %s', async (text) => {
+    const worker = mockWorker(text);
+    await expect(detect(worker)).resolves.toBe(1501.43);
+    expect(worker.recognize).toHaveBeenCalledTimes(1);
+    expect(getLastRatingOcrPassCount()).toBe(1);
+  });
+
+  it('末尾の数字ノイズを除去して1パスでロビーの値を確定する', async () => {
+    const worker = mockWorker('RATE: 1 492.12 1 . |');
+    await expect(detect(worker)).resolves.toBe(1492.12);
+    expect(worker.recognize).toHaveBeenCalledTimes(1);
+    expect(getLastRatingOcrPassCount()).toBe(1);
+  });
+
+  it('PSM11でマーカーを読めた場合もPSM6の値を優先する', async () => {
+    const worker = mockWorker('1516.29', 'FATE: 1516.20');
+    await expect(detect(worker)).resolves.toBe(1516.29);
+    expect(getLastRatingOcrPassCount()).toBe(2);
+  });
+
+  it('PSM6で未確定ならPSM11のリザルトを採用する', async () => {
+    const worker = mockWorker('noise', '1508.94 - 751 )) 1501.43');
+    await expect(detect(worker)).resolves.toBe(1501.43);
+    expect(getLastRatingOcrPassCount()).toBe(2);
+  });
+
+  it('ホワイトリストのフォールバック後、次の検出では設定を解除する', async () => {
+    const worker = mockWorker('RATE: unreadable', 'TOP unreadable', '151629', 'RATE: 1516.29');
+    await expect(detect(worker)).resolves.toBe(1516.29);
+    expect(getLastRatingOcrPassCount()).toBe(3);
+    expect(worker.setParameters).toHaveBeenLastCalledWith({
+      tessedit_pageseg_mode: '11', tessedit_char_whitelist: '0123456789.',
+    });
+    await expect(detect(worker)).resolves.toBe(1516.29);
+    expect(worker.setParameters).toHaveBeenLastCalledWith({
+      tessedit_pageseg_mode: '6', tessedit_char_whitelist: '',
+    });
+    expect(getLastRatingOcrPassCount()).toBe(1);
+  });
+
+  it.each([
+    '1516.29',
+    '1524.41 - 8.12 )) Lv. 42',
+    '1508.94 - 751 )) 1601.43',
+  ])('マーカー不足や曖昧なリザルトから早期確定しない: %s', async (text) => {
+    const worker = mockWorker(text, 'noise');
+    await expect(detect(worker)).resolves.toBeNull();
+    expect(worker.recognize).toHaveBeenCalledTimes(2);
+  });
+
+  it('両マーカーがある場合もリザルト検証を優先して次のパスを待つ', async () => {
+    const worker = mockWorker(
+      'RATE: 1508.94 - 751 )) 1601.43',
+      '1508.94 - 751 )) 1501.43',
+    );
+    await expect(detect(worker)).resolves.toBe(1501.43);
+    expect(getLastRatingOcrPassCount()).toBe(2);
+  });
+
+  it('画像読み取り失敗時はOCRを続行する', async () => {
+    const canvas = pixelCanvas();
+    canvas.getContext = () => { throw new Error('unreadable'); };
+    const worker = mockWorker('RATE: 1516.29');
+    await expect(detectRatingFromScreen(worker, canvas)).resolves.toBe(1516.29);
+    expect(getLastRatingOcrPassCount()).toBe(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // fixture 画像による統合テスト
 // fixtures.csv の rate_expected 列に値がある行のみテストを生成する。
@@ -268,6 +401,13 @@ if (rateFixtures.length > 0) {
             expect(result).toBeNull();
           } else {
             expect(result).toBe(rateExpected);
+            const pixels = await readImagePixels(filepath);
+            expect(pixels).not.toBeNull();
+            expect(brightTextDensityInRoi(pixels as ImagePixels, RATING_ROI))
+              .toBeGreaterThanOrEqual(RATING_MIN_TEXT_DENSITY);
+            // 0070/0074 は PSM11 で初めてロビーマーカーが読めるため2パス必要。
+            const maxPasses = filename === '0070.png' || filename === '0074.png' ? 2 : 1;
+            expect(getLastRatingOcrPassCount()).toBeLessThanOrEqual(maxPasses);
           }
         },
         30000,
