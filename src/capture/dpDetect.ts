@@ -37,6 +37,9 @@ const DP_DIGIT_WHITELIST = '0123456789';
 // 隣接グリフが大きく重なることがある（0120.png の "51865" 内の 8/6 は短い方の 67% が重なる）。
 // 既存の値あり fixture の最大値は 0%（周辺ノイズ数字を含めても 29%）なので、中間の 50% を使う。
 const SUSPICIOUS_DIGIT_OVERLAP_RATIO = 0.5;
+// 縮小したロビー画面では、グリフが重ならなくても 5 を 8 と誤読することがある。
+// 単語単位の信頼度が低い候補も、数字領域だけを再読して確かめる。
+const DP_MIN_WORD_CONFIDENCE = 90;
 const FOCUSED_DP_PADDING_RATIO = 0.1;
 
 // DP の妥当範囲。2桁以下のノイズ（"勝利数 2" など）を除外しつつ、
@@ -120,17 +123,20 @@ function hasSuspiciousDigitOverlap(symbols: Array<{ bbox: OcrBbox }>): boolean {
   return false;
 }
 
-// 矢印と同じ行にある候補数字のうち、グリフが不自然に重なった単語の bbox を返す。
+// 矢印と同じ行にある候補数字のうち、重なりや低信頼度がある単語の bbox を返す。
 // 文字列だけでは "51865" が妥当な5桁DPに見えてしまうため、Tesseract のレイアウト情報を
 // 誤分割の検出にだけ利用する。通常の候補は null となり、追加 OCR を発生させない。
-function suspiciousArrowDpBbox(page: OcrPage, candidate: number): OcrBbox | null {
+function suspiciousArrowDpBbox(page: OcrPage, candidate: number, checkConfidence: boolean): OcrBbox | null {
   for (const block of page.blocks ?? []) {
     for (const paragraph of block.paragraphs) {
       for (const line of paragraph.lines) {
         if (dpAfterArrow(collapseDigitSpaces(line.text)) !== candidate) continue;
         for (const word of line.words) {
           if (!/^\d{3,6}$/.test(word.text) || parseInt(word.text, 10) !== candidate) continue;
-          if (hasSuspiciousDigitOverlap(word.symbols)) return word.bbox;
+          if ((checkConfidence && word.confidence < DP_MIN_WORD_CONFIDENCE)
+            || hasSuspiciousDigitOverlap(word.symbols)) {
+            return word.bbox;
+          }
         }
       }
     }
@@ -354,10 +360,18 @@ async function runDpOcr(
   // 単独で読める常用パス。値ありフレームはここで確定し 1 パスで終わる。
   const tA = await runPass('11' as PageSegmentationMode, '', recognizeOpts, true);
 
-  // 装飾と数字が一つの数字列へ誤分割された場合だけ、候補 bbox を少し広げた数字専用 OCR で
-  // 再確認する。通常 fixture は重なりが無いため、従来どおり PSM11 の1パスで確定する。
-  const verifySuspiciousCandidate = async (candidate: number): Promise<number | null | undefined> => {
-    const bbox = suspiciousArrowDpBbox(tA, candidate);
+  // スコア内訳の LEVEL & EXP は DP 表示と別の画面。行の装飾を矢印と誤読しても
+  // 勝利スコアや召喚回数を DP として確定しない。数字専用の後続パスではこの識別子が消える。
+  const isScoreDetails = (text: string): boolean => /\bLEVEL\s*&\s*EXP\b/i.test(text);
+  if (isScoreDetails(tA.text)) return finish(null);
+
+  // 重なりや低信頼度がある場合だけ、候補 bbox を少し広げた数字専用 OCR で再確認する。
+  // 高信頼度で重なりのない通常フレームは PSM11 の1パスで確定する。
+  const verifySuspiciousCandidate = async (
+    candidate: number,
+    checkConfidence = false,
+  ): Promise<number | null | undefined> => {
+    const bbox = suspiciousArrowDpBbox(tA, candidate, checkConfidence);
     if (!bbox) return undefined;
 
     const sourceBounds = recognizeOpts?.rectangle ?? (
@@ -415,7 +429,7 @@ async function runDpOcr(
   if (!isResultScreen) {
     const aA = dpAfterArrow(collapseDigitSpaces(tA.text));
     if (aA !== null) {
-      const verified = await verifySuspiciousCandidate(aA);
+      const verified = await verifySuspiciousCandidate(aA, true);
       if (verified !== null && verified !== undefined) return finish(verified);
       if (verified === undefined) return finish(aA);
     }
@@ -423,6 +437,7 @@ async function runDpOcr(
 
   // パスB（フォールバック）: PSM 6 — 大フォントのリザルト画面で PSM11 が取りこぼした遷移を救済。
   const tB = await runPass('6' as PageSegmentationMode, '');
+  if (isScoreDetails(tB.text)) return finish(null);
   const cB = confirmedDp(tB.text);
   if (cB !== null) return finish(cB);
   isResultScreen = isResultScreen || hasResultScreenText(tB.text);

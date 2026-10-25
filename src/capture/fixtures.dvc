@@ -1,6 +1,6 @@
 outs:
-- md5: 78de71dcccd7013a68354f220f176cc5.dir
-  size: 191193471
-  nfiles: 127
+- md5: c266a843518acaa703fd3b30638f2bf2.dir
+  size: 192175585
+  nfiles: 129
   hash: md5
   path: fixtures

@@ -1,7 +1,7 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync } from 'fs';
 import path from 'path';
 import type { Worker } from 'tesseract.js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   collapseDigitSpaces,
   createDpOcrWorker,
@@ -221,6 +221,67 @@ describe('isDpScreenText', () => {
   });
 });
 
+describe('DP OCR の候補検証', () => {
+  const input = { width: 1296, height: 759 } as Parameters<typeof detectDpFromImageLike>[1];
+
+  function mockWorker(text: string, confidence = 96, focusedText = '17159\n') {
+    const word = {
+      text: '17189', confidence,
+      bbox: { x0: 440, y0: 494, x1: 677, y1: 544 },
+      symbols: [],
+    };
+    const recognize = vi.fn()
+      .mockResolvedValueOnce({ data: {
+        text,
+        blocks: [{ paragraphs: [{ lines: [{ text, words: [word] }] }] }],
+      } })
+      .mockResolvedValue({ data: { text: focusedText } });
+    const setParameters = vi.fn().mockResolvedValue(undefined);
+    return { worker: { recognize, setParameters } as unknown as Worker, recognize, setParameters };
+  }
+
+  it('重なりのない低信頼度の数字も数字専用OCRで再確認する（0129の5→8誤読）', async () => {
+    const { worker, recognize, setParameters } = mockWorker('ms) 17189\n', 86);
+    expect(await detectDpFromImageLike(worker, input, 1296, 759)).toBe(17159);
+    expect(recognize).toHaveBeenCalledTimes(2);
+    expect(recognize.mock.calls[1][1].rectangle).toEqual({ left: 435, top: 489, width: 247, height: 60 });
+    expect(setParameters).toHaveBeenLastCalledWith({
+      tessedit_pageseg_mode: '7', tessedit_char_whitelist: '0123456789',
+    });
+  });
+
+  it('高信頼度の数字は1パスで確定する', async () => {
+    const { worker, recognize } = mockWorker('DP )) 17189\n');
+    expect(await detectDpFromImageLike(worker, input, 1296, 759)).toBe(17189);
+    expect(recognize).toHaveBeenCalledTimes(1);
+  });
+
+  it('旧DPと変化量から検証できた数字は低信頼度でも1パスで確定する', async () => {
+    const { worker, recognize } = mockWorker('VICTORY\nDP )) 16189 +1000 )) 17189\n', 86);
+    expect(await detectDpFromImageLike(worker, input, 1296, 759)).toBe(17189);
+    expect(recognize).toHaveBeenCalledTimes(1);
+  });
+
+  it('再確認で値が読めなければ低信頼度の候補を確定しない', async () => {
+    const { worker } = mockWorker('ms) 17189\n', 86, '');
+    expect(await detectDpFromImageLike(worker, input, 1296, 759)).toBeNull();
+  });
+
+  it.each(['LEVEL & EXP\nnoise ) 200', 'LEVEL & EXP\nDP )) 17189'])(
+    'スコア内訳の矢印誤読をDPとして採用しない: %s', async (text) => {
+      const { worker, recognize } = mockWorker(text);
+      expect(await detectDpFromImageLike(worker, input, 1296, 759)).toBeNull();
+      expect(recognize).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('PSM6で初めてスコア内訳と分かった場合も数字専用パスへ進まない', async () => {
+    const { worker, recognize } = mockWorker('noise', 96, 'LEVEL & EXP\nnoise ) 200');
+    expect(await detectDpFromImageLike(worker, input, 1296, 759)).toBeNull();
+    expect(recognize).toHaveBeenCalledTimes(2);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 画像特徴ゲート（OCR 非依存）の単体テスト。
 // DP_ROI 内の明テキスト密度で「OCR を走らせる価値があるか」を判定する。
@@ -311,8 +372,8 @@ if (dpFixtures.length > 0) {
           } else {
             expect(result).toBe(dpExpected);
             // 通常の値ありフレームは PSM11 先頭ラダーで 1 パス確定を維持する。
-            // 0120 は装飾との重複、0121 は遷移元DPの誤読を検出し、数字領域を1回だけ再確認する。
-            const maxPasses = filename === '0120.png' || filename === '0121.png' ? 2 : 1;
+            // 0120 は装飾との重複、0121 は遷移元DPの誤読、0129 は低信頼度の数字を再確認する。
+            const maxPasses = ['0120.png', '0121.png', '0129.png'].includes(filename) ? 2 : 1;
             expect(getLastDpOcrPassCount()).toBeLessThanOrEqual(maxPasses);
           }
         },
