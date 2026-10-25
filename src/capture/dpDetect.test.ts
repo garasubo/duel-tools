@@ -17,6 +17,7 @@ import {
   parseDpLobbyScreen,
   parseDpResultScreen,
   validatedTransition,
+  validatedOverlappingTransition,
 } from './dpDetect';
 import { brightTextDensityInRoi, type ImagePixels } from './ocrDetect';
 
@@ -150,6 +151,34 @@ describe('validatedTransition（矢印非依存の 旧±変化量==新 検証）
   });
   it('算術が一致しない場合は null（誤読フレームを確定しない）', () => {
     expect(validatedTransition('849 +1000 )) 1859')).toBe(null);
+  });
+});
+
+describe('validatedOverlappingTransition', () => {
+  function symbols(overlap: boolean) {
+    return [...'165873'].map((text, i) => ({
+      text,
+      bbox: { x0: i * 30, x1: i * 30 + 26, y0: 0, y1: 30 },
+    })).map((symbol, i) => overlap && i === 1
+      ? { ...symbol, bbox: { x0: 0, x1: 70, y0: 0, y1: 30 } }
+      : symbol);
+  }
+
+  it('新DPの重なった余分な桁を除き、算術一致する値を採用する', () => {
+    expect(validatedOverlappingTransition('16849-976)) 165873', symbols(true))).toBe(15873);
+  });
+
+  it('重なりがなければ算術だけで修正しない', () => {
+    expect(validatedOverlappingTransition('16849-976)) 165873', symbols(false))).toBeNull();
+  });
+
+  it('重なりがあっても算術不一致なら採用しない', () => {
+    expect(validatedOverlappingTransition('16849-975)) 165873', symbols(true))).toBeNull();
+  });
+
+  it('新DP以外のグリフや変化量のないフレームは採用しない', () => {
+    expect(validatedOverlappingTransition('16849-976)) 15873', symbols(true))).toBeNull();
+    expect(validatedOverlappingTransition('DP )) 165873', symbols(true))).toBeNull();
   });
 });
 

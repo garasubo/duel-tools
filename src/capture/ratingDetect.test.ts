@@ -230,6 +230,12 @@ describe('isResultScreenText', () => {
 });
 
 describe('isLobbyScreenText', () => {
+  it.each(['; are: 1 508.83 B', 'mre: 1508.83'])('潰れたラベルと同一行のレートを検出する: %s', (text) => {
+    expect(isLobbyScreenText(text)).toBe(true);
+  });
+  it.each(['are unreadable', 'are: 1508', 'are: 1508.8', 'are:\n1508.83', '1508.83'])('潰れたラベルだけでは画面を確定しない: %s', (text) => {
+    expect(isLobbyScreenText(text)).toBe(false);
+  });
   it('"RATE" キーワードでロビー画面と判定する', () => {
     expect(isLobbyScreenText('RATE: 1517.01 TOP 50%')).toBe(true);
   });
@@ -278,6 +284,12 @@ function pixelCanvas(whitePixels = 0, top = 40): HTMLCanvasElement {
 
 describe('レートOCRの省略と早期終了', () => {
   const detect = (worker: Worker) => detectRatingFromImageLike(worker, Buffer.alloc(0), 100, 100);
+
+  it('潰れたRATEラベルでも小数2桁のレートを1パスで確定する', async () => {
+    const worker = mockWorker('; are: 1 508.83 B');
+    await expect(detect(worker)).resolves.toBe(1508.83);
+    expect(getLastRatingOcrPassCount()).toBe(1);
+  });
 
   it.each([0, 22])('明文字が%dピクセルなら両入口でOCRを省略する', async (whitePixels) => {
     const worker = mockWorker('RATE: 1516.29');

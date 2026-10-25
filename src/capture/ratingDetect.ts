@@ -110,7 +110,10 @@ export function isResultScreenText(text: string): boolean {
 // Tesseract は "RATE" を "FATE", "rare", "TOP 50%" など様々な形で出力するため、
 // "TOP" も判定基準に含める。
 export function isLobbyScreenText(text: string): boolean {
-  return /\bTOP\b/i.test(text) || /\bRATE\b|\bFATE\b/i.test(text);
+  return /\bTOP\b/i.test(text) || /\bRATE\b|\bFATE\b/i.test(text)
+    // 小さい RATE ラベルが ARE/MRE に潰れる場合は、同じ行のコロンと
+    // 小数2桁のレート表記まで揃ったときだけロビーと判定する。
+    || /\b(?:ARE|MRE):[^\S\r\n]*[12](?:[^\S\r\n]*\d){3}[^\S\r\n]*\.[^\S\r\n]*\d{2}\b/i.test(text);
 }
 
 // 数字トークンをレート値（小数2桁）に復元する。

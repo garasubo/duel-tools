@@ -238,6 +238,26 @@ export function validatedTransition(text: string): number | null {
   return null;
 }
 
+// 新DPの余分な1桁が隣接グリフと重なり、削除後に旧±変化量と一致する場合だけ
+// 誤分割を修復する。算術だけから値を生成せず、表示された残りの全桁も検証する。
+export function validatedOverlappingTransition(
+  text: string,
+  symbols: Array<{ text: string; bbox: OcrBbox }>,
+): number | null {
+  const match = [...text.matchAll(/[)>]+[^\S\r\n]*(\d{3,6})(?!\d)/g)].at(-1);
+  if (!match || symbols.map((symbol) => symbol.text).join('') !== match[1]) return null;
+  const start = match.index + match[0].length - match[1].length;
+  for (let i = 0; i < symbols.length; i += 1) {
+    const overlaps = (i > 0 && hasSuspiciousDigitOverlap([symbols[i - 1], symbols[i]]))
+      || (i + 1 < symbols.length && hasSuspiciousDigitOverlap([symbols[i], symbols[i + 1]]));
+    if (!overlaps) continue;
+    const corrected = text.slice(0, start + i) + text.slice(start + i + 1);
+    const value = validatedTransition(corrected);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
 // リザルト画面（0098 系）の解析: "DP ▶ 旧 ±変化量 ▶ 新" から新DPを返す。
 // 旧DPと変化量（DP は整数）が両方読めた場合は 旧 ± 変化量 == 新 を検証し、
 // フォントによる 1 桁誤読での誤確定を防ぐ:
@@ -359,6 +379,18 @@ async function runDpOcr(
     const verified = await verifySuspiciousCandidate(cA);
     if (verified !== null && verified !== undefined) return finish(verified);
     if (verified === undefined) return finish(cA);
+  }
+  if (cA === null) {
+    for (const block of tA.blocks ?? []) {
+      for (const paragraph of block.paragraphs) {
+        for (const line of paragraph.lines) {
+          for (const word of line.words) {
+            const repaired = validatedOverlappingTransition(line.text, word.symbols);
+            if (repaired !== null) return finish(repaired);
+          }
+        }
+      }
+    }
   }
   // 結果画面（VICTORY/LOSE）判定。結果画面では旧DP単独の矢印値を確定しない（遷移アニメ途中の
   // 誤確定防止）。ロビー画面は現在DPの単独表示が正なので矢印アンカー値を採用する。
