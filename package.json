@@ -14,8 +14,8 @@
     "ocr-batch": "tsx scripts/ocr-batch.ts"
   },
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.4",
     "recharts": "^3.10.1",
     "tesseract.js": "^7.0.0"
@@ -31,7 +31,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/ui": "^4.1.11",
     "babel-plugin-react-compiler": "^1.0.0",
-    "oxlint": "^1.87.0",
+    "oxlint": "^1.88.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vite": "^8.3.4",
