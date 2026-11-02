@@ -17,6 +17,7 @@ import {
 import DeckEditor from "../components/combo/DeckEditor";
 import PatternEditor from "../components/combo/PatternEditor";
 import SavedDecks from "../components/combo/SavedDecks";
+import HandSimulator from "../components/combo/HandSimulator";
 import Button from "../components/ui/Button";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -48,7 +49,7 @@ export default function ComboPage() {
 
   function handleLoadDeck(deck: SavedDeck) {
     setDeckSize(deck.deckSize);
-    setDeckCounts(deck.deckCounts);
+    setDeckCounts({ ...deck.deckCounts });
     setPatterns(deck.patterns);
     setCardLabels(deck.cardLabels);
     resetResult();
@@ -226,6 +227,12 @@ export default function ComboPage() {
             </p>
           )}
         </div>
+        <HandSimulator
+          deckCounts={deckCounts}
+          deckSize={deckSize}
+          patterns={patterns}
+          cardLabels={cardLabels}
+        />
       </div>
 
       <div className="flex flex-col gap-6">
