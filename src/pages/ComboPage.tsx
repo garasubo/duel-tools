@@ -8,6 +8,7 @@ import type {
 } from "../utils/starterRate";
 import { calculateStarterRate } from "../utils/starterRate";
 import type { SavedDeck } from "../utils/comboDeckStorage";
+import { appendImportedDeck, downloadDeckFile, type DeckFileData } from "../utils/comboDeckFile";
 import {
   deleteSavedDeck,
   readSavedDecks,
@@ -61,6 +62,13 @@ export default function ComboPage() {
       writeSavedDecks(next);
       return next;
     });
+  }
+
+  function handleImportDeck(deck: DeckFileData): string {
+    const next = appendImportedDeck(savedDecks, deck);
+    writeSavedDecks(next);
+    setSavedDecks(next);
+    return next[next.length - 1].name;
   }
   const canCalculate =
     deckTotal > 0 && deckTotal <= deckSize && patterns.length > 0;
@@ -242,6 +250,8 @@ export default function ComboPage() {
           onSave={handleSaveDeck}
           onLoad={handleLoadDeck}
           onDelete={handleDeleteDeck}
+          onExportCurrent={(name) => downloadDeckFile({ name, deckSize, deckCounts, patterns, cardLabels })}
+          onImport={handleImportDeck}
         />
 
         {(result !== null || calcError !== null) && (

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { SavedDeck } from '../../utils/comboDeckStorage';
+import { downloadDeckFile, parseDeckFile, type DeckFileData } from '../../utils/comboDeckFile';
 import Button from '../ui/Button';
 
 export interface SavedDecksProps {
@@ -8,6 +9,8 @@ export interface SavedDecksProps {
   onSave: (name: string) => void;
   onLoad: (deck: SavedDeck) => void;
   onDelete: (id: string) => void;
+  onExportCurrent: (name: string) => void;
+  onImport: (deck: DeckFileData) => string;
 }
 
 export default function SavedDecks({
@@ -16,9 +19,30 @@ export default function SavedDecks({
   onSave,
   onLoad,
   onDelete,
+  onExportCurrent,
+  onImport,
 }: SavedDecksProps) {
   const [name, setName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [fileMessage, setFileMessage] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  async function handleImport(file: File) {
+    setImporting(true);
+    setFileMessage(null);
+    setFileError(null);
+    try {
+      const deck = parseDeckFile(await file.text());
+      const importedName = onImport(deck);
+      setFileMessage(`「${importedName}」を保存一覧に追加しました。「読み込む」で編集できます。`);
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : 'ファイルのインポートに失敗しました。');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const existingNames = new Set(savedDecks.map((deck) => deck.name));
   const trimmed = name.trim();
@@ -65,6 +89,29 @@ export default function SavedDecks({
           </p>
         )}
 
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" disabled={!canSave}
+            onClick={() => onExportCurrent(trimmed || 'デッキ')}>
+            編集中のデッキをエクスポート
+          </Button>
+          <Button variant="secondary" size="sm" disabled={importing}
+            onClick={() => fileInputRef.current?.click()}>
+            {importing ? 'インポート中…' : 'インポート'}
+          </Button>
+          <input ref={fileInputRef} type="file" accept=".json,application/json"
+            aria-label="デッキのJSONファイル" className="hidden" disabled={importing}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void handleImport(file);
+            }} />
+        </div>
+        <p className="text-xs text-gray-400">
+          カード・枚数・ラベル・条件をJSON形式で保存・復元します。同名デッキは別名で追加します。
+        </p>
+        {fileMessage && <p role="status" className="text-xs text-emerald-700">{fileMessage}</p>}
+        {fileError && <p role="alert" className="text-xs text-red-600">{fileError}</p>}
+
         {savedDecks.length === 0 ? (
           <p className="text-xs text-gray-400 py-2 text-center">
             保存されたデッキはまだありません
@@ -110,6 +157,14 @@ export default function SavedDecks({
                       }}
                     >
                       読み込む
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadDeckFile(deck)}
+                      aria-label={`${deck.name}をエクスポート`}
+                    >
+                      エクスポート
                     </Button>
                     <Button
                       variant="ghost"
