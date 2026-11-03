@@ -21,7 +21,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.7",
+    "@babel/core": "^8.0.9",
     "@rolldown/plugin-babel": "^0.2.4",
     "@tailwindcss/vite": "^4.3.3",
     "@types/babel__core": "^7.20.5",
@@ -31,10 +31,10 @@
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/ui": "^5.0.5",
     "babel-plugin-react-compiler": "^1.0.0",
-    "oxlint": "^1.88.0",
+    "oxlint": "^1.90.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
   "description": "遊戯王のための便利ツールをまとめたウェブアプリ",
