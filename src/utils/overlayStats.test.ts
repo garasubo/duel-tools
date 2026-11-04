@@ -7,15 +7,15 @@ import {
 } from './overlayStats';
 
 describe('overlayStats helpers', () => {
-  it('デフォルト設定はコイン表/裏以外を表示で返す', () => {
+  it('デフォルト設定はコイン表/裏を先攻/後攻より前に置き、先攻/後攻は非表示', () => {
     expect(createDefaultOverlayStatSettings()).toEqual([
       { id: 'matchCount', visible: true },
       { id: 'overall', visible: true },
-      { id: 'asFirst', visible: true },
-      { id: 'asSecond', visible: true },
+      { id: 'coinHeads', visible: true },
+      { id: 'coinTails', visible: true },
+      { id: 'asFirst', visible: false },
+      { id: 'asSecond', visible: false },
       { id: 'coinToss', visible: true },
-      { id: 'coinHeads', visible: false },
-      { id: 'coinTails', visible: false },
     ]);
   });
 
@@ -69,6 +69,8 @@ describe('overlayStats helpers', () => {
       { id: 'asSecond', visible: false },
       { id: 'coinToss', visible: false },
       { id: 'matchCount', visible: false },
+      { id: 'coinHeads', visible: false },
+      { id: 'coinTails', visible: false },
     ];
 
     expect(isValidOverlayStatSettings(settings)).toBe(false);
@@ -91,8 +93,8 @@ describe('overlayStats helpers', () => {
       { id: 'asFirst', visible: false },
       { id: 'asSecond', visible: true },
       { id: 'matchCount', visible: true },
-      { id: 'coinHeads', visible: false },
-      { id: 'coinTails', visible: false },
+      { id: 'coinHeads', visible: true },
+      { id: 'coinTails', visible: true },
     ]);
   });
 });

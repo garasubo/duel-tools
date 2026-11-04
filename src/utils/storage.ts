@@ -21,7 +21,7 @@ export function createDefaultStorage(): AppStorage {
     knownTags: [],
     overlayStats: normalizeOverlayStatSettings(undefined),
     panelDateFilter: { type: 'none' },
-    panelIncludeGrantedFirst: false,
+    panelIncludeGrantedFirst: true,
   };
 }
 
@@ -46,6 +46,9 @@ export function normalizeStorage(value: unknown): AppStorage {
       : defaults.knownTags,
     overlayStats: normalizeOverlayStatSettings(parsed.overlayStats),
     panelDateFilter: normalizePanelDateFilter(parsed.panelDateFilter),
-    panelIncludeGrantedFirst: parsed.panelIncludeGrantedFirst === true,
+    panelIncludeGrantedFirst:
+      typeof parsed.panelIncludeGrantedFirst === 'boolean'
+        ? parsed.panelIncludeGrantedFirst
+        : defaults.panelIncludeGrantedFirst,
   };
 }

@@ -10,11 +10,11 @@ export interface OverlayStatDefinition {
 export const OVERLAY_STAT_DEFINITIONS: OverlayStatDefinition[] = [
   { id: 'matchCount', label: '試合数' },
   { id: 'overall', label: '全体' },
-  { id: 'asFirst', label: '先攻' },
-  { id: 'asSecond', label: '後攻' },
+  { id: 'coinHeads', label: 'コイン表' },
+  { id: 'coinTails', label: 'コイン裏' },
+  { id: 'asFirst', label: '先攻', defaultVisible: false },
+  { id: 'asSecond', label: '後攻', defaultVisible: false },
   { id: 'coinToss', label: 'コイン' },
-  { id: 'coinHeads', label: 'コイン表', defaultVisible: false },
-  { id: 'coinTails', label: 'コイン裏', defaultVisible: false },
 ];
 
 export function createDefaultOverlayStatSettings(): OverlayStatSetting[] {

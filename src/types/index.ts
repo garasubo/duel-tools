@@ -69,7 +69,7 @@ export interface AppStorage {
   knownTags: string[];
   overlayStats: OverlayStatSetting[];
   panelDateFilter: PanelDateFilter;
-  // オーバーレイ/パネルの先攻勝率にゆずられ先攻を含めるか（統計ページのチェックボックスと同じ意味）
+  // オーバーレイ/パネルの先攻勝率にゆずられ先攻を含めるか（統計ページのチェックボックスと同じ意味。既定はオン）
   panelIncludeGrantedFirst: boolean;
 }
 
