@@ -78,31 +78,44 @@ export function OverlayStatsPanel({ variant }: { variant: 'overlay' | 'panel' })
   const { items: records } = useRecords();
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
-  const { stats: overlayStatSettings, dateFilter: panelDateFilter } = useOverlaySettings();
+  const {
+    stats: overlayStatSettings,
+    dateFilter: panelDateFilter,
+    includeGrantedFirst,
+  } = useOverlaySettings();
   const draftBattle = useDraftBattle();
   const filteredRecords = filterRecordsByDate(records, panelDateFilter);
-  const { overall, asFirst, asSecond, coinToss } = useStats(filteredRecords, ownDecks, opponentDecks, true);
+  const { overall, asFirst, asSecond, coinHeads, coinTails, coinToss } = useStats(
+    filteredRecords,
+    ownDecks,
+    opponentDecks,
+    includeGrantedFirst,
+  );
   const dark = variant === 'overlay';
 
   // 入力途中（未保存）の一戦を反映する。コイントスは試合数・コイン勝率へ、
-  // 勝敗は全体・先攻・後攻へ（決まっている項目だけを使う）。
+  // 勝敗は全体・先攻・後攻・コイン表・コイン裏へ（決まっている項目だけを使う）。
   const {
     matchCount,
     overall: overallWithDraft,
     asFirst: asFirstWithDraft,
     asSecond: asSecondWithDraft,
+    coinHeads: coinHeadsWithDraft,
+    coinTails: coinTailsWithDraft,
     coinToss: coinTossWithDraft,
   } = applyDraftToOverlayStats(
     filteredRecords.length,
-    { overall, asFirst, asSecond, coinToss },
+    { overall, asFirst, asSecond, coinHeads, coinTails, coinToss },
     draftBattle,
-    true,
+    includeGrantedFirst,
   );
 
   const winLossStatMap: Record<Exclude<OverlayStatId, 'matchCount'>, WinLoss> = {
     overall: overallWithDraft,
     asFirst: asFirstWithDraft,
     asSecond: asSecondWithDraft,
+    coinHeads: coinHeadsWithDraft,
+    coinTails: coinTailsWithDraft,
     coinToss: coinTossWithDraft,
   };
 

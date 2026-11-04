@@ -1,5 +1,5 @@
 import type { Deck, BattleResult, TurnOrder } from '../../types';
-import type { FilterState } from '../../hooks/useFilter';
+import type { CoinTossFilter, FilterState } from '../../hooks/useFilter';
 import ToggleButton, { ToggleButtonGroup } from '../ui/ToggleButton';
 import Button from '../ui/Button';
 
@@ -12,6 +12,11 @@ const TURN_ORDER_OPTIONS: { value: TurnOrder; label: string }[] = [
   { value: 'first', label: '先攻' },
   { value: 'second', label: '後攻' },
   { value: 'third', label: 'ゆずられ先攻' },
+];
+
+const COIN_TOSS_OPTIONS: { value: CoinTossFilter; label: string }[] = [
+  { value: 'heads', label: 'コイン表' },
+  { value: 'tails', label: 'コイン裏' },
 ];
 
 export interface FilterBarProps {
@@ -34,6 +39,7 @@ export default function FilterBar({
     filter.opponentDeckId !== '' ||
     filter.result !== '' ||
     filter.turnOrder !== '' ||
+    filter.coinToss !== '' ||
     filter.dateFrom !== '' ||
     filter.dateTo !== '';
 
@@ -108,6 +114,23 @@ export default function FilterBar({
               isSelected={filter.turnOrder === opt.value}
               onClick={() =>
                 onChange({ turnOrder: filter.turnOrder === opt.value ? '' : opt.value })
+              }
+            >
+              {opt.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-gray-600">コイントス</span>
+        <ToggleButtonGroup label="コイントスフィルタ">
+          {COIN_TOSS_OPTIONS.map((opt) => (
+            <ToggleButton
+              key={opt.value}
+              isSelected={filter.coinToss === opt.value}
+              onClick={() =>
+                onChange({ coinToss: filter.coinToss === opt.value ? '' : opt.value })
               }
             >
               {opt.label}

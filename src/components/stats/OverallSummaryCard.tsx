@@ -1,10 +1,11 @@
-import type { WinLoss } from '../../hooks/useStats';
+import type { StatsSplitMode, WinLoss, WinLossBreakdown } from '../../hooks/useStats';
 import WinRateBar from './WinRateBar';
+import { pickSplit, STATS_SPLIT_LABELS } from './statsSplit';
 
 interface OverallSummaryCardProps {
   overall: WinLoss;
-  asFirst: WinLoss;
-  asSecond: WinLoss;
+  breakdown: WinLossBreakdown;
+  splitMode: StatsSplitMode;
 }
 
 function winRateText(stats: WinLoss): string {
@@ -40,7 +41,13 @@ function SubCard({ label, stats }: SubCardProps) {
   );
 }
 
-export default function OverallSummaryCard({ overall, asFirst, asSecond }: OverallSummaryCardProps) {
+export default function OverallSummaryCard({
+  overall,
+  breakdown,
+  splitMode,
+}: OverallSummaryCardProps) {
+  const [left, right] = pickSplit(breakdown, splitMode);
+  const [leftLabel, rightLabel] = STATS_SPLIT_LABELS[splitMode];
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 flex flex-col gap-4">
       <div className="flex items-baseline gap-3">
@@ -52,8 +59,8 @@ export default function OverallSummaryCard({ overall, asFirst, asSecond }: Overa
       </div>
       <WinRateBar stats={overall} showCounts />
       <div className="grid grid-cols-2 gap-3">
-        <SubCard label="先攻" stats={asFirst} />
-        <SubCard label="後攻" stats={asSecond} />
+        <SubCard label={leftLabel} stats={left} />
+        <SubCard label={rightLabel} stats={right} />
       </div>
     </div>
   );

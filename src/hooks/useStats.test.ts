@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { applyDraftToOverlayStats, calcWLD, computeOpponentDeckStats } from './useStats';
+import {
+  applyDraftToOverlayStats,
+  calcBreakdown,
+  calcWLD,
+  computeOpponentDeckStats,
+} from './useStats';
 import type { WinLoss } from './useStats';
 import type { BattleRecord, Deck } from '../types';
 
@@ -139,6 +144,8 @@ describe('applyDraftToOverlayStats', () => {
     overall: { win: 2, loss: 2, total: 4, winRate: 0.5 } as WinLoss,
     asFirst: { win: 1, loss: 1, total: 2, winRate: 0.5 } as WinLoss,
     asSecond: { win: 1, loss: 1, total: 2, winRate: 0.5 } as WinLoss,
+    coinHeads: { win: 1, loss: 1, total: 2, winRate: 0.5 } as WinLoss,
+    coinTails: { win: 1, loss: 1, total: 2, winRate: 0.5 } as WinLoss,
     coinToss: { win: 2, loss: 2, total: 4, winRate: 0.5 } as WinLoss,
   };
 
@@ -163,8 +170,10 @@ describe('applyDraftToOverlayStats', () => {
     expect(result.coinToss.win).toBe(3);
     expect(result.coinToss.loss).toBe(2);
     expect(result.coinToss.winRate).toBeCloseTo(3 / 5);
-    // 勝敗未確定なので全体/先攻/後攻は不変
+    // 勝敗未確定なので全体/先攻/後攻/コイン表/コイン裏は不変
     expect(result.overall).toEqual(baseStats.overall);
+    expect(result.coinHeads).toEqual(baseStats.coinHeads);
+    expect(result.coinTails).toEqual(baseStats.coinTails);
     expect(result.asFirst).toEqual(baseStats.asFirst);
     expect(result.asSecond).toEqual(baseStats.asSecond);
   });
@@ -181,8 +190,11 @@ describe('applyDraftToOverlayStats', () => {
     expect(result.overall.winRate).toBeCloseTo(3 / 5);
     expect(result.asFirst.win).toBe(2);
     expect(result.asFirst.total).toBe(3);
-    // 後攻は不変
+    expect(result.coinHeads.win).toBe(2);
+    expect(result.coinHeads.total).toBe(3);
+    // 後攻・コイン裏は不変
     expect(result.asSecond).toEqual(baseStats.asSecond);
+    expect(result.coinTails).toEqual(baseStats.coinTails);
   });
 
   it('後攻・負けのとき全体と後攻にも反映される', () => {
@@ -196,7 +208,10 @@ describe('applyDraftToOverlayStats', () => {
     expect(result.overall.total).toBe(5);
     expect(result.asSecond.loss).toBe(2);
     expect(result.asSecond.total).toBe(3);
+    expect(result.coinTails.loss).toBe(2);
+    expect(result.coinTails.total).toBe(3);
     expect(result.asFirst).toEqual(baseStats.asFirst);
+    expect(result.coinHeads).toEqual(baseStats.coinHeads);
   });
 
   it('勝敗のみ(turnOrder未入力)は試合数と全体のみ反映', () => {
@@ -224,5 +239,48 @@ describe('applyDraftToOverlayStats', () => {
     expect(result.asFirst.total).toBe(3);
     expect(result.coinToss.loss).toBe(3);
     expect(result.asSecond).toEqual(baseStats.asSecond);
+  });
+
+  it('ゆずられ先攻はincludeGrantedFirstに関わらずコイン裏に反映される', () => {
+    for (const includeGrantedFirst of [false, true]) {
+      const result = applyDraftToOverlayStats(
+        confirmedCount,
+        baseStats,
+        { turnOrder: 'third', result: 'win' },
+        includeGrantedFirst,
+      );
+      expect(result.coinTails.win).toBe(2);
+      expect(result.coinTails.total).toBe(3);
+      expect(result.coinHeads).toEqual(baseStats.coinHeads);
+    }
+  });
+});
+
+describe('calcBreakdown', () => {
+  const records = [
+    makeRecord({ result: 'win', turnOrder: 'first' }),
+    makeRecord({ result: 'loss', turnOrder: 'first' }),
+    makeRecord({ result: 'win', turnOrder: 'second' }),
+    makeRecord({ result: 'loss', turnOrder: 'second' }),
+    makeRecord({ result: 'win', turnOrder: 'third' }),
+  ];
+
+  it('コイン表は先攻（first）のみ、コイン裏は後攻とゆずられ先攻', () => {
+    const b = calcBreakdown(records);
+    expect(b.coinHeads).toEqual({ win: 1, loss: 1, total: 2, winRate: 0.5 });
+    expect(b.coinTails).toEqual({ win: 2, loss: 1, total: 3, winRate: 2 / 3 });
+  });
+
+  it('コイン表/裏は includeGrantedFirst の影響を受けず、合計が全体と一致する', () => {
+    const b = calcBreakdown(records, true);
+    expect(b.coinHeads.total).toBe(2);
+    expect(b.coinTails.total).toBe(3);
+    expect(b.coinHeads.total + b.coinTails.total).toBe(records.length);
+  });
+
+  it('先攻/後攻は includeGrantedFirst に従う', () => {
+    expect(calcBreakdown(records).asFirst.total).toBe(2);
+    expect(calcBreakdown(records, true).asFirst.total).toBe(3);
+    expect(calcBreakdown(records, true).asSecond.total).toBe(2);
   });
 });

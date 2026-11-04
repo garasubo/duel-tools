@@ -6,7 +6,8 @@ import { useRecords } from '../state/hooks/useRecords';
 import { useOwnDecks } from '../state/hooks/useOwnDecks';
 import { useOpponentDecks } from '../state/hooks/useOpponentDecks';
 import { useFilter } from '../hooks/useFilter';
-import { useStats } from '../hooks/useStats';
+import { useStats, type StatsSplitMode } from '../hooks/useStats';
+import StatsSplitControls from '../components/stats/StatsSplitControls';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { SHARE_API_BASE, STORAGE_KEY } from '../utils/constants';
 import {
@@ -179,9 +180,10 @@ function SharedDashboard() {
   const { items: records } = useRecords();
   const { items: ownDecks } = useOwnDecks();
   const { items: opponentDecks } = useOpponentDecks();
+  const [splitMode, setSplitMode] = useState<StatsSplitMode>('coin');
   const [includeGrantedFirst, setIncludeGrantedFirst] = useState(false);
   const { filter, filtered, updateFilter, resetFilter } = useFilter(records);
-  const { overall, asFirst, asSecond, deckStats, opponentDeckStats, matchupCells } =
+  const { overall, breakdown, deckStats, opponentDeckStats, matchupCells } =
     useStats(filtered, ownDecks, opponentDecks, includeGrantedFirst);
 
   if (records.length === 0) {
@@ -208,25 +210,17 @@ function SharedDashboard() {
         ownDecks={ownDecks}
         opponentDecks={opponentDecks}
       />
-      <div className="flex items-center gap-2">
-        <input
-          id="shared-include-granted-first"
-          type="checkbox"
-          checked={includeGrantedFirst}
-          onChange={(e) => setIncludeGrantedFirst(e.target.checked)}
-          className="w-4 h-4 accent-brand-action"
-        />
-        <label
-          htmlFor="shared-include-granted-first"
-          className="text-sm text-gray-600 select-none cursor-pointer"
-        >
-          ゆずられ先攻を先攻に含める
-        </label>
-      </div>
-      <OverallSummaryCard overall={overall} asFirst={asFirst} asSecond={asSecond} />
+      <StatsSplitControls
+        idPrefix="shared"
+        mode={splitMode}
+        onModeChange={setSplitMode}
+        includeGrantedFirst={includeGrantedFirst}
+        onIncludeGrantedFirstChange={setIncludeGrantedFirst}
+      />
+      <OverallSummaryCard overall={overall} breakdown={breakdown} splitMode={splitMode} />
       <OpponentDeckDistribution opponentDeckStats={opponentDeckStats} />
-      <OpponentDeckStatsTable opponentDeckStats={opponentDeckStats} />
-      <DeckStatsTable deckStats={deckStats} />
+      <OpponentDeckStatsTable opponentDeckStats={opponentDeckStats} splitMode={splitMode} />
+      <DeckStatsTable deckStats={deckStats} splitMode={splitMode} />
       <MatchupTable
         matchupCells={matchupCells}
         ownDecks={ownDecks}

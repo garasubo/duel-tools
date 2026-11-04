@@ -25,6 +25,7 @@ import {
   reduceRenameTag,
   reduceSetOverlayStats,
   reduceSetPanelDateFilter,
+  reduceSetPanelIncludeGrantedFirst,
   reduceUpdateDeck,
   reduceUpdateRecord,
   type NewRecord,
@@ -103,6 +104,7 @@ export interface BattlesStore {
 
   setOverlayStats(stats: OverlayStatSetting[]): void;
   setPanelDateFilter(filter: PanelDateFilter): void;
+  setPanelIncludeGrantedFirst(value: boolean): void;
 
   getDraftBattle(): DraftBattle;
   setDraftBattle(value: DraftBattle): void;
@@ -222,6 +224,9 @@ export function createBattlesStore(
     },
     setPanelDateFilter(filter) {
       commit(reduceSetPanelDateFilter(state, filter));
+    },
+    setPanelIncludeGrantedFirst(value) {
+      commit(reduceSetPanelIncludeGrantedFirst(state, value));
     },
 
     getDraftBattle: () => draftBattle,
