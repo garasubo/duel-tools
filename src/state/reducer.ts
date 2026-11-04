@@ -211,3 +211,11 @@ export function reduceSetPanelDateFilter(
 ): AppStorage {
   return { ...state, panelDateFilter: filter };
 }
+
+export function reduceSetPanelIncludeGrantedFirst(
+  state: AppStorage,
+  value: boolean,
+): AppStorage {
+  if (state.panelIncludeGrantedFirst === value) return state;
+  return { ...state, panelIncludeGrantedFirst: value };
+}

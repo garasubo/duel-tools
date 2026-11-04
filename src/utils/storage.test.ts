@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultStorage, normalizeStorage } from './storage';
 
 describe('normalizeStorage', () => {
+  it('panelIncludeGrantedFirst は既定でオン、boolean 以外は既定値に戻す', () => {
+    expect(createDefaultStorage().panelIncludeGrantedFirst).toBe(true);
+    expect(normalizeStorage({}).panelIncludeGrantedFirst).toBe(true);
+    expect(normalizeStorage({ panelIncludeGrantedFirst: false }).panelIncludeGrantedFirst).toBe(
+      false,
+    );
+    expect(normalizeStorage({ panelIncludeGrantedFirst: 'yes' }).panelIncludeGrantedFirst).toBe(
+      true,
+    );
+  });
+
   it('空の入力ではoverlay設定を含むデフォルト値を返す', () => {
     expect(normalizeStorage(undefined)).toEqual(createDefaultStorage());
   });
@@ -38,6 +49,8 @@ describe('normalizeStorage', () => {
       { id: 'asFirst', visible: false },
       { id: 'asSecond', visible: true },
       { id: 'matchCount', visible: true },
+      { id: 'coinHeads', visible: true },
+      { id: 'coinTails', visible: true },
     ]);
   });
 });

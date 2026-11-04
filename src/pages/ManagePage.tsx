@@ -39,6 +39,8 @@ export default function ManagePage() {
         onUpdate={overlay.setStats}
         panelDateFilter={overlay.dateFilter}
         onUpdateDateFilter={overlay.setDateFilter}
+        includeGrantedFirst={overlay.includeGrantedFirst}
+        onUpdateIncludeGrantedFirst={overlay.setIncludeGrantedFirst}
       />
       <DeckSection
         title="自分のデッキ"

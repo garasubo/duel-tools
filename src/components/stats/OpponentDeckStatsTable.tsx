@@ -1,13 +1,17 @@
-import type { OpponentDeckStat } from '../../hooks/useStats';
+import type { OpponentDeckStat, StatsSplitMode } from '../../hooks/useStats';
 import WinRateCell from './WinRateCell';
+import { pickSplit, STATS_SPLIT_LABELS } from './statsSplit';
 
 interface OpponentDeckStatsTableProps {
   opponentDeckStats: OpponentDeckStat[];
+  splitMode: StatsSplitMode;
 }
 
 export default function OpponentDeckStatsTable({
   opponentDeckStats,
+  splitMode,
 }: OpponentDeckStatsTableProps) {
+  const [leftLabel, rightLabel] = STATS_SPLIT_LABELS[splitMode];
   return (
     <section>
       <h2 className="text-sm font-semibold text-gray-700 mb-2">対戦相手別勝率</h2>
@@ -17,8 +21,8 @@ export default function OpponentDeckStatsTable({
             <tr className="bg-white border-b border-gray-200">
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">相手デッキ名</th>
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">総合</th>
-              <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">先攻</th>
-              <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">後攻</th>
+              <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">{leftLabel}</th>
+              <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap">{rightLabel}</th>
               <th className="px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-right">試合数</th>
             </tr>
           </thead>
@@ -39,10 +43,10 @@ export default function OpponentDeckStatsTable({
                     <WinRateCell stats={deck.overall} />
                   </td>
                   <td className="px-3 py-2">
-                    <WinRateCell stats={deck.asFirst} />
+                    <WinRateCell stats={pickSplit(deck, splitMode)[0]} />
                   </td>
                   <td className="px-3 py-2">
-                    <WinRateCell stats={deck.asSecond} />
+                    <WinRateCell stats={pickSplit(deck, splitMode)[1]} />
                   </td>
                   <td className="px-3 py-2 text-right text-gray-600">{deck.overall.total}</td>
                 </tr>

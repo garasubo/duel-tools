@@ -3,18 +3,25 @@ import type { OverlayStatId, OverlayStatSetting } from '../types';
 export interface OverlayStatDefinition {
   id: OverlayStatId;
   label: string;
+  // 初期状態・旧設定への補完時に表示するか（未指定は表示）
+  defaultVisible?: boolean;
 }
 
 export const OVERLAY_STAT_DEFINITIONS: OverlayStatDefinition[] = [
   { id: 'matchCount', label: '試合数' },
   { id: 'overall', label: '全体' },
-  { id: 'asFirst', label: '先攻' },
-  { id: 'asSecond', label: '後攻' },
+  { id: 'coinHeads', label: 'コイン表' },
+  { id: 'coinTails', label: 'コイン裏' },
+  { id: 'asFirst', label: '先攻', defaultVisible: false },
+  { id: 'asSecond', label: '後攻', defaultVisible: false },
   { id: 'coinToss', label: 'コイン' },
 ];
 
 export function createDefaultOverlayStatSettings(): OverlayStatSetting[] {
-  return OVERLAY_STAT_DEFINITIONS.map(({ id }) => ({ id, visible: true }));
+  return OVERLAY_STAT_DEFINITIONS.map(({ id, defaultVisible }) => ({
+    id,
+    visible: defaultVisible ?? true,
+  }));
 }
 
 export function isOverlayStatId(value: unknown): value is OverlayStatId {
@@ -79,7 +86,7 @@ export function normalizeOverlayStatSettings(
   const merged = [
     ...parsed,
     ...OVERLAY_STAT_DEFINITIONS.filter((stat) => !seen.has(stat.id)).map(
-      ({ id }) => ({ id, visible: true }),
+      ({ id, defaultVisible }) => ({ id, visible: defaultVisible ?? true }),
     ),
   ];
 

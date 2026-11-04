@@ -8,12 +8,22 @@ export interface WinLoss {
   winRate: number; // 0〜1
 }
 
-export interface DeckStat {
+// 勝敗の内訳。先攻/後攻（手番）とコイン表/裏（コイントスの勝敗）の2系統を持つ。
+// - asFirst/asSecond: ゆずられ先攻は includeGrantedFirst が true のときだけ先攻に含める（後攻には含めない）
+// - coinHeads/coinTails: コイントスで先攻を取れた試合（first）が表、それ以外（second/third）が裏
+export interface WinLossBreakdown {
+  asFirst: WinLoss;
+  asSecond: WinLoss;
+  coinHeads: WinLoss;
+  coinTails: WinLoss;
+}
+
+export type StatsSplitMode = 'coin' | 'turn';
+
+export interface DeckStat extends WinLossBreakdown {
   deckId: string;
   deckName: string;
   overall: WinLoss;
-  asFirst: WinLoss;
-  asSecond: WinLoss;
 }
 
 export interface MatchupCell {
@@ -22,12 +32,10 @@ export interface MatchupCell {
   stats: WinLoss;
 }
 
-export interface OpponentDeckStat {
+export interface OpponentDeckStat extends WinLossBreakdown {
   deckId: string; // '' = 不明
   deckName: string; // '不明' を含む
   overall: WinLoss;
-  asFirst: WinLoss;
-  asSecond: WinLoss;
 }
 
 export function calcWLD(records: BattleRecord[]): WinLoss {
@@ -36,6 +44,22 @@ export function calcWLD(records: BattleRecord[]): WinLoss {
   const total = records.length;
   const winRate = total > 0 ? win / total : 0;
   return { win, loss, total, winRate };
+}
+
+function isCountedAsFirst(turnOrder: TurnOrder, includeGrantedFirst: boolean): boolean {
+  return turnOrder === 'first' || (includeGrantedFirst && turnOrder === 'third');
+}
+
+export function calcBreakdown(
+  records: BattleRecord[],
+  includeGrantedFirst = false,
+): WinLossBreakdown {
+  return {
+    asFirst: calcWLD(records.filter((r) => isCountedAsFirst(r.turnOrder, includeGrantedFirst))),
+    asSecond: calcWLD(records.filter((r) => r.turnOrder === 'second')),
+    coinHeads: calcWLD(records.filter((r) => isCoinTossWin(r.turnOrder))),
+    coinTails: calcWLD(records.filter((r) => !isCoinTossWin(r.turnOrder))),
+  };
 }
 
 // 相手デッキ単位で勝率を集計する。
@@ -67,12 +91,7 @@ export function computeOpponentDeckStats(
       deckId,
       deckName,
       overall: calcWLD(recs),
-      asFirst: calcWLD(
-        recs.filter(
-          (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
-        ),
-      ),
-      asSecond: calcWLD(recs.filter((r) => r.turnOrder === 'second')),
+      ...calcBreakdown(recs, includeGrantedFirst),
     });
   }
 
@@ -103,11 +122,13 @@ export interface OverlayStatsValues {
   overall: WinLoss;
   asFirst: WinLoss;
   asSecond: WinLoss;
+  coinHeads: WinLoss;
+  coinTails: WinLoss;
   coinToss: WinLoss;
 }
 
 // 確定済み（保存済み）の集計値に、入力途中（未保存）の一戦を「決まっている項目だけ」加える。
-// - turnOrder が決まればコイン勝率に、result が決まれば全体/先攻/後攻に反映する。
+// - turnOrder が決まればコイン勝率に、result が決まれば全体/先攻/後攻/コイン表/コイン裏に反映する。
 // - 試合数は対戦が進行中（turnOrder か result のどちらかが入力済み）なら +1。
 export function applyDraftToOverlayStats(
   confirmedCount: number,
@@ -115,7 +136,7 @@ export function applyDraftToOverlayStats(
   draft: DraftBattle,
   includeGrantedFirst = false,
 ): OverlayStatsValues {
-  let { overall, asFirst, asSecond, coinToss } = stats;
+  let { overall, asFirst, asSecond, coinHeads, coinTails, coinToss } = stats;
   const active = draft.turnOrder !== null || draft.result !== null;
 
   if (draft.turnOrder) {
@@ -124,13 +145,17 @@ export function applyDraftToOverlayStats(
   if (draft.result) {
     const isWin = draft.result === 'win';
     overall = addToWinLoss(overall, isWin);
-    if (
-      draft.turnOrder === 'first' ||
-      (includeGrantedFirst && draft.turnOrder === 'third')
-    ) {
+    if (draft.turnOrder && isCountedAsFirst(draft.turnOrder, includeGrantedFirst)) {
       asFirst = addToWinLoss(asFirst, isWin);
     } else if (draft.turnOrder === 'second') {
       asSecond = addToWinLoss(asSecond, isWin);
+    }
+    if (draft.turnOrder) {
+      if (isCoinTossWin(draft.turnOrder)) {
+        coinHeads = addToWinLoss(coinHeads, isWin);
+      } else {
+        coinTails = addToWinLoss(coinTails, isWin);
+      }
     }
   }
 
@@ -139,6 +164,8 @@ export function applyDraftToOverlayStats(
     overall,
     asFirst,
     asSecond,
+    coinHeads,
+    coinTails,
     coinToss,
   };
 }
@@ -151,19 +178,9 @@ export function useStats(
 ) {
   const overall = useMemo(() => calcWLD(records), [records]);
 
-  const asFirst = useMemo(
-    () =>
-      calcWLD(
-        records.filter(
-          (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
-        ),
-      ),
+  const breakdown = useMemo(
+    () => calcBreakdown(records, includeGrantedFirst),
     [records, includeGrantedFirst],
-  );
-
-  const asSecond = useMemo(
-    () => calcWLD(records.filter((r) => r.turnOrder === 'second')),
-    [records],
   );
 
   const coinToss = useMemo((): WinLoss => {
@@ -180,12 +197,7 @@ export function useStats(
         deckId: deck.id,
         deckName: deck.name,
         overall: calcWLD(deckRecords),
-        asFirst: calcWLD(
-          deckRecords.filter(
-            (r) => r.turnOrder === 'first' || (includeGrantedFirst && r.turnOrder === 'third'),
-          ),
-        ),
-        asSecond: calcWLD(deckRecords.filter((r) => r.turnOrder === 'second')),
+        ...calcBreakdown(deckRecords, includeGrantedFirst),
       };
     });
   }, [records, ownDecks, includeGrantedFirst]);
@@ -214,5 +226,13 @@ export function useStats(
     return cells;
   }, [records, ownDecks, opponentDecks]);
 
-  return { overall, asFirst, asSecond, coinToss, deckStats, opponentDeckStats, matchupCells };
+  return {
+    overall,
+    ...breakdown,
+    breakdown,
+    coinToss,
+    deckStats,
+    opponentDeckStats,
+    matchupCells,
+  };
 }

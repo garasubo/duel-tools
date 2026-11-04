@@ -15,6 +15,8 @@ export interface OverlaySectionProps {
   onUpdate: (settings: OverlayStatSetting[]) => void;
   panelDateFilter: PanelDateFilter;
   onUpdateDateFilter: (filter: PanelDateFilter) => void;
+  includeGrantedFirst: boolean;
+  onUpdateIncludeGrantedFirst: (value: boolean) => void;
 }
 
 export default function OverlaySection({
@@ -22,6 +24,8 @@ export default function OverlaySection({
   onUpdate,
   panelDateFilter,
   onUpdateDateFilter,
+  includeGrantedFirst,
+  onUpdateIncludeGrantedFirst,
 }: OverlaySectionProps) {
   const visibleCount = overlayStatSettings.filter(
     (stat) => stat.visible,
@@ -140,6 +144,21 @@ export default function OverlaySection({
             }
           />
         )}
+      </div>
+      <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2">
+        <input
+          id="overlay-include-granted-first"
+          type="checkbox"
+          checked={includeGrantedFirst}
+          onChange={(e) => onUpdateIncludeGrantedFirst(e.target.checked)}
+          className="w-4 h-4 accent-brand-action"
+        />
+        <label
+          htmlFor="overlay-include-granted-first"
+          className="text-sm text-gray-600 select-none cursor-pointer"
+        >
+          ゆずられ先攻を先攻に含める
+        </label>
       </div>
     </section>
   );

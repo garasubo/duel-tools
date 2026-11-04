@@ -5,6 +5,8 @@ export type OverlayStatId =
   | 'overall'
   | 'asFirst'
   | 'asSecond'
+  | 'coinHeads'
+  | 'coinTails'
   | 'coinToss'
   | 'matchCount';
 
@@ -67,6 +69,8 @@ export interface AppStorage {
   knownTags: string[];
   overlayStats: OverlayStatSetting[];
   panelDateFilter: PanelDateFilter;
+  // オーバーレイ/パネルの先攻勝率にゆずられ先攻を含めるか（統計ページのチェックボックスと同じ意味。既定はオン）
+  panelIncludeGrantedFirst: boolean;
 }
 
 // 記録モードの共有スナップショット。デッキ名・タグを埋め込んだ自己完結データで、
